@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS = {
   mpThreshold: 0.25,
   showTracker: true,  // 화면 우측 퀘스트 목표 상시 표시
   showDamage: true,   // 데미지 숫자 표시
+  windowPos: {},      // 창 id -> {x, y}. 끌어다 놓은 자리를 기억한다
 };
 
 const SettingsManager = {

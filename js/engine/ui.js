@@ -1,6 +1,8 @@
 // 파티 슬롯별 스킬 단축키: 1번 QWE / 2번 ASD / 3번 ZXC
 const SLOT_SKILL_KEYS = [['q', 'w', 'e'], ['a', 's', 'd'], ['z', 'x', 'c']];
 // 설정 창의 조작 안내. 하단 힌트바에 다 욱여넣지 않고 여기로 모았다.
+const WINDOW_TOP = 62; // 상단 바(56px) 아래에서 창이 시작한다
+
 const KEY_GUIDE = [
   ['← →', '이동'],
   ['↑', '점프 / 포탈 진입'],
@@ -99,7 +101,7 @@ class UIManager {
       }
     });
 
-    this._initChatDrag();
+    this._initWindowManager();
     this._initChatControls();
     this._initCreateScreen();
   }
@@ -231,6 +233,112 @@ class UIManager {
   get isCreating() { return !document.getElementById('create-screen').classList.contains('hidden'); }
 
   // ---------- 창 ----------
+  // ---------- 창 배치 ----------
+  // 창이 전부 화면 한가운데 겹쳐 뜨던 것을 고친다.
+  // 열 때 비어 있는 자리를 찾아 놓고, 사용자가 끌어다 놓으면 그 자리를 기억한다.
+  _initWindowManager() {
+    this._zTop = 10;
+    document.querySelectorAll('.game-window').forEach((el) => {
+      const handle = el.querySelector('.window-title-bar');
+      if (handle) this._makeDraggable(el, handle);
+      el.addEventListener('pointerdown', () => this._bringToFront(el));
+    });
+    const chat = document.getElementById('chat-window');
+    this._makeDraggable(chat, document.getElementById('chat-drag-handle'));
+    chat.addEventListener('pointerdown', () => this._bringToFront(chat));
+    // 채팅창은 열려 있는 채로 시작하므로 기억해둔 자리를 여기서 되돌린다.
+    const savedChat = (SettingsManager.values.windowPos || {})['chat-window'];
+    if (savedChat) this._setWindowPos(chat, savedChat.x, savedChat.y);
+  }
+
+  _bringToFront(el) {
+    this._zTop += 1;
+    el.style.zIndex = this._zTop;
+  }
+
+  _setWindowPos(el, x, y) {
+    el.style.left = `${Math.round(x)}px`;
+    el.style.top = `${Math.round(y)}px`;
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+    el.style.transform = 'none';
+  }
+
+  _makeDraggable(el, handle) {
+    if (!el || !handle) return;
+    handle.style.cursor = 'move';
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.target.tagName === 'BUTTON') return; // 닫기·최소화 버튼은 그대로 동작해야 한다
+      const root = document.getElementById('game-root').getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      const offX = e.clientX - box.left;
+      const offY = e.clientY - box.top;
+      const move = (ev) => {
+        // 제목 표시줄이 화면 밖으로 나가면 다시 못 잡으므로 경계를 물린다.
+        const x = clamp(ev.clientX - root.left - offX, 0, root.width - box.width);
+        const y = clamp(ev.clientY - root.top - offY, 0, root.height - 28);
+        this._setWindowPos(el, x, y);
+        el.dataset.userPos = '1';
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        this._saveWindowPos(el);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      e.preventDefault();
+    });
+  }
+
+  _saveWindowPos(el) {
+    const root = document.getElementById('game-root').getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    const all = { ...(SettingsManager.values.windowPos || {}) };
+    all[el.id] = { x: Math.round(box.left - root.left), y: Math.round(box.top - root.top) };
+    SettingsManager.set('windowPos', all);
+  }
+
+  // 이미 열려 있는 창과 겹치지 않는 첫 자리를 고른다. 좌/우 두 자리가 기본이고,
+  // 셋 이상이면 제목 표시줄이 보이도록 계단식으로 비껴 놓는다.
+  _placeWindow(el) {
+    const saved = (SettingsManager.values.windowPos || {})[el.id];
+    const root = document.getElementById('game-root').getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    if (saved) {
+      this._setWindowPos(el, clamp(saved.x, 0, root.width - box.width), clamp(saved.y, 0, root.height - 28));
+      return;
+    }
+    const others = [...document.querySelectorAll('.game-window')]
+      .filter((w) => w !== el && !w.classList.contains('hidden'))
+      .map((w) => w.getBoundingClientRect());
+    const overlaps = (x, y) => others.some((o) => !(
+      root.left + x + box.width <= o.left || root.left + x >= o.right
+      || root.top + y + box.height <= o.top || root.top + y >= o.bottom));
+
+    const top = WINDOW_TOP;
+    const free = [[10, top], [root.width - box.width - 10, top]].find(([x, y]) => !overlaps(x, y));
+    if (free) {
+      this._setWindowPos(el, free[0], free[1]);
+      return;
+    }
+    // 화면이 960x540이라 이 크기의 창은 둘까지만 안 겹친다.
+    // 셋째부터는 제목 표시줄이 가려지지 않게 열려 있는 수만큼 계단식으로 비껴 놓는다.
+    const step = Math.max(0, others.length - 1);
+    this._setWindowPos(el,
+      clamp(30 + step * 28, 0, root.width - box.width),
+      clamp(top + 30 + step * 26, 0, root.height - 28));
+  }
+
+  // 설정에서 "창 위치 초기화"를 누르면 기억해둔 자리를 지우고 다시 자동 배치한다.
+  resetWindowLayout() {
+    SettingsManager.set('windowPos', {});
+    document.querySelectorAll('.game-window').forEach((el) => {
+      delete el.dataset.userPos;
+      if (!el.classList.contains('hidden')) this._placeWindow(el);
+    });
+  }
+
   openWindow(id) {
     if (this.isCreating) return;
     if (SOUND) SOUND.ui();
@@ -242,7 +350,11 @@ class UIManager {
     if (id === 'tower-window') this.refreshTower();
     if (id === 'settings-window') this.refreshSettings();
     if (id === 'inventory-window') this.refreshInventory();
-    document.getElementById(id).classList.remove('hidden');
+    const el = document.getElementById(id);
+    el.classList.remove('hidden');
+    // 숨김을 푼 뒤에야 크기를 잴 수 있어서 여기서 자리를 잡는다.
+    this._placeWindow(el);
+    this._bringToFront(el);
   }
 
   isWindowOpen(id) { return !document.getElementById(id).classList.contains('hidden'); }
@@ -819,7 +931,10 @@ class UIManager {
         ${KEY_GUIDE.map((k) => `<div class="row"><span>${k[0]}</span><span>${k[1]}</span></div>`).join('')}
       </div>
 
-      <button id="set-reset" style="margin-top:10px;">설정 기본값으로</button>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button id="set-window-reset">창 위치 초기화</button>
+        <button id="set-reset">설정 기본값으로</button>
+      </div>
     `;
 
     const body = document.getElementById('settings-body');
@@ -846,7 +961,14 @@ class UIManager {
       this.refreshTracker();
     });
     bind('set-damage', 'change', (e) => SettingsManager.set('showDamage', e.target.checked));
-    bind('set-reset', 'click', () => { SettingsManager.reset(); this._trackerKey = null; this.refreshSettings(); this.refreshTracker(); });
+    bind('set-window-reset', 'click', () => { this.resetWindowLayout(); this.logChat('창 위치를 초기화했습니다.', 'system'); });
+    bind('set-reset', 'click', () => {
+      SettingsManager.reset();
+      this._trackerKey = null;
+      this.resetWindowLayout();
+      this.refreshSettings();
+      this.refreshTracker();
+    });
     body.scrollTop = 0;
   }
 
@@ -1440,31 +1562,4 @@ class UIManager {
     el.scrollTop = el.scrollHeight;
   }
 
-  _initChatDrag() {
-    const chatWin = document.getElementById('chat-window');
-    const handle = document.getElementById('chat-drag-handle');
-    const root = document.getElementById('game-root');
-    let dragging = false; let offsetX = 0; let offsetY = 0;
-
-    handle.addEventListener('mousedown', (e) => {
-      dragging = true;
-      const rect = chatWin.getBoundingClientRect();
-      const rootRect = root.getBoundingClientRect();
-      chatWin.style.left = `${rect.left - rootRect.left}px`;
-      chatWin.style.top = `${rect.top - rootRect.top}px`;
-      chatWin.style.bottom = 'auto';
-      offsetX = e.clientX - rect.left;
-      offsetY = e.clientY - rect.top;
-      e.preventDefault();
-    });
-    window.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      const rootRect = root.getBoundingClientRect();
-      const left = clamp(e.clientX - rootRect.left - offsetX, 0, rootRect.width - chatWin.offsetWidth);
-      const top = clamp(e.clientY - rootRect.top - offsetY, 0, rootRect.height - chatWin.offsetHeight);
-      chatWin.style.left = `${left}px`;
-      chatWin.style.top = `${top}px`;
-    });
-    window.addEventListener('mouseup', () => { dragging = false; });
-  }
 }
