@@ -267,4 +267,14 @@ const ZONE_DATA = [
   },
 ];
 
+// 엔드게임 존. 층을 올라갈 때마다 내용물을 갈아 끼우므로 enemies/exits는 비워 둔다.
+// noRespawn이 있어야 "층을 다 비웠다" 판정이 성립한다.
+ZONE_DATA.push({
+  id: 'tower', theme: 'demon', type: 'tower', name: '심연의 탑', level: 60, width: 1700,
+  groundColor: '#241a2e', noRespawn: true,
+  platforms: [{ x: 470, width: 360, y: FLOOR2_Y }, { x: 1010, width: 360, y: FLOOR2_Y }],
+  exits: [],
+  enemies: [],
+});
+
 const ENEMY_RESPAWN_MS = 12000;

@@ -16,6 +16,13 @@ class PartyUnit {
     this.isPlayerCreated = !!runtime.nickname;
     this.uid = nextUid();
 
+    // 캐릭터 고유 특성(패시브)과 전용기. defId는 id가 player_N으로 덮이기 전에 붙잡아 둔다.
+    this.defId = def.id;
+    this.trait = traitOf(def.id);
+    this.signature = signatureOf(def.id);
+    this.sigCooldown = 0;
+    this.buffs = []; // 전용기로 걸린 일시 강화
+
     this.level = runtime.level || 1;
     this.xp = runtime.xp || 0;
     this.stats = { ...def.baseStats };
@@ -29,9 +36,15 @@ class PartyUnit {
     });
 
     // 장비. 무기는 자기 스탠스 풀에 있는 것만, 방어구는 자기 등급만 장착할 수 있다.
+    // 무기는 세트 3벌로 등록해두고 통째로 갈아끼운다(장비교체등록).
     this.armorClass = ARMOR_CLASS_BY_TYPE[def.attackType];
+    this.weaponSets = [];
+    for (let i = 0; i < WEAPON_SET_COUNT; i++) this.weaponSets.push([null, null]);
+    this.activeSet = 0;
+    this.setSwapCooldown = 0;
     this.equipment = {};
     EQUIP_SLOTS.forEach((slot) => { this.equipment[slot] = null; });
+    this._bindWeaponSlots();
     this._equipStarterGear();
 
     this.width = 34; this.height = 52;
@@ -53,19 +66,77 @@ class PartyUnit {
     const base = 60 + this.stats.vit * 8 + this.level * 10;
     const gearBonus = this.equipment ? this.equipmentBonus().hpPct : 0;
     const synergyBonus = (this.synergy || EMPTY_SYNERGY).hpPct;
-    const familyBonus = (this.family || EMPTY_FAMILY_BONUS).hpPct;
+    const familyBonus = (this.bonus || EMPTY_FAMILY_BONUS).hpPct;
     return Math.round(base * (1 + gearBonus + synergyBonus + familyBonus));
   }
   _calcMaxMp() { return 30 + this.stats.int * 3 + this.stats.sen * 2; }
 
-  // 생성 시 스탠스에 맞는 기본 무기와 등급에 맞는 기본 방어구를 착용한 채로 시작한다.
+  // equipment.weapon1/weapon2를 '현재 든 세트'로 연결한다.
+  // 이렇게 해두면 세트를 바꾸는 것만으로 장비창·스탠스·전투 계산이 전부 따라온다.
+  _bindWeaponSlots() {
+    WEAPON_SLOTS.forEach((slot, i) => {
+      Object.defineProperty(this.equipment, slot, {
+        get: () => this.weaponSets[this.activeSet][i],
+        set: (gear) => { this.weaponSets[this.activeSet][i] = gear; },
+        enumerable: true,
+        configurable: true,
+      });
+    });
+  }
+
+  // 생성 시 기본 무기를 세트1·세트2에 나눠 넣고, 등급에 맞는 기본 방어구를 입힌다.
+  // 세트마다 스탠스가 다르므로 처음부터 교체(1/2키)의 의미가 생긴다.
   _equipStarterGear() {
-    this.stanceIds.slice(0, 2).forEach((sid, i) => {
+    this.stanceIds.slice(0, WEAPON_SET_COUNT).forEach((sid, i) => {
       const weaponId = STARTER_WEAPON_BY_STANCE[sid];
-      if (weaponId) this.equipment[i === 0 ? 'weapon1' : 'weapon2'] = new Gear(weaponId);
+      if (weaponId) this.weaponSets[i][0] = new Gear(weaponId);
     });
     const set = STARTER_ARMOR_SET[this.armorClass];
     Object.entries(set).forEach(([slot, itemId]) => { this.equipment[slot] = new Gear(itemId); });
+  }
+
+  // 세트에 등록된 무기가 주는 스탠스(빈 세트는 맨손)
+  setStances(index) {
+    const ids = this.weaponSets[index].filter(Boolean).map((g) => g.stanceId);
+    const unique = [...new Set(ids)];
+    return unique.length ? unique : ['bare'];
+  }
+
+  get swapReady() { return this.setSwapCooldown <= 0; }
+
+  // 무기 세트 교체. 교체 직후에는 잠깐 공격이 막히고 재사용 대기가 돈다.
+  swapWeaponSet(index) {
+    if (index === this.activeSet || index < 0 || index >= WEAPON_SET_COUNT) return false;
+    if (this.setSwapCooldown > 0) return false;
+    this.activeSet = index;
+    this.currentStanceIndex = 0;
+    this.setSwapCooldown = WEAPON_SWAP_COOLDOWN_MS;
+    this.basicAtkCooldown = Math.max(this.basicAtkCooldown, WEAPON_SWAP_LOCK_MS);
+    return true;
+  }
+
+  // 비활성 세트에도 무기를 꽂을 수 있어야 한다(전투 전에 미리 등록).
+  assignWeapon(gear, setIndex, slotIdx) {
+    if (!gear || gear.slot !== 'weapon' || !this.canEquip(gear.itemId)) return { ok: false };
+    if (setIndex < 0 || setIndex >= WEAPON_SET_COUNT || slotIdx < 0 || slotIdx > 1) return { ok: false };
+    const previous = this.weaponSets[setIndex][slotIdx];
+    this.weaponSets[setIndex][slotIdx] = gear;
+    if (setIndex === this.activeSet) this.currentStanceIndex = 0;
+    return { ok: true, previous };
+  }
+
+  removeWeapon(setIndex, slotIdx) {
+    const gear = this.weaponSets[setIndex][slotIdx];
+    if (!gear) return null;
+    this.weaponSets[setIndex][slotIdx] = null;
+    if (setIndex === this.activeSet) this.currentStanceIndex = 0;
+    return gear;
+  }
+
+  // 방어구 + 세 세트의 무기 전부. 해고 시 회수하거나 uid로 찾을 때 쓴다.
+  allGear() {
+    const armor = EQUIP_SLOTS.filter((s) => !WEAPON_SLOTS.includes(s)).map((s) => this.equipment[s]);
+    return [...armor, ...this.weaponSets.flat()].filter(Boolean);
   }
 
   // 실제로 쓸 수 있는 스탠스 = 장착한 무기가 주는 스탠스. 무기가 없으면 맨손뿐.
@@ -131,6 +202,28 @@ class PartyUnit {
     return { atk, def, crit, hpPct };
   }
 
+  // ---------- 고유 특성 / 전용기 ----------
+  get signatureUnlocked() { return !!this.signature && this.level >= SIGNATURE_REQ_LEVEL; }
+
+  addBuff(name, bonus, durationMs) {
+    const existing = this.buffs.find((b) => b.name === name);
+    if (existing) { existing.remain = durationMs; return; }
+    this.buffs.push({ name, bonus, remain: durationMs });
+  }
+
+  tickBuffs(dt) {
+    if (this.buffs.length === 0) return false;
+    this.buffs.forEach((b) => { b.remain -= dt; });
+    const before = this.buffs.length;
+    this.buffs = this.buffs.filter((b) => b.remain > 0);
+    return this.buffs.length !== before;
+  }
+
+  // 특성 + 걸려 있는 버프를 합쳐, 가문 보너스와 더할 수 있는 형태로 낸다.
+  personalBonus() {
+    return mergeBonuses(this.trait ? this.trait.bonus : null, ...this.buffs.map((b) => b.bonus));
+  }
+
   get stanceState() { return this.stanceProgress[this.currentStanceId]; }
 
   skillLevel(skillId) { return this.stanceState.skills[skillId] || 0; }
@@ -182,6 +275,7 @@ class PartyUnit {
     }
     if (leveled) {
       if (EFFECTS) EFFECTS.levelUp(this);
+      if (SOUND) SOUND.levelUp();
       if (logFn) logFn(`${this.name} 레벨업! (${rankLabel(this.level)})`, 'system');
     }
   }
@@ -217,6 +311,7 @@ class Enemy {
 
     // 보스: 덩치가 크고 패턴을 돌린다.
     this.boss = !!def.boss;
+    this.bossData = def.bossData || null; // 층마다 수치가 달라지는 탑 보스용
     this.summoned = !!def.summoned;
     this.respawnMs = this.boss ? BOSS_RESPAWN_MS : ENEMY_RESPAWN_MS;
     if (this.boss) {

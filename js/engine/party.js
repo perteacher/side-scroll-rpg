@@ -22,7 +22,7 @@ class PartyManager {
 
   findGear(uid) {
     return this.gear.find((g) => g.uid === Number(uid))
-      || [...this.units.values()].flatMap((u) => u.equippedList().map((e) => e.gear)).find((g) => g.uid === Number(uid));
+      || [...this.units.values()].flatMap((u) => u.allGear()).find((g) => g.uid === Number(uid));
   }
 
   takeGear(uid) {
@@ -221,10 +221,10 @@ class PartyManager {
   dismiss(unitId) {
     const unit = this.units.get(unitId);
     if (!unit) return false;
-    unit.equippedList().forEach(({ slot }) => {
-      const gear = unit.unequip(slot);
-      if (gear) this.gear.push(gear);
-    });
+    // 등록해둔 무기 세트까지 전부 회수한다.
+    unit.allGear().forEach((gear) => this.gear.push(gear));
+    EQUIP_SLOTS.forEach((slot) => { unit.equipment[slot] = null; });
+    unit.weaponSets.forEach((pair) => { pair[0] = null; pair[1] = null; });
     this.units.delete(unitId);
     const idx = this.partyIds.indexOf(unitId);
     if (idx >= 0) this.partyIds.splice(idx, 1);

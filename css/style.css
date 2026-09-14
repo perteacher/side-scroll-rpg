@@ -77,7 +77,8 @@ html, body {
 }
 .slot-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 90px; }
 .name-lv { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hotbar { display: grid; grid-template-columns: repeat(3, 22px); grid-template-rows: repeat(3, 22px); gap: 2px; }
+/* 스킬 3개 + 전용기(R) 1개가 한 줄에 들어가야 한다. */
+.hotbar { display: grid; grid-template-columns: repeat(4, 22px); grid-template-rows: 22px; gap: 2px; align-content: center; }
 .hotbar .skill-btn {
   width: 22px; height: 22px; font-size: 9px; background: rgba(0,0,0,0.55); border: 1px solid #666; border-radius: 3px;
   color: #fff; display: flex; align-items: center; justify-content: center; position: relative; padding: 0;
@@ -321,3 +322,43 @@ html, body {
 .q-btns { display: flex; flex-direction: column; gap: 4px; }
 .q-btns button { font-size: 10px; padding: 4px 10px; background: #2c2c44; border: 1px solid #555; color: #fff; border-radius: 3px; cursor: pointer; white-space: nowrap; }
 .q-btns button.primary { background: #b7950b; border-color: #f1c40f; color: #111; font-weight: bold; }
+
+/* ---- 무기 세트(장비교체등록) ---- */
+.hint-text { font-size: 11px; opacity: 0.65; margin: 0 0 8px; line-height: 1.5; }
+.wset-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.wset {
+  border: 1px solid #3b4a5a; border-radius: 5px; padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03); cursor: pointer;
+}
+.wset.editing { border-color: #5dade2; background: rgba(93, 173, 226, 0.08); }
+.wset.active { box-shadow: inset 3px 0 0 #f1c40f; }
+.wset-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; }
+.wset-head b { min-width: 46px; }
+.wset-stance { color: #8ad6ff; flex: 1; }
+.wset-atk { opacity: 0.75; font-size: 11px; }
+.wset-badge.on { font-size: 10px; color: #f1c40f; border: 1px solid #f1c40f; border-radius: 3px; padding: 1px 5px; }
+.wset-slot { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 2px 0 2px 6px; }
+.wset-slot-name { min-width: 54px; opacity: 0.6; }
+.wset-item { flex: 1; }
+.name-lv .wset-tag {
+  margin-left: 5px; font-size: 9px; padding: 0 4px; border-radius: 3px;
+  background: rgba(241, 196, 15, 0.18); color: #f1c40f; vertical-align: 1px;
+}
+
+/* ---- 전용기 / 고유 특성 ---- */
+.skill-btn.sig-btn { border-color: #b9770e; background: rgba(241, 196, 15, 0.14); }
+.skill-btn.sig-btn.locked { border-color: #4a4a4a; background: rgba(255, 255, 255, 0.04); }
+.syn-row.locked { opacity: 0.55; }
+
+/* ---- 심연의 탑 ---- */
+.tower-stat { display: flex; gap: 8px; margin-bottom: 10px; }
+.tower-stat > div {
+  flex: 1; text-align: center; padding: 7px 4px; border-radius: 5px;
+  background: rgba(155, 89, 182, 0.12); border: 1px solid #5b3a6e;
+}
+.tower-stat span { display: block; font-size: 10px; opacity: 0.65; margin-bottom: 3px; }
+.tower-stat b { font-size: 14px; color: #d7a3f0; }
+.tower-row { font-size: 12px; margin-bottom: 8px; }
+.tower-floors { display: flex; flex-wrap: wrap; gap: 6px; }
+.tower-floors button { min-width: 68px; }
+#tower-leave-btn { margin-bottom: 6px; }

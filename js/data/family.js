@@ -50,9 +50,21 @@ const FAMILY_TRAITS = [
 
 const FAMILY_TIER_LABEL = { 1: '1단계 — 기초', 2: '2단계 — 숙련', 3: '3단계 — 비전' };
 
+// 가문 특성 · 캐릭터 고유 특성 · 전용기 버프가 모두 이 형태로 합산돼 unit.bonus가 된다.
 const EMPTY_FAMILY_BONUS = {
   atk: 0, def: 0, hpPct: 0, atkSpeed: 0, moveSpeed: 0, accuracy: 0, pierce: 0, atkPct: 0,
+  defPct: 0, crit: 0, critDmg: 0, lifesteal: 0,
 };
+
+// 같은 형태의 보너스 여러 개를 더한다(가문 + 특성 + 버프).
+function mergeBonuses(...sources) {
+  const out = { ...EMPTY_FAMILY_BONUS };
+  sources.forEach((src) => {
+    if (!src) return;
+    Object.keys(out).forEach((k) => { out[k] += src[k] || 0; });
+  });
+  return out;
+}
 
 // 특성 효과 설명 문구
 function familyTraitEffectText(trait, points) {

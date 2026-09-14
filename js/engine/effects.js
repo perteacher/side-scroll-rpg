@@ -52,6 +52,14 @@ class EffectManager {
     });
   }
 
+  // 무기 세트 교체 연출: 발밑에서 링이 퍼진다.
+  swap(unit) {
+    this._add({
+      kind: 'swap', x: unit.x + unit.width / 2, y: unit.y + unit.height,
+      life: 420, maxLife: 420, color: '#f7dc6f',
+    });
+  }
+
   levelUp(unit) {
     this._add({
       kind: 'text', x: unit.x + unit.width / 2, y: unit.y - 6, vy: -30, life: 1200, maxLife: 1200,
@@ -82,6 +90,7 @@ class EffectManager {
       else if (it.kind === 'spark') this._drawSpark(ctx, it);
       else if (it.kind === 'burst') this._drawBurst(ctx, it, t);
       else if (it.kind === 'cast') this._drawCast(ctx, it, t);
+      else if (it.kind === 'swap') this._drawSwap(ctx, it, t);
       ctx.restore();
     });
   }
@@ -135,6 +144,20 @@ class EffectManager {
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(it.x, it.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  _drawSwap(ctx, it, t) {
+    const r = 10 + (1 - t) * 34;
+    ctx.strokeStyle = it.color;
+    ctx.lineWidth = 3 * t + 0.5;
+    ctx.beginPath();
+    ctx.ellipse(it.x, it.y - 4, r, r * 0.32, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${t * 0.7})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(it.x, it.y - 4, r * 0.6, r * 0.2, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
 

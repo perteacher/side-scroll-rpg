@@ -18,6 +18,8 @@
       <button data-open="quest" title="퀘스트 (J)">📖</button>
       <button data-open="teleport" title="텔레포트 (T)">🌀</button>
       <button data-open="family" title="가문 특성 (F)">🏰</button>
+      <button data-open="tower" title="심연의 탑 (G)">🗼</button>
+      <button id="sound-btn" title="소리">🔊</button>
       <button id="chat-toggle-btn" title="채팅창 열기">💬</button>
       <button id="save-btn" title="저장 (10초마다 자동 저장됨)">💾</button>
       <button id="reset-btn" title="새로 시작 (저장 삭제)">🔄</button>
@@ -53,7 +55,7 @@
     <div id="chat-log"></div>
   </div>
 
-  <div id="hint-bar">방향키 이동 · ↑ 점프/포탈진입 · ↓ 아래층 내려가기 · Space 공격 · 스킬 QWE(1번)/ASD(2번)/ZXC(3번) · V 스탠스 · Tab 리더전환 · I 인벤 · Alt+E 정보 · J 퀘스트 · B 병영 · T 텔레포트</div>
+  <div id="hint-bar">방향키 이동 · ↑ 점프/포탈진입 · ↓ 아래층 내려가기 · Space 공격 · 스킬 QWE(1번)/ASD(2번)/ZXC(3번) · V 스탠스 · R 전용기 · 1/2/3 무기세트 · Tab 리더전환 · I 인벤 · Alt+E 정보 · J 퀘스트 · B 병영 · T 텔레포트 · G 심연의 탑</div>
 
   <!-- 캐릭터 생성 화면 -->
   <div id="create-screen">
@@ -124,6 +126,12 @@
     <div id="board-body"></div>
   </div>
 
+  <!-- 심연의 탑 창 -->
+  <div id="tower-window" class="game-window hidden">
+    <div class="window-title-bar"><span>심연의 탑 — 엔드게임 도전</span><button class="close-btn" data-close="tower-window">✕</button></div>
+    <div id="tower-body"></div>
+  </div>
+
   <!-- 가문 특성 창 -->
   <div id="family-window" class="game-window hidden">
     <div class="window-title-bar"><span>가문 특성</span><button class="close-btn" data-close="family-window">✕</button></div>
@@ -158,6 +166,8 @@
 <script src="js/data/bosses.js"></script>
 <script src="js/data/synergy.js"></script>
 <script src="js/data/family.js"></script>
+<script src="js/data/tower.js"></script>
+<script src="js/data/signatures.js"></script>
 <script src="js/data/generalquests.js"></script>
 <script src="js/engine/utils.js"></script>
 <script src="js/engine/stats.js"></script>
@@ -166,12 +176,14 @@
 <script src="js/engine/ai.js"></script>
 <script src="js/engine/party.js"></script>
 <script src="js/engine/zone.js"></script>
+<script src="js/engine/tower.js"></script>
 <script src="js/engine/quest.js"></script>
 <script src="js/engine/save.js"></script>
 <script src="js/engine/scenario.js"></script>
 <script src="js/engine/family.js"></script>
 <script src="js/engine/generalquest.js"></script>
 <script src="js/engine/effects.js"></script>
+<script src="js/engine/audio.js"></script>
 <script src="js/engine/renderer.js"></script>
 <script src="js/engine/ui.js"></script>
 <script src="js/engine/game.js"></script>

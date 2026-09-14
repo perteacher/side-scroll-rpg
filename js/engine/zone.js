@@ -74,6 +74,7 @@ class ZoneManager {
     this.enemies.forEach((e) => {
       if (e.alive) return;
       if (e.summoned) { hasDeadSummon = true; return; } // 소환된 잡몹은 부활하지 않는다
+      if (this.def.noRespawn) return; // 심연의 탑: 다 잡으면 층이 끝나야 한다
       e.respawnTimer -= dt;
       if (e.respawnTimer <= 0) e.respawn();
     });

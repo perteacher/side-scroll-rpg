@@ -48,6 +48,8 @@ const SaveManager = {
         currentStanceIndex: u.currentStanceIndex,
         stanceProgress: u.stanceProgress,
         equipment: Object.fromEntries(EQUIP_SLOTS.map((s) => [s, u.equipment[s] ? serializeGear(u.equipment[s]) : null])),
+        activeSet: u.activeSet,
+        weaponSets: u.weaponSets.map((pair) => pair.map((g) => (g ? serializeGear(g) : null))),
       })),
       gear: pm.gear.map(serializeGear),
       items: [...pm.items.entries()],
@@ -64,6 +66,7 @@ const SaveManager = {
         level: game.fm.level, xp: game.fm.xp, allocations: { ...game.fm.allocations },
       },
       seenLevels: [...(game._seenLevels || new Map())],
+      tower: { bestFloor: game.tower.bestFloor },
       scenario: {
         chapterIndex: sm.chapterIndex, stepIndex: sm.stepIndex,
         huntCount: sm.huntCount, finished: sm.finished,
@@ -106,7 +109,19 @@ const SaveManager = {
       unit.currentStanceIndex = ud.currentStanceIndex || 0;
       unit.downed = !!ud.downed;
       if (ud.stanceProgress) Object.assign(unit.stanceProgress, ud.stanceProgress);
+      // 무기 세트가 저장돼 있으면 그쪽을 쓰고, 구버전 세이브는 장비 슬롯을 세트1로 옮겨 담는다.
+      if (ud.weaponSets) {
+        unit.activeSet = clamp(ud.activeSet || 0, 0, WEAPON_SET_COUNT - 1);
+        for (let i = 0; i < WEAPON_SET_COUNT; i++) {
+          const pair = ud.weaponSets[i] || [null, null];
+          unit.weaponSets[i] = [0, 1].map((j) => (pair[j] ? reviveGear(pair[j]) : null));
+        }
+      } else {
+        unit.activeSet = 0;
+        unit.weaponSets.forEach((pair) => { pair[0] = null; pair[1] = null; });
+      }
       EQUIP_SLOTS.forEach((slot) => {
+        if (ud.weaponSets && WEAPON_SLOTS.includes(slot)) return;
         unit.equipment[slot] = ud.equipment && ud.equipment[slot] ? reviveGear(ud.equipment[slot]) : null;
       });
       unit.maxHp = unit._calcMaxHp();
@@ -147,7 +162,12 @@ const SaveManager = {
     sm.huntCount = data.scenario.huntCount || 0;
     sm.finished = !!data.scenario.finished;
 
-    zm._load(clamp(data.zoneIndex || 0, 0, ZONE_DATA.length - 1), false);
+    if (data.tower) game.tower.bestFloor = data.tower.bestFloor || 0;
+
+    // 탑 도전은 저장되지 않는다. 탑에서 저장된 게임은 가까운 마을에서 다시 시작한다.
+    let zoneIndex = clamp(data.zoneIndex || 0, 0, ZONE_DATA.length - 1);
+    if (ZONE_DATA[zoneIndex].type === 'tower') zoneIndex = game._nearestTownIndex(zoneIndex);
+    zm._load(zoneIndex, false);
     return pm.partyIds.length > 0;
   },
 };

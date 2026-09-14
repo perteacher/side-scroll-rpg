@@ -17,10 +17,14 @@ class Game {
     this.sm = new ScenarioManager(log, this.pm);
     this.fm = new FamilyManager(log);
     this.gq = new GeneralQuestManager(log, this.pm);
+    this.tower = new TowerManager(log);
     this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm; this.ui.fm = this.fm; this.ui.gq = this.gq;
+    this.ui.tower = this.tower;
     this.renderer = new Renderer(this.ctx, WORLD_WIDTH, WORLD_HEIGHT);
     this.effects = new EffectManager();
     EFFECTS = this.effects;
+    this.audio = new AudioManager();
+    SOUND = this.audio;
     this.projectiles = [];
     this.lastTime = 0;
     this.elapsed = 0;
@@ -56,6 +60,28 @@ class Game {
       if (!removed) return;
       this.pm.gear.push(removed);
       this.ui.logChat(`${unit.name} ${removed.displayName} 해제`, 'system');
+      this.ui.rebuildPartySlots();
+      this.ui.refreshOpenWindows();
+    };
+    this.ui.onSignaturePress = (slotIndex) => this._useSignature(this.pm.partyUnits[slotIndex], true);
+    this.ui.onPresetSwap = (setIndex) => this._swapWeaponSet(setIndex);
+    this.ui.onPresetAssign = (gearUid, setIndex, slotIdx) => {
+      const unit = this.pm.activeUnit;
+      const gear = this.pm.takeGear(gearUid);
+      if (!gear) return;
+      const result = unit.assignWeapon(gear, setIndex, slotIdx);
+      if (!result.ok) { this.pm.gear.push(gear); return; }
+      if (result.previous) this.pm.gear.push(result.previous);
+      this.ui.logChat(`${unit.name} 세트 ${setIndex + 1}에 ${gear.displayName} 등록`, 'system');
+      this.ui.rebuildPartySlots();
+      this.ui.refreshOpenWindows();
+    };
+    this.ui.onPresetRemove = (setIndex, slotIdx) => {
+      const unit = this.pm.activeUnit;
+      const removed = unit.removeWeapon(setIndex, slotIdx);
+      if (!removed) return;
+      this.pm.gear.push(removed);
+      this.ui.logChat(`${unit.name} 세트 ${setIndex + 1}에서 ${removed.displayName} 회수`, 'system');
       this.ui.rebuildPartySlots();
       this.ui.refreshOpenWindows();
     };
@@ -112,6 +138,8 @@ class Game {
       this.ui.rebuildPartySlots();
     };
     this.ui.onTeleport = (zoneIndex) => this._teleport(zoneIndex);
+    this.ui.onTowerEnter = (floor) => this._enterTower(floor);
+    this.ui.onTowerLeave = () => this._exitTower(true);
     this.ui.onSkillUpgrade = (skillId) => {
       const unit = this.pm.activeUnit;
       if (!unit.upgradeSkill(skillId)) return;
@@ -177,14 +205,69 @@ class Game {
     this.ui.refreshQuest();
   }
 
+  // ---------- 심연의 탑 ----------
+  // 현재 존을 귀환 지점으로 잡아두고 층을 만들어 들어간다.
+  _enterTower(floor) {
+    if (!this.tower.canEnter(this.pm.partyUnits)) {
+      this.ui.logChat(`심연의 탑은 Lv.${TOWER_ENTRY_LEVEL} 이상 캐릭터가 있어야 들어갈 수 있습니다.`, 'system');
+      return;
+    }
+    const back = this.zm.index === this.tower.zoneIndex ? this.tower.returnZoneIndex : this.zm.index;
+    this.tower.start(floor, back);
+    this._loadTowerZone();
+    this.ui.logChat(`[심연의 탑] ${floor}층 — 층의 적을 모두 쓰러뜨리면 위층이 열립니다.`, 'npc');
+    this.ui.closeWindow('tower-window');
+  }
+
+  // 탑 안에서는 존 인덱스가 그대로라 travelTo가 안 먹는다. 직접 다시 적재한다.
+  _loadTowerZone() {
+    this.zm._load(this.tower.zoneIndex, false);
+    this.projectiles = [];
+    this.ui.setTarget(null);
+    this._resetPartyPositions(140);
+    this.warpCooldown = 900;
+    this.ui.rebuildPartySlots();
+  }
+
+  _advanceTowerFloor() {
+    const cleared = this.tower.floor;
+    const reward = towerFloorReward(cleared);
+    this.pm.gold += reward.gold;
+    const log = (t, tag) => this.ui.logChat(t, tag);
+    this.pm.partyUnits.forEach((u) => u.gainXp(reward.xp, log));
+    reward.items.forEach((id) => {
+      this.pm.addItem(id, 1);
+      this.ui.logChat(`[탑 보상] ${ITEM_DATA[id].name} 획득`, 'system');
+    });
+    this.ui.logChat(`[심연의 탑] ${cleared}층 보상 — ${reward.gold}G · 경험치 +${reward.xp.toLocaleString()}`, 'system');
+    this.tower.buildFloor(cleared + 1);
+    this._loadTowerZone();
+    this.ui.rebuildPartySlots();
+    SaveManager.save(this);
+  }
+
+  _exitTower(manual) {
+    if (!this.tower.active) return;
+    const back = this.tower.returnZoneIndex;
+    this.tower.stop();
+    this.ui.logChat(manual
+      ? `[심연의 탑] 도전을 마쳤습니다. 최고 기록 ${this.tower.bestFloor}층.`
+      : `[심연의 탑] 전멸 — 밀려났습니다. 최고 기록 ${this.tower.bestFloor}층은 남습니다.`, 'system');
+    const dest = ZONE_DATA[back].type === 'town' ? back : this._nearestTownIndex(back);
+    this._teleport(dest);
+    this.ui.closeWindow('tower-window');
+  }
+
   _teleport(zoneIndex, entryX = null) {
     const fromZoneId = this.zm.def.id;
     if (!this.zm.travelTo(zoneIndex)) return;
+    if (this.tower.active && zoneIndex !== this.tower.zoneIndex) this.tower.stop();
     if (entryX === 'auto') entryX = this.zm.entryXFrom(fromZoneId);
     this.projectiles = [];
     this.ui.setTarget(null);
     this._resetPartyPositions(entryX);
     this.warpCooldown = 900;
+    this.audio.warp();
     this.sm.onZoneEnter(this.zm.def.id);
     if (this.zm.isTown) this._reviveAll();
     this.ui.closeWindow('teleport-window');
@@ -238,7 +321,9 @@ class Game {
     this._syncFamilyProgress();
     this._tickCooldowns(dt);
     this._tickAutosave(dt);
+    this._updateBgmTheme(dt);
     this.zm.update(dt);
+    if (this.zm.index === this.tower.zoneIndex && this.tower.update(dt, this.zm.enemies)) this._advanceTowerFloor();
     this.effects.update(dt);
     this.zm.enemies.forEach((e) => {
       e.hitFlash = Math.max(0, (e.hitFlash || 0) - dt);
@@ -265,13 +350,36 @@ class Game {
         if (input.wasPressed(key)) this._useHotbarSlot(slotIndex, skillIdx);
       });
     });
+    // 1/2/3 — 조작 캐릭터의 무기 세트 교체(= 전투 중 스탠스 전환)
+    for (let i = 0; i < WEAPON_SET_COUNT; i++) {
+      if (input.wasPressed(String(i + 1))) this._swapWeaponSet(i);
+    }
+    if (input.wasPressed('r')) this._useSignature(pm.activeUnit, true);
     if (input.wasPressed('i')) ui.toggleWindow('inventory-window');
     if (input.wasPressed('j')) ui.toggleWindow('quest-window');
     if (input.wasPressed('b')) ui.toggleWindow('barracks-window');
     if (input.wasPressed('t')) ui.toggleWindow('teleport-window');
+    if (input.wasPressed('g')) ui.toggleWindow('tower-window');
     if (input.wasPressed('f')) ui.toggleWindow('family-window');
     if (input.wasPressed('alt+e')) ui.toggleWindow('char-info-window');
     if (input.wasPressed('escape')) ui.closeTopWindow();
+  }
+
+  // 무기 세트 교체. 세트마다 무기가 달라 스탠스·사거리·스킬이 통째로 바뀐다.
+  _swapWeaponSet(index) {
+    const unit = this.pm.activeUnit;
+    if (!unit || unit.downed) return;
+    if (index === unit.activeSet) return;
+    if (unit.setSwapCooldown > 0) {
+      this.ui.logChat(`무기 교체 대기 중 — ${(unit.setSwapCooldown / 1000).toFixed(1)}초`, 'system');
+      return;
+    }
+    if (!unit.swapWeaponSet(index)) return;
+    this.effects.swap(unit);
+    this.audio.swap();
+    this.ui.logChat(`${unit.name} 세트 ${index + 1} 장착 — ${unit.stance.name}`, 'system');
+    this.ui.rebuildPartySlots();
+    this.ui.refreshOpenWindows();
   }
 
   // 조작 캐릭터: 방향키를 누르면 수동 이동, 안 누르면 자동전투 모드(off/keep/hold)를 따른다.
@@ -279,7 +387,7 @@ class Game {
     const unit = this.pm.activeUnit;
     if (!unit) return;
     if (unit.downed) { unit.vx = 0; this._applyPhysics(unit, dt); return; }
-    const speed = MOVE_SPEED * unit.stance.moveSpeedMult * (1 + (unit.family || EMPTY_FAMILY_BONUS).moveSpeed);
+    const speed = MOVE_SPEED * unit.stance.moveSpeedMult * (1 + (unit.bonus || EMPTY_FAMILY_BONUS).moveSpeed);
     const manualLeft = this.input.isDown('arrowleft');
     const manualRight = this.input.isDown('arrowright');
 
@@ -306,7 +414,7 @@ class Game {
       const target = this._getAttackTarget(unit);
       if (target) {
         performBasicAttack(unit, target, (u, t, dmg, crit, color) => this._spawnProjectile(u, t, dmg, crit, color));
-        unit.basicAtkCooldown = 450 / (1 + (unit.family || EMPTY_FAMILY_BONUS).atkSpeed);
+        unit.basicAtkCooldown = 450 / (1 + (unit.bonus || EMPTY_FAMILY_BONUS).atkSpeed);
         this._checkEnemyDeath(target, unit);
       }
     }
@@ -321,10 +429,15 @@ class Game {
       unit.vx = 0;
       changed = true;
       this.effects.damage(unit.x + unit.width / 2, unit.y - 6, 0, { text: 'DOWN', color: '#e74c3c', crit: true });
+      this.audio.down();
       this.ui.logChat(`${unit.name}(이)가 쓰러졌습니다. 마을에서 회복됩니다.`, 'system');
     });
 
     const alive = this.pm.partyUnits.filter((u) => !u.downed);
+    if (alive.length === 0 && this.pm.partyIds.length > 0 && this.tower.active) {
+      this._exitTower(false);
+      return;
+    }
     if (alive.length === 0 && this.pm.partyIds.length > 0) {
       this.ui.logChat('파티 전원이 쓰러져 마을로 돌아갑니다.', 'system');
       const townIndex = this._nearestTownIndex();
@@ -341,9 +454,10 @@ class Game {
   }
 
   _updateSynergies() {
-    // 가문 특성은 전 캐릭터에 적용된다.
+    // 가문 특성은 전 캐릭터 공통이고, 고유 특성·전용기 버프는 캐릭터마다 다르다.
+    // 셋을 합쳐 unit.bonus 하나로 만들어두면 데미지·이동·공속 계산이 그 값만 보면 된다.
     const famBonus = this.fm.bonus();
-    this.pm.units.forEach((u) => { u.family = famBonus; });
+    this.pm.partyUnits.forEach((u) => { u.bonus = mergeBonuses(famBonus, u.personalBonus()); });
     const active = this.pm.recomputeSynergies();
     const key = active.map((s) => s.id).join(',');
     if (key === this.synergyKey) return;
@@ -354,11 +468,11 @@ class Game {
     this.ui.refreshOpenWindows();
   }
 
-  _nearestTownIndex() {
+  _nearestTownIndex(fromIndex = this.zm.index) {
     let best = 0; let bestDist = Infinity;
     ZONE_DATA.forEach((z, i) => {
       if (z.type !== 'town') return;
-      const d = Math.abs(i - this.zm.index);
+      const d = Math.abs(i - fromIndex);
       if (d < bestDist) { bestDist = d; best = i; }
     });
     return best;
@@ -375,6 +489,17 @@ class Game {
     });
     if (revived > 0) this.ui.logChat(`마을에서 ${revived}명이 회복했습니다.`, 'system');
     this.ui.rebuildPartySlots();
+  }
+
+  // 존 성격에 맞는 BGM으로 갈아탄다. 보스가 붙으면 전투곡으로 바뀐다.
+  _updateBgmTheme(dt) {
+    this.bgmCheckTimer = (this.bgmCheckTimer || 0) - dt;
+    if (this.bgmCheckTimer > 0) return;
+    this.bgmCheckTimer = 500;
+    const bossEngaged = this.zm.enemies.some((e) => e.boss && e.alive && e.provoked);
+    if (bossEngaged) { this.audio.setTheme('boss'); return; }
+    if (this.zm.def.type === 'tower') { this.audio.setTheme('tower'); return; }
+    this.audio.setTheme(this.zm.isTown ? 'town' : 'field');
   }
 
   _tickAutosave(dt) {
@@ -444,10 +569,116 @@ class Game {
 
   // 자동전투용: 쓸 수 있는 스킬이 있으면 시전한다.
   _tryAutoSkill(unit, target) {
+    // 전용기가 준비돼 있으면 먼저 쓴다(가장 강한 한 방이라).
+    if (this._useSignature(unit, false)) return true;
     return unit.stance.skillIds.some((skillId) => {
       if (unit.skillLevel(skillId) === 0) return false;
       return this._castSkill(unit, skillId, target, false);
     });
+  }
+
+  // 전용기. 캐릭터마다 다른 한 방이고, 강화·회복형은 적이 없어도 쓸 수 있다.
+  _useSignature(unit, verbose) {
+    if (!unit || unit.downed) return false;
+    const sig = unit.signature;
+    if (!sig) return false;
+    if (!unit.signatureUnlocked) {
+      if (verbose) this.ui.logChat(`[${sig.name}]은 Lv.${SIGNATURE_REQ_LEVEL}부터 쓸 수 있습니다.`, 'system');
+      return false;
+    }
+    if (unit.sigCooldown > 0 || unit.mp < sig.manaCost) {
+      if (verbose) {
+        const why = unit.sigCooldown > 0 ? `재사용까지 ${Math.ceil(unit.sigCooldown / 1000)}초` : 'MP 부족';
+        this.ui.logChat(`${unit.name}: [${sig.name}] 사용 불가 (${why})`, 'system');
+      }
+      return false;
+    }
+    const needsTarget = sig.kind !== 'buff' && sig.kind !== 'heal';
+    const target = needsTarget ? this._getAttackTarget(unit) : null;
+    if (needsTarget && !target) {
+      if (verbose) this.ui.logChat(`${unit.name}: 사거리 안에 적이 없습니다.`, 'system');
+      return false;
+    }
+    return this._castSignature(unit, sig, target, verbose);
+  }
+
+  _castSignature(unit, sig, target, verbose) {
+    this.audio.signature();
+    unit.mp -= sig.manaCost;
+    unit.sigCooldown = sig.cooldownMs;
+    unit.attackAnim = 380;
+    const color = elementColor(sig.element || unit.stance.element);
+    const cx = unit.x + unit.width / 2;
+
+    if (sig.kind === 'buff') {
+      this.effects.burst(cx, unit.y + unit.height / 2, 120, color);
+      this.pm.partyUnits.forEach((u) => {
+        u.addBuff(sig.name, sig.buff, sig.durationMs);
+        this.effects.damage(u.x + u.width / 2, u.y - 8, 0, { text: sig.name, color: '#f7dc6f' });
+      });
+      this.ui.logChat(`${unit.name}의 [${sig.name}]! 파티 강화 ${sig.durationMs / 1000}초`, 'party');
+      this.ui.rebuildPartySlots();
+      return true;
+    }
+
+    if (sig.kind === 'heal') {
+      this.effects.burst(cx, unit.y + unit.height / 2, 140, '#2ecc71');
+      this.pm.partyUnits.forEach((u) => {
+        if (u.downed) return;
+        const amount = Math.round(u.maxHp * sig.healPct);
+        u.hp = clamp(u.hp + amount, 0, u.maxHp);
+        this.effects.damage(u.x + u.width / 2, u.y - 8, amount, { text: `+${amount}`, color: '#2ecc71' });
+      });
+      this.audio.heal();
+      this.ui.logChat(`${unit.name}의 [${sig.name}]! 파티 HP ${Math.round(sig.healPct * 100)}% 회복`, 'party');
+      return true;
+    }
+
+    unit.facing = target.x >= unit.x ? 1 : -1;
+    if (unit.attackType === 'melee') this.effects.slash(unit); else this.effects.cast(unit, color);
+
+    const strike = (enemy, mult) => {
+      const r = rollDamage(unit, enemy, mult);
+      applyDamageToEnemy(enemy, r.dmg, r.isCrit, r.miss);
+      if (!r.miss) applyLifesteal(unit, r.dmg);
+      this._checkEnemyDeath(enemy, unit);
+      return r.miss ? 0 : r.dmg;
+    };
+
+    let total = 0;
+    if (sig.kind === 'aoe') {
+      this.effects.burst(target.x + target.width / 2, target.y + target.height / 2, sig.aoeRadius, color);
+      this._enemiesNear(target, sig.aoeRadius).forEach((t) => { total += strike(t, sig.dmgMult); });
+    } else if (sig.kind === 'barrage') {
+      for (let i = 0; i < sig.hits && target.alive; i++) total += strike(target, sig.dmgMult);
+    } else if (sig.kind === 'chain') {
+      this._chainTargets(target, sig.chainCount).forEach((t, i) => {
+        if (i > 0) this.effects.spark(t.x + t.width / 2, t.y + t.height / 2, color);
+        total += strike(t, sig.dmgMult);
+      });
+    } else if (sig.kind === 'drain') {
+      total = strike(target, sig.dmgMult);
+      const heal = Math.round(total * sig.healPct);
+      if (heal > 0 && unit.hp < unit.maxHp) {
+        unit.hp = clamp(unit.hp + heal, 0, unit.maxHp);
+        this.effects.damage(cx, unit.y - 8, heal, { text: `+${heal}`, color: '#2ecc71' });
+      }
+    } else {
+      this.effects.burst(target.x + target.width / 2, target.y + target.height / 2, 60, color);
+      total = strike(target, sig.dmgMult);
+    }
+
+    if (verbose) this.ui.logChat(`${unit.name}의 전용기 [${sig.name}]! 총 ${total} 피해`, 'system');
+    return true;
+  }
+
+  // 연쇄기: 첫 대상에서 가까운 순으로 최대 count체를 엮는다.
+  _chainTargets(first, count) {
+    const rest = this.zm.enemies
+      .filter((e) => e.alive && e !== first && sameLevel(first, e))
+      .sort((a, b) => Math.abs(a.x - first.x) - Math.abs(b.x - first.x))
+      .slice(0, Math.max(0, count - 1));
+    return [first, ...rest];
   }
 
   _castSkill(unit, skillId, target, verbose) {
@@ -458,6 +689,7 @@ class Game {
 
     const mult = skillDamageMult(skillDef, lv);
     const color = elementColor(skillDef.element || unit.stance.element);
+    this.audio.skill(skillDef.element || unit.stance.element);
 
     if (unit.attackType === 'melee') {
       const dist = Math.abs((target.x + target.width / 2) - (unit.x + unit.width / 2));
@@ -474,6 +706,7 @@ class Game {
       targets.forEach((t) => {
         const r = rollDamage(unit, t, mult);
         applyDamageToEnemy(t, r.dmg, r.isCrit, r.miss);
+        if (!r.miss) applyLifesteal(unit, r.dmg);
         this._checkEnemyDeath(t, unit);
       });
       if (verbose) this.ui.logChat(`${unit.name}의 [${skillDef.name} Lv.${lv}]! (${targets.length}체 타격)`, 'system');
@@ -501,6 +734,7 @@ class Game {
       table.forEach((d) => {
         if (Math.random() > d.chance) return;
         this.pm.addItem(d.id, 1);
+        this.audio.pickup();
         this.ui.logChat(`${ITEM_DATA[d.id].name} 획득`, 'system');
       });
     }
@@ -634,6 +868,7 @@ class Game {
       if (aabbIntersect(box, target)) {
         p.dead = true;
         applyDamageToEnemy(target, p.pendingDamage.dmg, p.pendingDamage.isCrit);
+        if (p.ownerRef) applyLifesteal(p.ownerRef, p.pendingDamage.dmg);
         this._checkEnemyDeath(target, p.ownerRef);
         if (p.aoeRadius) {
           this.effects.burst(target.x + target.width / 2, target.y + target.height / 2, p.aoeRadius, p.color);
@@ -652,6 +887,9 @@ class Game {
   _tickCooldowns(dt) {
     this.pm.units.forEach((unit) => {
       unit.basicAtkCooldown = Math.max(0, unit.basicAtkCooldown - dt);
+      unit.setSwapCooldown = Math.max(0, (unit.setSwapCooldown || 0) - dt);
+      unit.sigCooldown = Math.max(0, (unit.sigCooldown || 0) - dt);
+      if (unit.tickBuffs(dt)) this.ui.rebuildPartySlots();
       unit.attackAnim = Math.max(0, (unit.attackAnim || 0) - dt);
       unit.hitFlash = Math.max(0, (unit.hitFlash || 0) - dt);
       Object.keys(unit.skillCooldowns).forEach((k) => {

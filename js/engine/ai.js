@@ -62,7 +62,7 @@ function tryAutoAttack(unit, target, spawnProjectile, tryCastSkill) {
     return;
   }
   performBasicAttack(unit, target, spawnProjectile);
-  unit.basicAtkCooldown = 700 / (1 + ((unit.family || EMPTY_FAMILY_BONUS).atkSpeed));
+  unit.basicAtkCooldown = 700 / (1 + ((unit.bonus || EMPTY_FAMILY_BONUS).atkSpeed));
 }
 
 // 화면상 가장 가까운 적. 높이 차도 거리로 친다(바로 위층 몹 > 멀리 있는 같은 층 몹).
@@ -109,6 +109,7 @@ function updateEnemyAI(enemy, partyUnits, dt, logFn) {
       enemy.attackCooldownMs = 1000;
       enemy.attackAnim = 260;
       nearest.hitFlash = 160;
+      if (SOUND) SOUND.hurt();
       if (EFFECTS) {
         EFFECTS.damage(nearest.x + nearest.width / 2, nearest.y - 4, enemy.atk, { color: '#ff7b6b' });
         EFFECTS.spark(nearest.x + nearest.width / 2, nearest.y + nearest.height * 0.5, '#ff7b6b');
@@ -123,7 +124,7 @@ function updateBossAI(boss, partyUnits, dt, ctx) {
   const alive = partyUnits.filter((u) => u.hp > 0 && !u.downed);
   if (alive.length === 0) { boss.vx = 0; return; }
 
-  const data = BOSS_DATA[boss.name];
+  const data = boss.bossData || BOSS_DATA[boss.name];
   let nearest = null; let nearestDist = Infinity;
   alive.forEach((u) => {
     const d = Math.abs((u.x + u.width / 2) - (boss.x + boss.width / 2));
@@ -174,6 +175,7 @@ function updateBossAI(boss, partyUnits, dt, ctx) {
     boss.phase = 'telegraph';
     boss.phaseTimer = boss.current.telegraph * haste;
     ctx.log(`${boss.name}: ${boss.current.warn}`, 'system');
+    if (SOUND) SOUND.bossWarn();
     return;
   }
 
@@ -241,6 +243,7 @@ function _bossHit(unit, damage, ctx) {
   const dmg = Math.max(1, Math.round(damage));
   unit.hp = Math.max(0, unit.hp - dmg);
   unit.hitFlash = 200;
+  if (SOUND) SOUND.hurt();
   if (EFFECTS) {
     EFFECTS.damage(unit.x + unit.width / 2, unit.y - 4, dmg, { color: '#ff5a4a', crit: true });
     EFFECTS.spark(unit.x + unit.width / 2, unit.y + unit.height * 0.5, '#ff5a4a');
@@ -275,12 +278,24 @@ function performBasicAttack(unit, target, spawnProjectile) {
   if (stance.attackType === 'melee') {
     if (EFFECTS) EFFECTS.slash(unit);
     const dist = Math.abs((target.x + target.width / 2) - (unit.x + unit.width / 2));
-    if (dist <= stance.range && sameLevel(unit, target)) applyDamageToEnemy(target, dmg, isCrit, roll.miss);
+    if (dist <= stance.range && sameLevel(unit, target)) {
+      applyDamageToEnemy(target, dmg, isCrit, roll.miss);
+      if (!roll.miss) applyLifesteal(unit, dmg);
+    }
   } else if (roll.miss) {
     applyDamageToEnemy(target, 0, false, true);
   } else {
     spawnProjectile(unit, target, dmg, isCrit, elementColor(stance.element));
   }
+}
+
+// 흡혈 특성: 준 피해의 일정 비율을 시전자 HP로 돌려준다.
+function applyLifesteal(unit, dmg) {
+  const rate = (unit.bonus || EMPTY_FAMILY_BONUS).lifesteal;
+  if (!rate || dmg <= 0 || unit.downed || unit.hp >= unit.maxHp) return;
+  const heal = Math.max(1, Math.round(dmg * rate));
+  unit.hp = clamp(unit.hp + heal, 0, unit.maxHp);
+  if (EFFECTS) EFFECTS.damage(unit.x + unit.width / 2, unit.y - 8, heal, { text: `+${heal}`, color: '#2ecc71' });
 }
 
 function elementColor(element) {
@@ -293,9 +308,11 @@ function elementColor(element) {
 function applyDamageToEnemy(enemy, dmg, isCrit, miss) {
   if (miss) {
     if (EFFECTS) EFFECTS.damage(enemy.x + enemy.width / 2, enemy.y - 4, 0, { text: 'MISS', color: '#bdc3c7' });
+    if (SOUND) SOUND.miss();
     enemy.provoked = true;
     return;
   }
+  if (SOUND) SOUND.hit(isCrit);
   enemy.hp = Math.max(0, enemy.hp - dmg);
   enemy.provoked = true; // 비선공 몹도 맞으면 반격한다
   enemy.hitFlash = 160;
@@ -305,6 +322,7 @@ function applyDamageToEnemy(enemy, dmg, isCrit, miss) {
   }
   if (enemy.hp <= 0) {
     enemy.alive = false;
+    if (SOUND) SOUND.kill(enemy.boss);
     enemy.respawnTimer = enemy.respawnMs || ENEMY_RESPAWN_MS;
     if (EFFECTS) EFFECTS.burst(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 34, 'rgba(231,76,60,0.7)');
   }

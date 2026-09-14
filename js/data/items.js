@@ -256,6 +256,13 @@ function rollEnchant() {
 
 // 장비 슬롯과 방어구 등급
 const EQUIP_SLOTS = ['weapon1', 'weapon2', 'armor', 'helmet', 'boots'];
+const WEAPON_SLOTS = ['weapon1', 'weapon2'];
+
+// 무기 세트(장비교체등록): 무기 조합을 3벌까지 등록해두고 전투 중 1/2/3 키로 갈아낀다.
+// 세트마다 스탠스가 달라지므로, 교체 자체가 전투 중 스탠스 전환 수단이 된다.
+const WEAPON_SET_COUNT = 3;
+const WEAPON_SWAP_COOLDOWN_MS = 2500; // 세트 교체 재사용 대기
+const WEAPON_SWAP_LOCK_MS = 350;      // 교체 직후 공격 경직
 const SLOT_LABEL = { weapon1: '주무기', weapon2: '보조무기', armor: '갑옷', helmet: '투구', boots: '신발' };
 const ARMOR_CLASS_LABEL = { heavy: '중갑', light: '경갑', cloth: '연갑' };
 

@@ -49,15 +49,16 @@ function computeFullSheet(unit) {
   const s = unit.stats;
   const gear = unit.equipmentBonus ? unit.equipmentBonus() : { atk: 0, def: 0, crit: 0 };
   const syn = unit.synergy || EMPTY_SYNERGY;
-  const fam = unit.family || EMPTY_FAMILY_BONUS;
+  // bon = 가문 특성 + 캐릭터 고유 특성 + 전용기 버프를 합산한 값
+  const bon = unit.bonus || EMPTY_FAMILY_BONUS;
   const isMagic = unit.attackType === 'magic';
   const physicalAtk = s.str * 2 + s.skl * 1;
   const magicAtk = s.int * 2 + s.sen * 1;
-  const attackPower = Math.round(((isMagic ? magicAtk : physicalAtk) + gear.atk + fam.atk) * (1 + syn.atkPct + fam.atkPct));
-  const critChance = clamp(Math.round(s.agi * 0.3 + s.skl * 0.2 + (gear.crit || 0) + syn.crit), 5, 75);
-  const critDamage = Math.round((150 + s.skl * 1) * 10) / 10;
-  const accuracy = Math.round((s.skl * 1.2 + s.sen * 0.4 + 50) * (1 + fam.accuracy));
-  const defense = Math.round((s.vit * 2 + s.str * 0.5 + gear.def + fam.def) * (1 + syn.defPct));
+  const attackPower = Math.round(((isMagic ? magicAtk : physicalAtk) + gear.atk + bon.atk) * (1 + syn.atkPct + bon.atkPct));
+  const critChance = clamp(Math.round(s.agi * 0.3 + s.skl * 0.2 + (gear.crit || 0) + syn.crit + bon.crit), 5, 75);
+  const critDamage = Math.round((150 + s.skl * 1 + bon.critDmg) * 10) / 10;
+  const accuracy = Math.round((s.skl * 1.2 + s.sen * 0.4 + 50) * (1 + bon.accuracy));
+  const defense = Math.round((s.vit * 2 + s.str * 0.5 + gear.def + bon.def) * (1 + syn.defPct + bon.defPct));
   const defenseGrade = Math.round(s.vit * 1.5);
   const statusResist = Math.round(s.vit * 0.5 + s.sen * 0.5);
 
@@ -94,10 +95,10 @@ function elementalAtkBonus(unit) {
 
 function rollDamage(attackerUnit, targetUnit, dmgMult) {
   const sheet = computeFullSheet(attackerUnit);
-  const fam = attackerUnit.family || EMPTY_FAMILY_BONUS;
+  const bon = attackerUnit.bonus || EMPTY_FAMILY_BONUS;
 
-  // 명중 판정: 몹은 기본 회피율을 갖고, 가문 '조준 숙련'이 이를 깎는다.
-  const evade = Math.max(0, (targetUnit.evade || 0) - fam.accuracy);
+  // 명중 판정: 몹은 기본 회피율을 갖고, 조준 관련 보너스가 이를 깎는다.
+  const evade = Math.max(0, (targetUnit.evade || 0) - bon.accuracy);
   if (Math.random() < evade) return { dmg: 0, isCrit: false, miss: true };
 
   const atkPower = sheet.attack.attackPower * dmgMult + elementalAtkBonus(attackerUnit);
@@ -105,7 +106,7 @@ function rollDamage(attackerUnit, targetUnit, dmgMult) {
   const raw = isCrit ? atkPower * (sheet.attack.critDamage / 100) : atkPower;
   const targetDef = targetUnit.stats ? computeFullSheet(targetUnit).defense.defense : (targetUnit.defense || 0);
   // 관통 숙련만큼 상대 방어력을 무시한다.
-  const effectiveDef = targetDef * (1 - clamp(fam.pierce, 0, 0.9));
+  const effectiveDef = targetDef * (1 - clamp(bon.pierce, 0, 0.9));
   const dmg = Math.max(1, Math.round(raw - effectiveDef * 0.5));
   return { dmg, isCrit, miss: false };
 }

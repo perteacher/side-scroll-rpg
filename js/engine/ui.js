@@ -28,6 +28,13 @@ class UIManager {
     this.onQuestAccept = null;
     this.onQuestComplete = null;
     this.onSkillUpgrade = null;
+    this.onSignaturePress = null;
+    this.onTowerEnter = null;
+    this.onTowerLeave = null;
+    this.onPresetSwap = null;
+    this.onPresetAssign = null;
+    this.onPresetRemove = null;
+    this.presetEditSet = 0;
   }
 
   init() {
@@ -58,6 +65,7 @@ class UIManager {
       chatTabsEl.appendChild(b);
     });
 
+    this._initSoundButton();
     document.getElementById('save-btn').addEventListener('click', () => this.onManualSave && this.onManualSave());
     document.getElementById('reset-btn').addEventListener('click', () => {
       // eslint-disable-next-line no-alert
@@ -69,6 +77,22 @@ class UIManager {
     this._initChatDrag();
     this._initChatControls();
     this._initCreateScreen();
+  }
+
+  // 음량 버튼: 100% → 50% → 음소거 순환. 설정은 브라우저에 남는다.
+  _initSoundButton() {
+    const btn = document.getElementById('sound-btn');
+    const label = () => {
+      btn.textContent = SOUND.icon;
+      btn.title = `소리 ${Math.round(SOUND.volume * 100)}% (눌러서 전환)`;
+    };
+    label();
+    btn.addEventListener('click', () => {
+      SOUND.unlock();
+      const v = SOUND.cycleVolume();
+      label();
+      this.logChat(`소리 ${Math.round(v * 100)}%`, 'system');
+    });
   }
 
   // 채팅창 최소화(─) / 닫기(✕), 상단 💬 버튼으로 다시 열기
@@ -90,7 +114,7 @@ class UIManager {
 
   _openTargetId(key) {
     return {
-      family: 'family-window',
+      family: 'family-window', tower: 'tower-window',
       inventory: 'inventory-window', charinfo: 'char-info-window',
       barracks: 'barracks-window', quest: 'quest-window', teleport: 'teleport-window',
     }[key];
@@ -184,11 +208,13 @@ class UIManager {
   // ---------- 창 ----------
   openWindow(id) {
     if (this.isCreating) return;
+    if (SOUND) SOUND.ui();
     if (id === 'char-info-window') this.refreshCharInfo();
     if (id === 'barracks-window') this.refreshBarracks();
     if (id === 'quest-window') this.refreshQuest();
     if (id === 'teleport-window') this.refreshTeleport();
     if (id === 'family-window') this.refreshFamily();
+    if (id === 'tower-window') this.refreshTower();
     if (id === 'inventory-window') this.refreshInventory();
     document.getElementById(id).classList.remove('hidden');
   }
@@ -202,6 +228,7 @@ class UIManager {
     if (this.isWindowOpen('barracks-window')) this.refreshBarracks();
     if (this.isWindowOpen('inventory-window')) this.refreshInventory();
     if (this.isWindowOpen('family-window')) this.refreshFamily();
+    if (this.isWindowOpen('tower-window')) this.refreshTower();
     if (this.isWindowOpen('board-window')) this.refreshBoard();
   }
 
@@ -232,7 +259,7 @@ class UIManager {
       const info = document.createElement('div');
       info.className = 'slot-info';
       info.innerHTML = `
-        <div class="name-lv">${unit.name} ${rankLabel(unit.level)}</div>
+        <div class="name-lv">${unit.name} ${rankLabel(unit.level)}<span class="wset-tag" title="무기 세트 (1/2/3 키로 교체)">세트${unit.activeSet + 1}</span></div>
         <div class="bar-bg"><div class="bar-fill hp"></div><span class="bar-text hp-text"></span></div>
         <div class="bar-bg"><div class="bar-fill mp"></div><span class="bar-text mp-text"></span></div>
         <div class="bar-bg xp-bg"><div class="bar-fill xp"></div></div>
@@ -280,6 +307,26 @@ class UIManager {
         hotbar.appendChild(b);
       });
 
+      // 전용기 버튼. 키보드 R은 조작 캐릭터에게만 먹지만, 클릭은 어느 슬롯이든 쓸 수 있다.
+      if (unit.signature) {
+        const sb = document.createElement('button');
+        const open = unit.signatureUnlocked;
+        sb.className = 'skill-btn sig-btn' + (open ? '' : ' locked');
+        sb.innerHTML = `<span class="key-label">R</span>${open ? unit.signature.name.slice(0, 2) : '🔒'}`;
+        sb.dataset.sig = '1';
+        const mask = document.createElement('span');
+        mask.className = 'cd-mask';
+        sb.appendChild(mask);
+        const cdText = document.createElement('span');
+        cdText.className = 'cd-text';
+        sb.appendChild(cdText);
+        sb.title = open
+          ? `전용기 ${unit.signature.name} — ${signatureText(unit.signature)}`
+          : `전용기 ${unit.signature.name} — Lv.${SIGNATURE_REQ_LEVEL}에 개방`;
+        sb.addEventListener('click', () => this.onSignaturePress && this.onSignaturePress(slotIndex));
+        hotbar.appendChild(sb);
+      }
+
       slot.appendChild(portrait); slot.appendChild(info); slot.appendChild(modes); slot.appendChild(hotbar);
       wrap.appendChild(slot);
     });
@@ -296,7 +343,9 @@ class UIManager {
       slot.querySelector('.bar-fill.mp').style.width = `${clamp(unit.mp / unit.maxMp, 0, 1) * 100}%`;
       slot.querySelector('.hp-text').textContent = `${Math.ceil(unit.hp)}/${unit.maxHp}`;
       slot.querySelector('.mp-text').textContent = `${Math.ceil(unit.mp)}/${unit.maxMp}`;
-      slot.querySelector('.name-lv').textContent = `${unit.name} ${rankLabel(unit.level)}`;
+      // 세트 표시가 매 프레임 지워지지 않도록 마크업째로 다시 쓴다.
+      slot.querySelector('.name-lv').innerHTML = `${unit.name} ${rankLabel(unit.level)}`
+        + `<span class="wset-tag" title="무기 세트 (1/2/3 키로 교체)">세트${unit.activeSet + 1}</span>`;
       const xpFill = slot.querySelector('.bar-fill.xp');
       xpFill.style.width = `${clamp(unit.xp / xpToNextLevel(unit.level), 0, 1) * 100}%`;
       xpFill.parentElement.title = `EXP ${Math.floor(unit.xp)}/${xpToNextLevel(unit.level)}`;
@@ -310,6 +359,15 @@ class UIManager {
         b.classList.toggle('on', b.dataset.mode === unit.autoMode);
       });
       slot.classList.toggle('downed', !!unit.downed);
+
+      // 전용기 쿨다운
+      const sigBtn = slot.querySelector('.skill-btn[data-sig]');
+      if (sigBtn && unit.signature) {
+        const remain = unit.sigCooldown || 0;
+        sigBtn.querySelector('.cd-mask').style.height = `${clamp(remain / unit.signature.cooldownMs, 0, 1) * 100}%`;
+        sigBtn.querySelector('.cd-text').textContent = remain > 0 ? Math.ceil(remain / 1000) : '';
+        sigBtn.classList.toggle('no-mp', remain <= 0 && unit.mp < unit.signature.manaCost);
+      }
 
       // 스킬 쿨다운 게이지 / MP 부족 표시
       slot.querySelectorAll('.skill-btn[data-skill]').forEach((b) => {
@@ -325,7 +383,9 @@ class UIManager {
       });
     });
     document.getElementById('gold-amount').textContent = this.pm.gold;
-    document.getElementById('zone-label').textContent = `${this.zm.name} (권장 Lv.${this.zm.def.level})`;
+    document.getElementById('zone-label').textContent = this.tower && this.tower.active
+      ? `${this.zm.name} ${this.tower.floor}층 (최고 ${this.tower.bestFloor}층)`
+      : `${this.zm.name} (권장 Lv.${this.zm.def.level})`;
   }
 
   // ---------- 캐릭터 정보 ----------
@@ -376,11 +436,13 @@ class UIManager {
         <div class="row"><span>상태이상저항</span><span>${sheet.defense.statusResist}</span></div>
         <div class="row"><span>면역도</span><span>${sheet.defense.immunity}</span></div>
       </div>
+      <div class="section-title">고유 특성 · 전용기</div>
+      ${this._identityHtml(unit)}
       <div class="section-title">파티 시너지</div>
       ${(this.pm.activeSynergies || []).length
         ? (this.pm.activeSynergies || []).map((s) => `<div class="syn-row"><b>${s.name}</b><span>${s.desc}</span></div>`).join('')
         : '<p style="opacity:0.6;font-size:11px;">활성화된 시너지가 없습니다. 파티 구성을 바꿔보세요.</p>'}
-      <div class="section-title">장비 (${ARMOR_CLASS_LABEL[unit.armorClass]} 착용)</div>
+      <div class="section-title">장비 (${ARMOR_CLASS_LABEL[unit.armorClass]} 착용) — 무기는 세트 ${unit.activeSet + 1} 사용 중</div>
       <div class="equip-list">
         ${EQUIP_SLOTS.map((slot) => {
           const gear = unit.equipment[slot];
@@ -405,6 +467,27 @@ class UIManager {
     panel.querySelectorAll('button[data-equip]').forEach((b) => {
       b.addEventListener('click', () => this.onEquip && this.onEquip(b.dataset.equip, b.dataset.slot || null));
     });
+  }
+
+  // 캐릭터마다 다른 패시브와 전용기. 영입 선택이 전투에 어떻게 드러나는지 보여준다.
+  _identityHtml(unit) {
+    const rows = [];
+    if (unit.trait) {
+      rows.push(`<div class="syn-row"><b>패시브 · ${unit.trait.name}</b><span>${unit.trait.desc}</span></div>`);
+    }
+    if (unit.signature) {
+      const sig = unit.signature;
+      const open = unit.signatureUnlocked;
+      const state = open ? 'R키 / 자동전투 사용' : `Lv.${SIGNATURE_REQ_LEVEL}에 개방 (현재 Lv.${unit.level})`;
+      rows.push(`
+        <div class="syn-row ${open ? '' : 'locked'}">
+          <b>전용기 · ${sig.name} <span class="tag ${sig.kind === 'aoe' ? 'aoe' : 'single'}">${SIGNATURE_KIND_LABEL[sig.kind]}</span></b>
+          <span>${signatureText(sig)} · MP ${sig.manaCost} · 쿨 ${(sig.cooldownMs / 1000).toFixed(0)}초 — ${state}</span>
+        </div>`);
+    }
+    const buffs = (unit.buffs || []).map((b) => `<div class="syn-row"><b>강화 · ${b.name}</b><span>남은 ${(b.remain / 1000).toFixed(1)}초</span></div>`);
+    if (rows.length === 0) return '<p style="opacity:0.6;font-size:11px;">고유 특성이 없는 캐릭터입니다.</p>';
+    return rows.concat(buffs).join('');
   }
 
   _ownedEquipHtml(unit) {
@@ -483,12 +566,125 @@ class UIManager {
     });
   }
 
-  _renderEquipPresetTab() {
-    document.getElementById('tab-equip-preset').innerHTML = `
-      <div class="section-title">장비교체등록 (프리셋)</div>
-      <p style="opacity:0.7;">장비 아이템 시스템은 아직 범위 밖입니다. 프리셋 슬롯 UI 골격만 배치되어 있습니다.</p>
-      <div class="equip-slots">${[1, 2, 3, 4].map((n) => `<div class="equip-slot" title="프리셋 ${n}">P${n}</div>`).join('')}</div>
+  // 장비교체등록: 무기 조합 3벌을 등록해두고 전투 중 1/2/3 키로 통째로 갈아낀다.
+  // 세트마다 무기가 다르면 스탠스·사거리·스킬셋이 전부 바뀌므로, 교체 자체가 전투 운영이 된다.
+  _renderEquipPresetTab(unit) {
+    const el = document.getElementById('tab-equip-preset');
+    const editIndex = clamp(this.presetEditSet || 0, 0, WEAPON_SET_COUNT - 1);
+    this.presetEditSet = editIndex;
+    const cdSec = (unit.setSwapCooldown || 0) / 1000;
+
+    const sets = unit.weaponSets.map((pair, i) => {
+      const stances = unit.setStances(i).map((sid) => STANCE_DATA[sid].name).join(' · ');
+      const atk = pair.filter(Boolean).reduce((sum, g) => sum + g.atk, 0);
+      const isActive = i === unit.activeSet;
+      const rows = [0, 1].map((j) => {
+        const gear = pair[j];
+        return `
+          <div class="wset-slot">
+            <span class="wset-slot-name">${j === 0 ? '주무기' : '보조무기'}</span>
+            <span class="wset-item">${gear ? gear.displayName : '<span style="opacity:0.4">비어 있음</span>'}</span>
+            ${gear ? `<button data-wset-clear="${i}:${j}">빼기</button>` : ''}
+          </div>`;
+      }).join('');
+      const swapBtn = isActive
+        ? '<span class="wset-badge on">사용 중</span>'
+        : `<button data-wset-swap="${i}" ${cdSec > 0 ? 'disabled' : ''}>${cdSec > 0 ? `${cdSec.toFixed(1)}s` : `전환 (${i + 1})`}</button>`;
+      return `
+        <div class="wset ${isActive ? 'active' : ''} ${i === editIndex ? 'editing' : ''}" data-wset-edit="${i}">
+          <div class="wset-head">
+            <b>세트 ${i + 1}</b>
+            <span class="wset-stance">${stances}</span>
+            <span class="wset-atk">공격 +${atk}</span>
+            ${swapBtn}
+          </div>
+          ${rows}
+        </div>`;
+    }).join('');
+
+    const weapons = this.pm.gear.filter((g) => g.slot === 'weapon');
+    const ownedRows = weapons.length === 0
+      ? '<p style="opacity:0.6;font-size:11px;">보관 중인 무기가 없습니다. 사냥·제작으로 무기를 모으면 세트를 꾸릴 수 있습니다.</p>'
+      : weapons.map((gear) => {
+        const ok = unit.canEquip(gear.itemId);
+        const buttons = ok
+          ? `<button data-wset-assign="${gear.uid}" data-slotidx="0">주무기로</button>
+             <button data-wset-assign="${gear.uid}" data-slotidx="1">보조로</button>`
+          : `<span class="equip-stat" style="color:#e74c3c">${STANCE_DATA[gear.stanceId].name} 스탠스 필요</span>`;
+        return `
+          <div class="equip-row">
+            <span class="equip-item">${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
+            <span class="equip-stat">공격 +${gear.atk}</span>
+            ${buttons}
+          </div>`;
+      }).join('');
+
+    el.innerHTML = `
+      <div class="section-title">무기 세트 — 1 / 2 / 3 키로 교체 (재사용 대기 ${(WEAPON_SWAP_COOLDOWN_MS / 1000).toFixed(1)}초)</div>
+      <p class="hint-text">세트마다 무기가 다르면 스탠스가 통째로 바뀝니다. 근접 세트로 붙었다가 쿨이 돌면 원거리 세트로 빠지는 식으로 씁니다.</p>
+      <div class="wset-list">${sets}</div>
+      <div class="section-title">세트 ${editIndex + 1}에 등록할 무기 (편집할 세트를 클릭해 고르세요)</div>
+      ${ownedRows}
     `;
+
+    el.querySelectorAll('[data-wset-edit]').forEach((row) => {
+      row.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') return;
+        this.presetEditSet = parseInt(row.dataset.wsetEdit, 10);
+        this.refreshCharInfo();
+      });
+    });
+    el.querySelectorAll('button[data-wset-swap]').forEach((b) => {
+      b.addEventListener('click', () => this.onPresetSwap && this.onPresetSwap(parseInt(b.dataset.wsetSwap, 10)));
+    });
+    el.querySelectorAll('button[data-wset-clear]').forEach((b) => {
+      const [i, j] = b.dataset.wsetClear.split(':').map(Number);
+      b.addEventListener('click', () => this.onPresetRemove && this.onPresetRemove(i, j));
+    });
+    el.querySelectorAll('button[data-wset-assign]').forEach((b) => {
+      b.addEventListener('click', () => this.onPresetAssign
+        && this.onPresetAssign(b.dataset.wsetAssign, this.presetEditSet, parseInt(b.dataset.slotidx, 10)));
+    });
+  }
+
+  // ---------- 심연의 탑 ----------
+  refreshTower() {
+    const t = this.tower;
+    const party = this.pm.partyUnits;
+    const ready = t.canEnter(party);
+    const topLevel = party.reduce((m, u) => Math.max(m, u.level), 0);
+
+    const checkpointBtns = t.checkpoints.map((f) => `
+      <button data-tower-floor="${f}" ${ready ? '' : 'disabled'}>${f}층부터</button>`).join('');
+
+    const nextBoss = t.active
+      ? t.floor + ((TOWER_BOSS_EVERY - (t.floor % TOWER_BOSS_EVERY)) % TOWER_BOSS_EVERY || TOWER_BOSS_EVERY)
+      : TOWER_BOSS_EVERY;
+
+    document.getElementById('tower-body').innerHTML = `
+      <p class="hint-text">사냥터를 다 돌았다면 여기가 다음 목표입니다. 층의 적을 전부 쓰러뜨리면 위층이 열리고,
+      ${TOWER_BOSS_EVERY}층마다 보스가 지키고 있습니다. 전멸하면 밀려나지만 최고 기록과 보상은 남습니다.</p>
+      <div class="tower-stat">
+        <div><span>최고 기록</span><b>${t.bestFloor}층</b></div>
+        <div><span>현재 상태</span><b>${t.active ? `${t.floor}층 도전 중` : '대기'}</b></div>
+        <div><span>다음 보스</span><b>${nextBoss}층</b></div>
+      </div>
+      ${t.active ? `
+        <div class="section-title">진행 중</div>
+        <div class="tower-row">남은 적 ${this.zm.enemies.filter((e) => e.alive).length}마리</div>
+        <button id="tower-leave-btn">도전 종료하고 내려가기</button>
+      ` : ''}
+      <div class="section-title">도전 시작 — ${TOWER_CHECKPOINT}층 단위로 기록이 남습니다</div>
+      ${ready ? '' : `<p class="hint-text" style="color:#e74c3c;">Lv.${TOWER_ENTRY_LEVEL} 이상 캐릭터가 필요합니다. (현재 최고 Lv.${topLevel})</p>`}
+      <div class="tower-floors">${checkpointBtns}</div>
+    `;
+
+    const body = document.getElementById('tower-body');
+    body.querySelectorAll('button[data-tower-floor]').forEach((b) => {
+      b.addEventListener('click', () => this.onTowerEnter && this.onTowerEnter(parseInt(b.dataset.towerFloor, 10)));
+    });
+    const leave = document.getElementById('tower-leave-btn');
+    if (leave) leave.addEventListener('click', () => this.onTowerLeave && this.onTowerLeave());
   }
 
   // ---------- 텔레포트 ----------
@@ -496,6 +692,7 @@ class UIManager {
     const el = document.getElementById('teleport-list');
     const rows = ZONE_DATA
       .map((z, i) => ({ z, i }))
+      .filter(({ z }) => z.type !== 'tower') // 탑은 전용 창(G)으로만 들어간다
       .sort((a, b) => a.z.level - b.z.level || a.i - b.i)
       .map(({ z, i }) => {
         const isCurrent = i === this.zm.index;
