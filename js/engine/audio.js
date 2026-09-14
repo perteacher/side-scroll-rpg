@@ -48,7 +48,7 @@ class AudioManager {
       const raw = localStorage.getItem(AUDIO_VOLUME_KEY);
       if (raw === null) return 1;
       const v = parseFloat(raw);
-      return VOLUME_STEPS.includes(v) ? v : 1;
+      return Number.isFinite(v) ? clamp(v, 0, 1) : 1;
     } catch (e) {
       return 1;
     }
@@ -86,14 +86,22 @@ class AudioManager {
   get ready() { return !!this.ctx && this.ctx.state === 'running'; }
 
   cycleVolume() {
-    const i = VOLUME_STEPS.indexOf(this.volume);
-    this.volume = VOLUME_STEPS[(i + 1) % VOLUME_STEPS.length];
+    // 슬라이더로 맞춘 값에서 눌러도 다음 단계로 넘어가도록, 현재 값 이하의 첫 단계를 찾는다.
+    const i = VOLUME_STEPS.findIndex((v) => v <= this.volume + 1e-6);
+    this.volume = VOLUME_STEPS[((i < 0 ? 0 : i) + 1) % VOLUME_STEPS.length];
     if (this.master) this.master.gain.value = this.volume;
     this._saveVolume();
     return this.volume;
   }
 
-  get icon() { return VOLUME_ICON[this.volume]; }
+  get icon() { return VOLUME_ICON[this.volume] || (this.volume > 0.5 ? '🔊' : '🔉'); }
+
+  // 슬라이더용: 0~1 사이 아무 값이나 받는다.
+  setVolume(v) {
+    this.volume = clamp(v, 0, 1);
+    if (this.master) this.master.gain.value = this.volume;
+    this._saveVolume();
+  }
 
   // ---------- 저수준 합성 ----------
   _throttled(name) {

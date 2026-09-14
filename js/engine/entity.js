@@ -286,6 +286,7 @@ class Enemy {
     this.uid = nextUid();
     this.name = def.name;
     this.race = def.race;
+    this.level = def.level || 1; // 존 권장 레벨에서 받아온다(탑은 층에 비례)
     this.width = 32; this.height = 48;
     this.floor = def.floor || 1;
     // 2층 몹은 발판 위에 서고, 그 발판 범위 안에서만 배회한다.

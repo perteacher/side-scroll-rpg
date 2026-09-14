@@ -30,7 +30,8 @@ class ZoneManager {
     this.index = index;
     this.def = ZONE_DATA[index];
     this.platforms = this.def.platforms || [];
-    this.enemies = (this.def.enemies || []).map((e) => new Enemy(e, this.platforms));
+    // 몹 레벨은 존 권장 레벨을 따른다(몹 정의가 직접 들고 있으면 그쪽이 우선).
+    this.enemies = (this.def.enemies || []).map((e) => new Enemy({ level: this.def.level, ...e }, this.platforms));
     this.recruitNpcs = (this.def.recruits || []).map((r) => new RecruitNpc(r, this.platforms));
     this.storyNpcs = (this.def.storyNpcs || []).map((n) => new StoryNpc(n, this.platforms));
     this.shopNpc = this.def.shopNpc ? new ShopNpc(this.def.shopNpc, this.platforms) : null;

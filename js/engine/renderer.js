@@ -45,8 +45,8 @@ class Renderer {
     state.storyNpcs.forEach((npc) => this._drawStoryNpc(npc, state.activeStoryNpcId, state.time));
     if (state.shopNpc) this._drawShopNpc(state.shopNpc, state.time);
     if (state.questBoard) this._drawQuestBoard(state.questBoard, state.time, state.boardHasQuest);
-    state.recruitNpcs.forEach((npc) => this._drawRecruitNpc(npc, state.time));
-    state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemy(e, state.time, e === state.target));
+    state.recruitNpcs.forEach((npc) => this._drawRecruitNpc(npc, state.time, state.recruitStatus[npc.charId]));
+    state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemy(e, state.time, e === state.target, state.partyLevel));
     state.partyUnits.forEach((u, i) => this._drawUnit(u, i === state.activeIndex, state.time));
     state.projectiles.forEach((p) => this._drawProjectile(p, state.time));
     state.effects.draw(ctx);
@@ -391,7 +391,7 @@ class Renderer {
   }
 
   // ---------- 몬스터 ----------
-  _drawEnemy(e, time, isTarget) {
+  _drawEnemy(e, time, isTarget, partyLevel) {
     const { ctx } = this;
     const cx = e.x + e.width / 2;
     const bottom = e.y + e.height;
@@ -505,10 +505,11 @@ class Renderer {
       ctx.strokeRect(e.x - 3, e.y - 3, e.width + 6, e.height + 6);
     }
 
-    ctx.fillStyle = hostile ? '#ff9b8a' : '#a9dfbf';
+    // 레벨 차로 색을 바꿔, 이 사냥터가 지금 내 수준에 맞는지 한눈에 보이게 한다.
+    ctx.fillStyle = dangerColor(e.level, partyLevel);
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`${hostile ? '▲' : '○'} ${e.name}`, cx, e.y - 8);
+    ctx.fillText(`${hostile ? '▲' : '○'} Lv.${e.level} ${e.name}`, cx, e.y - 8);
     this._drawBar(e.x, e.y - 5, e.width, 4, e.hp / e.maxHp, hostile ? '#c0392b' : '#7dcea0');
   }
 
@@ -533,15 +534,19 @@ class Renderer {
     ctx.restore();
   }
 
-  _drawRecruitNpc(npc, time) {
+  // status: 'available'(수락 가능) / 'active'(진행 중) / 'ready'(완료, 돌아오면 영입) / 'done'(영입 완료)
+  _drawRecruitNpc(npc, time, status) {
     const { ctx } = this;
     const cx = npc.x + npc.width / 2;
     this._npcBody(npc, npc.charDef.color, time, 760);
-    ctx.fillStyle = '#f1c40f';
+    const mark = { available: '!', active: '…', ready: '?', done: '✓' }[status] || '!';
+    const markColor = { available: '#f1c40f', active: '#95a5a6', ready: '#f1c40f', done: '#2ecc71' }[status] || '#f1c40f';
+    const bob = status === 'active' || status === 'done' ? 0 : Math.sin(time / 300) * 2;
+    ctx.fillStyle = markColor;
     ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('!', cx, npc.y - 16 + Math.sin(time / 300) * 2);
-    ctx.fillStyle = '#fff';
+    ctx.fillText(mark, cx, npc.y - 16 + bob);
+    ctx.fillStyle = status === 'done' ? '#8fbf9f' : '#fff';
     ctx.font = '11px sans-serif';
     ctx.fillText(npc.name, cx, npc.y - 3);
   }

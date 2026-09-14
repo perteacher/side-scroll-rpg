@@ -13,6 +13,13 @@ class PartyManager {
     this.gear = []; // 미장착 장비 인스턴스
   }
 
+  // 골드 획득은 전부 여기를 거친다(플레이 기록 집계용).
+  addGold(amount) {
+    if (amount <= 0) return;
+    this.gold += amount;
+    if (this.stats) this.stats.goldEarned += amount;
+  }
+
   // ---------- 장비 보관 ----------
   addGear(itemId) {
     const gear = new Gear(itemId);
@@ -34,7 +41,7 @@ class PartyManager {
   sellGear(uid) {
     const gear = this.takeGear(uid);
     if (!gear) return 0;
-    this.gold += gear.sellPrice;
+    this.addGold(gear.sellPrice);
     this.log(`${gear.displayName} 판매 (+${gear.sellPrice}G)`, 'system');
     return gear.sellPrice;
   }
@@ -98,7 +105,7 @@ class PartyManager {
     const def = ITEM_DATA[itemId];
     if (!def || !this.removeItem(itemId, count)) return 0;
     const gain = def.price * count;
-    this.gold += gain;
+    this.addGold(gain);
     this.log(`${def.name} ${count}개 판매 (+${gain}G)`, 'system');
     return gain;
   }

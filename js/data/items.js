@@ -112,6 +112,9 @@ const SHOP_STOCK = ['hp_potion', 'mp_potion'];
 
 // ===== 2~5티어 장비 생성 =====
 // 1티어는 생성 시 기본 지급품이고, 상위 티어는 몹 드랍과 제작으로만 얻는다.
+// 티어별 표시 색. 드랍 연출과 목록에서 등급을 한눈에 구분한다.
+const TIER_COLOR = { 1: '#bdc3c7', 2: '#5dade2', 3: '#58d68d', 4: '#bb8fce', 5: '#f5b041' };
+
 const EQUIP_TIER_PREFIX = { 2: '강철', 3: '정예', 4: '고대', 5: '마력' };
 const EQUIP_TIER_SCALE = { 2: 2.5, 3: 5.5, 4: 10, 5: 17 };
 

@@ -13,6 +13,8 @@ class EffectManager {
   }
 
   damage(x, y, amount, opts = {}) {
+    // 설정에서 끈 경우 순수 데미지 숫자만 감춘다(MISS·회복 같은 안내는 남긴다).
+    if (!opts.text && typeof SettingsManager !== 'undefined' && !SettingsManager.values.showDamage) return;
     this._add({
       kind: 'text', x: x + randRange(-8, 8), y, vy: -46, life: 780, maxLife: 780,
       text: opts.text || `${amount}`,
@@ -49,6 +51,14 @@ class EffectManager {
     this._add({
       kind: 'cast', x: unit.x + unit.width / 2, y: unit.y + unit.height / 2,
       life: 360, maxLife: 360, color: color || '#8ad6ff',
+    });
+  }
+
+  // 획득 표시: 데미지 숫자보다 느리게 오래 떠 있어야 사냥 중에도 읽힌다.
+  loot(x, y, text, color) {
+    this._add({
+      kind: 'text', x, y, vy: -24, life: 1500, maxLife: 1500,
+      text, color: color || '#f1c40f', size: 12, crit: false,
     });
   }
 

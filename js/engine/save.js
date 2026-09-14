@@ -67,6 +67,7 @@ const SaveManager = {
       },
       seenLevels: [...(game._seenLevels || new Map())],
       tower: { bestFloor: game.tower.bestFloor },
+      stats: game.stats.serialize(),
       scenario: {
         chapterIndex: sm.chapterIndex, stepIndex: sm.stepIndex,
         huntCount: sm.huntCount, finished: sm.finished,
@@ -163,6 +164,7 @@ const SaveManager = {
     sm.finished = !!data.scenario.finished;
 
     if (data.tower) game.tower.bestFloor = data.tower.bestFloor || 0;
+    game.stats.restore(data.stats);
 
     // 탑 도전은 저장되지 않는다. 탑에서 저장된 게임은 가까운 마을에서 다시 시작한다.
     let zoneIndex = clamp(data.zoneIndex || 0, 0, ZONE_DATA.length - 1);

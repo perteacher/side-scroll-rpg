@@ -39,6 +39,25 @@ function xpToNextLevel(level) {
 
 function stanceXpToNext(stanceLevel) { return 40 + stanceLevel * 45; }
 
+// 몹 레벨 - 내 레벨 차이를 색으로. 회색=거저 / 흰색=적정 / 주황·빨강=위험.
+function dangerColor(enemyLevel, myLevel) {
+  const diff = (enemyLevel || 1) - (myLevel || 1);
+  if (diff >= 10) return '#e74c3c';
+  if (diff >= 4) return '#e67e22';
+  if (diff >= -3) return '#f4f4f4';
+  if (diff >= -9) return '#a9dfbf';
+  return '#7f8c8d';
+}
+
+function dangerLabel(enemyLevel, myLevel) {
+  const diff = (enemyLevel || 1) - (myLevel || 1);
+  if (diff >= 10) return '매우 위험';
+  if (diff >= 4) return '위험';
+  if (diff >= -3) return '적정';
+  if (diff >= -9) return '쉬움';
+  return '거저';
+}
+
 // 스킬 레벨 1당 위력 +15%
 function skillDamageMult(skillDef, skillLevel) {
   return skillDef.dmgMult * (1 + 0.15 * (skillLevel - 1));

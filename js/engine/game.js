@@ -18,8 +18,12 @@ class Game {
     this.fm = new FamilyManager(log);
     this.gq = new GeneralQuestManager(log, this.pm);
     this.tower = new TowerManager(log);
+    this.stats = new StatsTracker();
+    this.pm.stats = this.stats;
+    SettingsManager.load();
     this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm; this.ui.fm = this.fm; this.ui.gq = this.gq;
     this.ui.tower = this.tower;
+    this.ui.stats = this.stats;
     this.renderer = new Renderer(this.ctx, WORLD_WIDTH, WORLD_HEIGHT);
     this.effects = new EffectManager();
     EFFECTS = this.effects;
@@ -123,7 +127,7 @@ class Game {
       this.ui.refreshQuest();
     };
     this.sm.onChapterComplete = (chapterDef) => {
-      this.pm.gold += chapterDef.reward.gold;
+      this.pm.addGold(chapterDef.reward.gold);
       const log = (t, tag) => this.ui.logChat(t, tag);
       this.pm.partyUnits.forEach((u) => u.gainXp(chapterDef.reward.xp, log));
       this.ui.rebuildPartySlots();
@@ -232,7 +236,7 @@ class Game {
   _advanceTowerFloor() {
     const cleared = this.tower.floor;
     const reward = towerFloorReward(cleared);
-    this.pm.gold += reward.gold;
+    this.pm.addGold(reward.gold);
     const log = (t, tag) => this.ui.logChat(t, tag);
     this.pm.partyUnits.forEach((u) => u.gainXp(reward.xp, log));
     reward.items.forEach((id) => {
@@ -322,6 +326,9 @@ class Game {
     this._tickCooldowns(dt);
     this._tickAutosave(dt);
     this._updateBgmTheme(dt);
+    this.stats.tick(dt);
+    this.stats.zonesVisited.add(this.zm.def.id);
+    this._tickAutoPotion(dt);
     this.zm.update(dt);
     if (this.zm.index === this.tower.zoneIndex && this.tower.update(dt, this.zm.enemies)) this._advanceTowerFloor();
     this.effects.update(dt);
@@ -331,6 +338,7 @@ class Game {
     });
 
     this.renderer.updateCamera(this.pm.activeUnit, this.zm.width);
+    this.ui._hudDt = dt;
     this.ui.refreshPartyHUD();
     this.ui.refreshTargetBar();
     if (!document.getElementById('quest-window').classList.contains('hidden')) this.ui.refreshQuest();
@@ -360,6 +368,7 @@ class Game {
     if (input.wasPressed('b')) ui.toggleWindow('barracks-window');
     if (input.wasPressed('t')) ui.toggleWindow('teleport-window');
     if (input.wasPressed('g')) ui.toggleWindow('tower-window');
+    if (input.wasPressed('o')) ui.toggleWindow('settings-window');
     if (input.wasPressed('f')) ui.toggleWindow('family-window');
     if (input.wasPressed('alt+e')) ui.toggleWindow('char-info-window');
     if (input.wasPressed('escape')) ui.closeTopWindow();
@@ -428,6 +437,7 @@ class Game {
       unit.downed = true;
       unit.vx = 0;
       changed = true;
+      this.stats.deaths += 1;
       this.effects.damage(unit.x + unit.width / 2, unit.y - 6, 0, { text: 'DOWN', color: '#e74c3c', crit: true });
       this.audio.down();
       this.ui.logChat(`${unit.name}(이)가 쓰러졌습니다. 마을에서 회복됩니다.`, 'system');
@@ -500,6 +510,25 @@ class Game {
     if (bossEngaged) { this.audio.setTheme('boss'); return; }
     if (this.zm.def.type === 'tower') { this.audio.setTheme('tower'); return; }
     this.audio.setTheme(this.zm.isTown ? 'town' : 'field');
+  }
+
+  // 자동 물약: 자동전투가 핵심인 게임이라 회복까지 손으로 하면 흐름이 끊긴다.
+  // 0.8초에 한 번만 검사하고, 한 번에 한 명씩만 먹인다(물약이 한꺼번에 녹지 않도록).
+  _tickAutoPotion(dt) {
+    this.potionTimer = (this.potionTimer || 0) - dt;
+    if (this.potionTimer > 0) return;
+    this.potionTimer = 800;
+    const cfg = SettingsManager.values;
+    if (!cfg.autoPotion) return;
+    for (const unit of this.pm.partyUnits) {
+      if (unit.downed || unit.hp <= 0) continue;
+      if (unit.hp / unit.maxHp < cfg.hpThreshold && this.pm.itemCount('hp_potion') > 0) {
+        if (this.pm.useConsumable('hp_potion', unit)) { this.ui.refreshOpenWindows(); return; }
+      }
+      if (unit.mp / unit.maxMp < cfg.mpThreshold && this.pm.itemCount('mp_potion') > 0) {
+        if (this.pm.useConsumable('mp_potion', unit)) { this.ui.refreshOpenWindows(); return; }
+      }
+    }
   }
 
   _tickAutosave(dt) {
@@ -731,16 +760,21 @@ class Game {
   _rollDrops(enemy) {
     const table = DROP_TABLE[enemy.name];
     if (table) {
+      let row = 0;
       table.forEach((d) => {
         if (Math.random() > d.chance) return;
         this.pm.addItem(d.id, 1);
         this.audio.pickup();
+        this.effects.loot(enemy.x + enemy.width / 2, enemy.y - 14 - row * 14, ITEM_DATA[d.id].name, '#ecf0f1');
+        row += 1;
         this.ui.logChat(`${ITEM_DATA[d.id].name} 획득`, 'system');
       });
     }
     const equipId = rollEquipmentDrop(tierFromLevel(this.zm.def.level));
     if (equipId) {
       const gear = this.pm.addGear(equipId);
+      this.effects.loot(enemy.x + enemy.width / 2, enemy.y - 44, `[장비] ${gear.item.name}`, TIER_COLOR[gear.tier]);
+      this.audio.pickup();
       this.ui.logChat(`[장비 드랍] ${gear.displayName} 획득!`, 'system');
     }
     this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.sm.checkItemSteps();
@@ -782,6 +816,8 @@ class Game {
   _checkEnemyDeath(enemy, killerUnit) {
     if (enemy.alive || enemy.rewarded) return;
     enemy.rewarded = true;
+    this.stats.kills += 1;
+    if (enemy.boss) this.stats.bossKills += 1;
     this.qm.onKill(this.zm.def.id, enemy.name);
     this.gq.onKill(this.zm.def.id, enemy.name);
     this.sm.onKill(this.zm.def.id, enemy.name);
@@ -941,6 +977,18 @@ class Game {
     this.ui.setTarget(hit || null);
   }
 
+  // 영입 NPC 머리 위 표시를 진행 상태에 맞춘다.
+  _recruitStatusMap() {
+    const out = {};
+    this.zm.recruitNpcs.forEach((npc) => {
+      if (this.pm.units.has(npc.charId) || this.qm.isCompleted(npc.charId)) { out[npc.charId] = 'done'; return; }
+      const quest = this.qm.find(npc.charId);
+      if (!quest) { out[npc.charId] = 'available'; return; }
+      out[npc.charId] = this.qm.isReady(quest) ? 'ready' : 'active';
+    });
+    return out;
+  }
+
   render() {
     this.renderer.draw({
       groundColor: this.zm.groundColor,
@@ -961,6 +1009,8 @@ class Game {
       warpPrompt: this.warpPrompt,
       platforms: this.zm.platforms,
       partyUnits: this.pm.partyUnits,
+      partyLevel: Math.max(1, ...this.pm.partyUnits.map((u) => u.level)),
+      recruitStatus: this._recruitStatusMap(),
       activeIndex: this.pm.activeIndex,
       projectiles: this.projectiles,
       time: this.elapsed,

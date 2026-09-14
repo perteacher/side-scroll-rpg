@@ -1,5 +1,30 @@
 // 파티 슬롯별 스킬 단축키: 1번 QWE / 2번 ASD / 3번 ZXC
 const SLOT_SKILL_KEYS = [['q', 'w', 'e'], ['a', 's', 'd'], ['z', 'x', 'c']];
+// 설정 창의 조작 안내. 하단 힌트바에 다 욱여넣지 않고 여기로 모았다.
+const KEY_GUIDE = [
+  ['← →', '이동'],
+  ['↑', '점프 / 포탈 진입'],
+  ['↓', '아래층으로 내려가기'],
+  ['Space', '기본 공격'],
+  ['Q W E', '1번 캐릭터 스킬'],
+  ['A S D', '2번 캐릭터 스킬'],
+  ['Z X C', '3번 캐릭터 스킬'],
+  ['R', '조작 캐릭터의 전용기'],
+  ['1 2 3', '무기 세트 교체'],
+  ['V', '스탠스 전환'],
+  ['Tab', '리더 전환'],
+  ['I', '인벤토리'],
+  ['Alt + E', '캐릭터 정보'],
+  ['J', '퀘스트'],
+  ['B', '병영'],
+  ['T', '텔레포트'],
+  ['F', '가문 특성'],
+  ['G', '심연의 탑'],
+  ['O', '설정'],
+  ['Esc', '창 닫기'],
+  ['마우스', 'NPC·게시판·몹 클릭'],
+];
+
 const CHAT_TABS = [
   { id: 'all', label: '전체' }, { id: 'general', label: '일반' }, { id: 'squad', label: '스퀴드' },
   { id: 'party', label: '당' }, { id: 'whisper', label: '귓속말' }, { id: 'npc', label: 'NPC' },
@@ -114,7 +139,7 @@ class UIManager {
 
   _openTargetId(key) {
     return {
-      family: 'family-window', tower: 'tower-window',
+      family: 'family-window', tower: 'tower-window', settings: 'settings-window',
       inventory: 'inventory-window', charinfo: 'char-info-window',
       barracks: 'barracks-window', quest: 'quest-window', teleport: 'teleport-window',
     }[key];
@@ -215,6 +240,7 @@ class UIManager {
     if (id === 'teleport-window') this.refreshTeleport();
     if (id === 'family-window') this.refreshFamily();
     if (id === 'tower-window') this.refreshTower();
+    if (id === 'settings-window') this.refreshSettings();
     if (id === 'inventory-window') this.refreshInventory();
     document.getElementById(id).classList.remove('hidden');
   }
@@ -229,6 +255,7 @@ class UIManager {
     if (this.isWindowOpen('inventory-window')) this.refreshInventory();
     if (this.isWindowOpen('family-window')) this.refreshFamily();
     if (this.isWindowOpen('tower-window')) this.refreshTower();
+    if (this.isWindowOpen('settings-window')) this.refreshSettings();
     if (this.isWindowOpen('board-window')) this.refreshBoard();
   }
 
@@ -382,6 +409,7 @@ class UIManager {
         b.classList.toggle('no-mp', remain <= 0 && unit.mp < def.manaCost);
       });
     });
+    this.refreshTracker(this._hudDt || 16);
     document.getElementById('gold-amount').textContent = this.pm.gold;
     document.getElementById('zone-label').textContent = this.tower && this.tower.active
       ? `${this.zm.name} ${this.tower.floor}층 (최고 ${this.tower.bestFloor}층)`
@@ -490,7 +518,18 @@ class UIManager {
     return rows.concat(buffs).join('');
   }
 
-  _ownedEquipHtml(unit) {
+  // 지금 낀 것과 비교해 얼마나 오르내리는지. 무기는 현재 세트의 주무기가 기준이다.
+  _gearDeltaHtml(unit, gear) {
+    const slot = gear.slot === 'weapon' ? 'weapon1' : gear.slot;
+    const stat = gear.item.atk ? 'atk' : 'def';
+    const current = unit.equipment[slot];
+    if (!current) return `<span class="cmp up">▲ +${gear[stat]} (빈 칸)</span>`;
+    const d = gear[stat] - current[stat];
+    if (d === 0) return '<span class="cmp same">＝ 동일</span>';
+    return `<span class="cmp ${d > 0 ? 'up' : 'down'}">${d > 0 ? `▲ +${d}` : `▼ ${d}`}</span>`;
+  }
+
+  _ownedEquipHtml(unit, opts = {}) {
     const owned = this.pm.gear;
     if (owned.length === 0) return '<p style="opacity:0.6;font-size:11px;">보관 중인 장비가 없습니다.</p>';
     return owned.map((gear) => {
@@ -498,15 +537,17 @@ class UIManager {
       const why = gear.slot === 'weapon'
         ? `${STANCE_DATA[gear.stanceId].name} 스탠스 필요`
         : `${ARMOR_CLASS_LABEL[gear.armorClass]} 전용`;
-      const buttons = !ok ? `<span class="equip-stat" style="color:#e74c3c">${why}</span>`
+      const equipBtns = !ok ? `<span class="equip-stat" style="color:#e74c3c">${why}</span>`
         : (gear.slot === 'weapon'
           ? `<button data-equip="${gear.uid}" data-slot="weapon1">주무기</button><button data-equip="${gear.uid}" data-slot="weapon2">보조</button>`
           : `<button data-equip="${gear.uid}">장착</button>`);
+      const sellBtn = opts.sell ? `<button data-sellgear="${gear.uid}" title="${gear.sellPrice}G에 판매">판매</button>` : '';
       return `
         <div class="equip-row">
-          <span class="equip-item">${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
+          <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
           <span class="equip-stat">${gear.item.atk ? `공격 +${gear.atk}` : `방어 +${gear.def}`}</span>
-          ${buttons}
+          ${ok ? this._gearDeltaHtml(unit, gear) : ''}
+          ${equipBtns}${sellBtn}
         </div>`;
     }).join('');
   }
@@ -685,6 +726,128 @@ class UIManager {
     });
     const leave = document.getElementById('tower-leave-btn');
     if (leave) leave.addEventListener('click', () => this.onTowerLeave && this.onTowerLeave());
+  }
+
+  // 화면 우측 목표 표시.
+  // 매 프레임 문자열을 새로 만들 이유가 없어서 250ms마다만 검사하고, 내용이 바뀔 때만 DOM을 쓴다.
+  refreshTracker(dt = 16) {
+    this._trackerTimer = (this._trackerTimer || 0) - dt;
+    if (this._trackerTimer > 0) return;
+    this._trackerTimer = 250;
+    const el = document.getElementById('quest-tracker');
+    if (!SettingsManager.values.showTracker) { el.classList.add('hidden'); return; }
+    const lines = [];
+
+    if (this.tower && this.tower.active) {
+      const left = this.zm.enemies.filter((e) => e.alive).length;
+      lines.push({ tag: '탑', text: `${this.tower.floor}층 — 남은 적 ${left}` });
+    }
+    if (this.sm && !this.sm.finished) {
+      lines.push({ tag: '시나리오', text: this.sm.objectiveText() });
+    }
+    const recruit = this.qm.active[0];
+    if (recruit) {
+      lines.push({ tag: '영입', text: `${recruit.charName} — ${this.qm.stepText(recruit)}` });
+    }
+    this.gq.active.slice(0, 2).forEach((q) => {
+      const def = this.gq.def(q.id);
+      if (def) lines.push({ tag: '의뢰', text: `${def.title} — ${this.gq.stepText(q)}` });
+    });
+
+    const key = lines.map((l) => l.tag + l.text).join('|');
+    if (key === this._trackerKey) { el.classList.remove('hidden'); return; }
+    this._trackerKey = key;
+    el.classList.toggle('hidden', lines.length === 0);
+    el.innerHTML = lines.map((l) => `<div class="tr-row"><span class="tr-tag ${l.tag}">${l.tag}</span>${l.text}</div>`).join('');
+  }
+
+  // ---------- 설정 ----------
+  refreshSettings() {
+    const v = SettingsManager.values;
+    const s = this.stats;
+    const pct = (x) => Math.round(x * 100);
+    document.getElementById('settings-body').innerHTML = `
+      <div class="section-title">소리</div>
+      <div class="set-row">
+        <label>전체 음량</label>
+        <input type="range" id="set-volume" min="0" max="100" step="5" value="${pct(SOUND.volume)}">
+        <span id="set-volume-val">${pct(SOUND.volume)}%</span>
+      </div>
+
+      <div class="section-title">자동 물약</div>
+      <div class="set-row">
+        <label>자동 사용</label>
+        <input type="checkbox" id="set-autopotion" ${v.autoPotion ? 'checked' : ''}>
+        <span style="opacity:0.6;font-size:11px;">인벤토리의 물약을 자동으로 씁니다</span>
+      </div>
+      <div class="set-row">
+        <label>HP 기준</label>
+        <input type="range" id="set-hp" min="10" max="90" step="5" value="${pct(v.hpThreshold)}" ${v.autoPotion ? '' : 'disabled'}>
+        <span id="set-hp-val">${pct(v.hpThreshold)}% 이하</span>
+      </div>
+      <div class="set-row">
+        <label>MP 기준</label>
+        <input type="range" id="set-mp" min="0" max="90" step="5" value="${pct(v.mpThreshold)}" ${v.autoPotion ? '' : 'disabled'}>
+        <span id="set-mp-val">${pct(v.mpThreshold)}% 이하</span>
+      </div>
+
+      <div class="section-title">화면</div>
+      <div class="set-row">
+        <label>목표 표시</label>
+        <input type="checkbox" id="set-tracker" ${v.showTracker ? 'checked' : ''}>
+        <span style="opacity:0.6;font-size:11px;">우측에 현재 퀘스트 목표를 띄웁니다</span>
+      </div>
+      <div class="set-row">
+        <label>데미지 숫자</label>
+        <input type="checkbox" id="set-damage" ${v.showDamage ? 'checked' : ''}>
+        <span style="opacity:0.6;font-size:11px;">끄면 전투 화면이 한결 깔끔해집니다</span>
+      </div>
+
+      <div class="section-title">플레이 기록</div>
+      <div class="stat-grid">
+        <div class="row"><span>플레이 시간</span><span>${s.playTimeText}</span></div>
+        <div class="row"><span>총 처치</span><span>${s.kills.toLocaleString()}</span></div>
+        <div class="row"><span>보스 처치</span><span>${s.bossKills.toLocaleString()}</span></div>
+        <div class="row"><span>누적 획득 골드</span><span>${s.goldEarned.toLocaleString()}G</span></div>
+        <div class="row"><span>전투 불능</span><span>${s.deaths}회</span></div>
+        <div class="row"><span>방문한 지역</span><span>${s.zonesVisited.size} / ${ZONE_DATA.length}</span></div>
+        <div class="row"><span>심연의 탑 최고</span><span>${this.tower.bestFloor}층</span></div>
+      </div>
+
+      <div class="section-title">조작</div>
+      <div class="key-grid">
+        ${KEY_GUIDE.map((k) => `<div class="row"><span>${k[0]}</span><span>${k[1]}</span></div>`).join('')}
+      </div>
+
+      <button id="set-reset" style="margin-top:10px;">설정 기본값으로</button>
+    `;
+
+    const body = document.getElementById('settings-body');
+    const bind = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    bind('set-volume', 'input', (e) => {
+      SOUND.unlock();
+      SOUND.setVolume(e.target.value / 100);
+      document.getElementById('set-volume-val').textContent = `${e.target.value}%`;
+      const btn = document.getElementById('sound-btn');
+      btn.textContent = SOUND.icon;
+    });
+    bind('set-autopotion', 'change', (e) => { SettingsManager.set('autoPotion', e.target.checked); this.refreshSettings(); });
+    bind('set-hp', 'input', (e) => {
+      SettingsManager.set('hpThreshold', e.target.value / 100);
+      document.getElementById('set-hp-val').textContent = `${e.target.value}% 이하`;
+    });
+    bind('set-mp', 'input', (e) => {
+      SettingsManager.set('mpThreshold', e.target.value / 100);
+      document.getElementById('set-mp-val').textContent = `${e.target.value}% 이하`;
+    });
+    bind('set-tracker', 'change', (e) => {
+      SettingsManager.set('showTracker', e.target.checked);
+      this._trackerKey = null;
+      this.refreshTracker();
+    });
+    bind('set-damage', 'change', (e) => SettingsManager.set('showDamage', e.target.checked));
+    bind('set-reset', 'click', () => { SettingsManager.reset(); this._trackerKey = null; this.refreshSettings(); this.refreshTracker(); });
+    body.scrollTop = 0;
   }
 
   // ---------- 텔레포트 ----------
@@ -954,26 +1117,36 @@ class UIManager {
   // ---------- 인벤토리 ----------
   refreshInventory() {
     const grid = document.getElementById('inventory-grid');
-    const entries = [...this.pm.items.entries()].filter(([, c]) => c > 0);
-    if (entries.length === 0) {
-      grid.innerHTML = '<p style="opacity:0.6;font-size:12px;">비어 있습니다. 몬스터를 잡으면 잡템이 나옵니다.</p>';
-      return;
-    }
-    const total = entries.reduce((s, [id, c]) => s + ITEM_DATA[id].price * c, 0);
     const unit = this.pm.activeUnit;
-    grid.innerHTML = `
-      <div class="inv-list">
-        ${entries.map(([id, c]) => {
+    const entries = [...this.pm.items.entries()].filter(([, c]) => c > 0);
+    const total = entries.reduce((s, [id, c]) => s + ITEM_DATA[id].price * c, 0);
+
+    const itemsHtml = entries.length === 0
+      ? '<p style="opacity:0.6;font-size:11px;">잡템·소모품이 없습니다. 몬스터를 잡으면 나옵니다.</p>'
+      : `<div class="inv-list">${entries.map(([id, c]) => {
           const it = ITEM_DATA[id];
           const useBtn = it.consumable ? `<button data-use="${id}">사용</button>` : '';
-          return `<div class="inv-row"><span>${it.name}</span><span style="opacity:0.7">x${c}</span><span style="color:#f1c40f">${it.price * c}G</span>${useBtn}</div>`;
-        }).join('')}
-      </div>
+          return `<div class="inv-row"><span style="color:${TIER_COLOR[it.tier] || '#ecf0f1'}">${it.name}</span>`
+            + `<span style="opacity:0.7">x${c}</span><span style="color:#f1c40f">${it.price * c}G</span>${useBtn}</div>`;
+        }).join('')}</div>`;
+
+    grid.innerHTML = `
+      <div class="section-title">장비 보관함 (${this.pm.gear.length})</div>
+      ${this._ownedEquipHtml(unit, { sell: true })}
+      <div class="section-title">잡템 · 소모품</div>
+      ${itemsHtml}
       <div style="margin-top:8px;font-size:11px;opacity:0.75;">
-        총 판매가치 ${total}G · 물약 사용 대상: <b>${unit ? unit.name : '-'}</b> (Tab으로 변경)
+        잡템 판매가치 ${total}G · 소모품 사용 대상: <b>${unit ? unit.name : '-'}</b> (Tab으로 변경)
       </div>`;
+
     grid.querySelectorAll('button[data-use]').forEach((b) => {
       b.addEventListener('click', () => this.onUsePotion && this.onUsePotion(b.dataset.use));
+    });
+    grid.querySelectorAll('button[data-equip]').forEach((b) => {
+      b.addEventListener('click', () => this.onEquip && this.onEquip(b.dataset.equip, b.dataset.slot || null));
+    });
+    grid.querySelectorAll('button[data-sellgear]').forEach((b) => {
+      b.addEventListener('click', () => this.onSellGear && this.onSellGear(b.dataset.sellgear));
     });
   }
 
@@ -998,7 +1171,7 @@ class UIManager {
       return `
         <div class="shop-row">
           <span class="shop-name">
-            ${gear.displayName} <span class="tier-badge">T${gear.tier}</span> <span style="opacity:0.55">${where}</span>
+            <span style="color:${TIER_COLOR[gear.tier]}">${gear.displayName}</span> <span class="tier-badge">T${gear.tier}</span> <span style="opacity:0.55">${where}</span>
             <div class="shop-meta">${gear.item.atk ? `공격 +${gear.atk}` : `방어 +${gear.def}`}${gear.critBonus ? ` · 크리 +${gear.critBonus}` : ''}${gear.hpPct ? ` · HP +${Math.round(gear.hpPct * 100)}%` : ''}</div>
             <div class="shop-meta">강화 ${maxed ? 'MAX' : `성공 ${rate}% · ${eCost.gold}G · ${matText(eCost)}`}</div>
             <div class="shop-meta">인챈트 ${cCost.gold}G · ${matText(cCost)}</div>

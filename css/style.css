@@ -17,8 +17,11 @@ html, body {
   padding: 6px 10px; pointer-events: none;
 }
 #menu-icons, #target-bar, #minimap-wrap { pointer-events: auto; }
+/* 아이콘 12개가 한 줄에 들어가야 한다(줄바꿈되면 화면을 가린다). */
+#menu-icons { display: flex; flex-wrap: nowrap; }
 #menu-icons button {
-  width: 34px; height: 34px; margin-right: 4px; font-size: 16px;
+  width: 30px; height: 30px; margin-right: 3px; font-size: 14px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; padding: 0;
   background: rgba(20,20,30,0.85); border: 1px solid #555; border-radius: 4px; color: #fff; cursor: pointer;
 }
 #menu-icons button:hover { background: rgba(60,60,80,0.9); }
@@ -362,3 +365,43 @@ html, body {
 .tower-floors { display: flex; flex-wrap: wrap; gap: 6px; }
 .tower-floors button { min-width: 68px; }
 #tower-leave-btn { margin-bottom: 6px; }
+
+/* ---- 장비 비교 ---- */
+.cmp { font-size: 10px; font-weight: bold; white-space: nowrap; min-width: 62px; text-align: right; }
+.cmp.up { color: #2ecc71; }
+.cmp.down { color: #e74c3c; }
+.cmp.same { color: #7f8c8d; }
+
+/* ---- 퀘스트 목표 트래커 ---- */
+#quest-tracker {
+  position: absolute; right: 8px; top: 140px; width: 232px; z-index: 4;
+  display: flex; flex-direction: column; gap: 3px; pointer-events: none;
+}
+#quest-tracker .tr-row {
+  background: rgba(10, 12, 20, 0.72); border-left: 3px solid #5dade2; border-radius: 3px;
+  padding: 4px 6px; font-size: 10.5px; line-height: 1.45; color: #e8eef5;
+  text-shadow: 1px 1px 2px #000;
+}
+#quest-tracker .tr-tag {
+  display: inline-block; margin-right: 5px; padding: 0 4px; border-radius: 2px;
+  font-size: 9px; font-weight: bold; background: rgba(93, 173, 226, 0.25); color: #8ad6ff;
+}
+
+/* ---- 설정 창 ---- */
+#settings-window { width: 420px; max-height: 74vh; }
+#settings-body { overflow-y: auto; padding: 8px 10px 12px; }
+.set-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11px; }
+.set-row label { min-width: 72px; opacity: 0.85; }
+.set-row input[type="range"] { flex: 1; accent-color: #5dade2; }
+.set-row input[type="checkbox"] { accent-color: #5dade2; width: 14px; height: 14px; }
+.set-row > span { min-width: 74px; }
+.key-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+.key-grid .row { display: flex; justify-content: space-between; font-size: 10.5px; padding: 1px 0; }
+.key-grid .row span:first-child { color: #8ad6ff; font-weight: bold; }
+#set-reset { font-size: 11px; padding: 4px 10px; background: #2c2c44; border: 1px solid #555; color: #fff; border-radius: 3px; cursor: pointer; }
+
+/* 설정 창의 기록/조작표는 항목 이름이 길어 3열 그리드에서는 줄바꿈이 난다. */
+#settings-body .stat-grid { grid-template-columns: 1fr 1fr; gap: 3px 8px; }
+#settings-body .stat-grid .row { font-size: 11px; padding: 3px 7px; }
+#settings-body .stat-grid .row span:last-child { color: #f7dc6f; font-weight: bold; }
+#settings-body .key-grid .row { background: rgba(255,255,255,0.04); border-radius: 3px; padding: 2px 6px; }

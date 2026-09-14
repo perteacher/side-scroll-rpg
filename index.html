@@ -19,6 +19,7 @@
       <button data-open="teleport" title="텔레포트 (T)">🌀</button>
       <button data-open="family" title="가문 특성 (F)">🏰</button>
       <button data-open="tower" title="심연의 탑 (G)">🗼</button>
+      <button data-open="settings" title="설정 (O)">⚙️</button>
       <button id="sound-btn" title="소리">🔊</button>
       <button id="chat-toggle-btn" title="채팅창 열기">💬</button>
       <button id="save-btn" title="저장 (10초마다 자동 저장됨)">💾</button>
@@ -31,6 +32,8 @@
     </div>
     <div id="minimap-wrap"><canvas id="minimap-canvas" width="120" height="120"></canvas></div>
   </div>
+
+  <div id="quest-tracker"></div>
 
   <div id="boss-bar" class="hidden">
     <div id="boss-name"></div>
@@ -55,7 +58,7 @@
     <div id="chat-log"></div>
   </div>
 
-  <div id="hint-bar">방향키 이동 · ↑ 점프/포탈진입 · ↓ 아래층 내려가기 · Space 공격 · 스킬 QWE(1번)/ASD(2번)/ZXC(3번) · V 스탠스 · R 전용기 · 1/2/3 무기세트 · Tab 리더전환 · I 인벤 · Alt+E 정보 · J 퀘스트 · B 병영 · T 텔레포트 · G 심연의 탑</div>
+  <div id="hint-bar">방향키 이동 · ↑ 점프/포탈 · ↓ 내려가기 · Space 공격 · QWE/ASD/ZXC 스킬 · R 전용기 · 1/2/3 무기세트 · Tab 리더전환 — 전체 조작은 <b>O</b>(설정)</div>
 
   <!-- 캐릭터 생성 화면 -->
   <div id="create-screen">
@@ -126,6 +129,12 @@
     <div id="board-body"></div>
   </div>
 
+  <!-- 설정 창 -->
+  <div id="settings-window" class="game-window hidden">
+    <div class="window-title-bar"><span>설정 · 기록</span><button class="close-btn" data-close="settings-window">✕</button></div>
+    <div id="settings-body"></div>
+  </div>
+
   <!-- 심연의 탑 창 -->
   <div id="tower-window" class="game-window hidden">
     <div class="window-title-bar"><span>심연의 탑 — 엔드게임 도전</span><button class="close-btn" data-close="tower-window">✕</button></div>
@@ -170,6 +179,7 @@
 <script src="js/data/signatures.js"></script>
 <script src="js/data/generalquests.js"></script>
 <script src="js/engine/utils.js"></script>
+<script src="js/engine/settings.js"></script>
 <script src="js/engine/stats.js"></script>
 <script src="js/engine/input.js"></script>
 <script src="js/engine/entity.js"></script>

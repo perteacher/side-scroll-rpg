@@ -106,7 +106,7 @@ class GeneralQuestManager {
     const def = this.def(id);
     this.active = this.active.filter((q) => q.id !== id);
     this.cleared[id] = this.clearCount(id) + 1;
-    this.pm.gold += def.reward.gold;
+    this.pm.addGold(def.reward.gold);
     def.reward.items.forEach((it) => this.pm.addItem(it.id, it.count));
     const itemText = def.reward.items.map((it) => `${ITEM_DATA[it.id].name} x${it.count}`).join(', ');
     this.log(`[보상] ${def.title} — ${def.reward.gold.toLocaleString()}G, ${itemText}`, 'npc');
