@@ -312,7 +312,10 @@ class Game {
     const alive = this.pm.partyUnits.filter((u) => !u.downed);
     if (alive.length === 0 && this.pm.partyIds.length > 0) {
       this.ui.logChat('파티 전원이 쓰러져 마을로 돌아갑니다.', 'system');
-      this._teleport(this._nearestTownIndex());
+      const townIndex = this._nearestTownIndex();
+      // 이미 마을이면 존 이동이 일어나지 않으므로 회복만 따로 처리한다.
+      if (townIndex === this.zm.index) this._reviveAll();
+      else this._teleport(townIndex);
       return;
     }
     if (changed && this.pm.activeUnit && this.pm.activeUnit.downed) {
