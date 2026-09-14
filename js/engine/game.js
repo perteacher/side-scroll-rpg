@@ -16,7 +16,8 @@ class Game {
     this.qm = new QuestManager(log, this.pm);
     this.sm = new ScenarioManager(log);
     this.fm = new FamilyManager(log);
-    this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm; this.ui.fm = this.fm;
+    this.gq = new GeneralQuestManager(log, this.pm);
+    this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm; this.ui.fm = this.fm; this.ui.gq = this.gq;
     this.renderer = new Renderer(this.ctx, WORLD_WIDTH, WORLD_HEIGHT);
     this.effects = new EffectManager();
     EFFECTS = this.effects;
@@ -84,10 +85,10 @@ class Game {
       this.ui.refreshOpenWindows();
     };
     this.ui.onSell = (itemId, count) => { this.pm.sellItem(itemId, count); this.ui.refreshShop(); };
-    this.ui.onBuy = (itemId) => { this.pm.buyItem(itemId, 1); this.qm.checkItemSteps(); this.ui.refreshShop(); };
+    this.ui.onBuy = (itemId) => { this.pm.buyItem(itemId, 1); this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.ui.refreshShop(); };
     this.ui.onCraft = (recipeId) => {
       const recipe = RECIPE_DATA.find((r) => r.id === recipeId);
-      if (this.pm.craft(recipe)) { this.qm.checkItemSteps(); this.ui.refreshShop(); }
+      if (this.pm.craft(recipe)) { this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.ui.refreshShop(); }
     };
     this.ui.onDeliver = (charId) => {
       const quest = this.qm.find(charId);
@@ -118,6 +119,10 @@ class Game {
       this.ui.rebuildPartySlots();
       this.ui.refreshCharInfo();
     };
+    this.ui.onBoardAccept = (id) => { this.gq.accept(id); this.ui.refreshBoard(); };
+    this.ui.onBoardClaim = (id) => { this.gq.claim(id); this.ui.refreshBoard(); this.ui.refreshPartyHUD(); };
+    this.ui.onBoardDeliver = (id) => { this.gq.tryDeliver(id); this.ui.refreshBoard(); };
+    this.ui.onBoardAbandon = (id) => { this.gq.abandon(id); this.ui.refreshBoard(); };
     this.ui.onFamilyInvest = (id) => { if (this.fm.invest(id)) this.ui.refreshFamily(); };
     this.ui.onFamilyRefund = (id) => { if (this.fm.refund(id)) this.ui.refreshFamily(); };
     this.ui.onFamilyReset = () => { this.fm.resetAll(); this.ui.refreshFamily(); };
@@ -503,7 +508,7 @@ class Game {
       const gear = this.pm.addGear(equipId);
       this.ui.logChat(`[장비 드랍] ${gear.displayName} 획득!`, 'system');
     }
-    this.qm.checkItemSteps();
+    this.qm.checkItemSteps(); this.gq.checkItemSteps();
   }
 
   _enemiesNear(center, radius) {
@@ -543,6 +548,7 @@ class Game {
     if (enemy.alive || enemy.rewarded) return;
     enemy.rewarded = true;
     this.qm.onKill(this.zm.def.id, enemy.name);
+    this.gq.onKill(this.zm.def.id, enemy.name);
     this.sm.onKill(this.zm.def.id, enemy.name);
     this._rollDrops(enemy);
     const stanceXp = Math.max(1, Math.round(enemy.xpReward * 0.6));
@@ -686,6 +692,7 @@ class Game {
 
   _handleWorldClick(wx, wy) {
     const inBox = (n) => wx >= n.x && wx <= n.x + n.width && wy >= n.y && wy <= n.y + n.height;
+    if (this.zm.questBoard && inBox(this.zm.questBoard)) { this.ui.openBoard(); return; }
     if (this.zm.shopNpc && inBox(this.zm.shopNpc)) { this.ui.openShop(this.zm.shopNpc); return; }
     const story = this.zm.storyNpcs.find(inBox);
     if (story) { this.ui.showStoryDialogue(story); return; }
@@ -704,6 +711,11 @@ class Game {
       recruitNpcs: this.zm.recruitNpcs,
       storyNpcs: this.zm.storyNpcs,
       shopNpc: this.zm.shopNpc,
+      questBoard: this.zm.questBoard,
+      boardHasQuest: !!this.zm.questBoard && (
+        this.gq.availableIn(this.zm.def.id, Math.max(...this.pm.partyUnits.map((u) => u.level), 1))
+          .some((d) => !this.gq.isActive(d.id))
+        || this.gq.active.some((q) => this.gq.isReady(q))),
       activeStoryNpcId: this.sm.step && this.sm.step.type === 'talk' ? this.sm.step.npcId : null,
       enemies: this.zm.enemies,
       warps: this.zm.warps,

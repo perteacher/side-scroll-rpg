@@ -202,6 +202,7 @@ class UIManager {
     if (this.isWindowOpen('barracks-window')) this.refreshBarracks();
     if (this.isWindowOpen('inventory-window')) this.refreshInventory();
     if (this.isWindowOpen('family-window')) this.refreshFamily();
+    if (this.isWindowOpen('board-window')) this.refreshBoard();
   }
 
   closeWindow(id) { document.getElementById(id).classList.add('hidden'); }
@@ -599,6 +600,72 @@ class UIManager {
     }
   }
 
+  // ---------- 의뢰 게시판 ----------
+  openBoard() {
+    this.refreshBoard();
+    document.getElementById('board-window').classList.remove('hidden');
+  }
+
+  refreshBoard() {
+    const gq = this.gq;
+    const townId = this.zm.def.id;
+    const partyLevel = Math.max(...this.pm.partyUnits.map((u) => u.level), 1);
+    document.getElementById('board-title').textContent = `${this.zm.name} — 의뢰 게시판`;
+
+    const list = gq.availableIn(townId, partyLevel);
+    const locked = GENERAL_QUEST_DATA.filter((q) => q.town === townId && partyLevel < q.minLevel);
+
+    const rows = list.map((def) => {
+      const quest = gq.find(def.id);
+      const cleared = gq.clearCount(def.id);
+      let action; let status;
+      if (!quest) {
+        status = `<span class="q-meta">Lv.${def.minLevel}+ · 보상 ${def.reward.gold.toLocaleString()}G, ${def.reward.items.map((i) => `${ITEM_DATA[i.id].name} x${i.count}`).join(', ')}</span>`;
+        action = `<button data-board-accept="${def.id}">수주</button>`;
+      } else if (gq.isReady(quest)) {
+        status = '<span class="q-done">완료 — 보상 수령 가능</span>';
+        action = `<button class="primary" data-board-claim="${def.id}">보상 받기</button>`;
+      } else {
+        const step = gq.currentStep(quest);
+        status = `<span class="q-prog">${gq.stepText(quest)}</span>`;
+        action = step.type === 'deliver'
+          ? `<button data-board-deliver="${def.id}">납품</button><button data-board-abandon="${def.id}">포기</button>`
+          : `<button data-board-abandon="${def.id}">포기</button>`;
+      }
+      return `
+        <div class="q-row ${quest ? 'q-active' : ''}">
+          <div class="q-main">
+            <div class="q-title">${def.title}${cleared > 0 ? `<span class="q-count">${cleared}회 완료</span>` : ''}</div>
+            <div class="q-desc">${def.desc}</div>
+            ${status}
+          </div>
+          <div class="q-btns">${action}</div>
+        </div>`;
+    }).join('');
+
+    const lockedRows = locked.map((def) => `
+      <div class="q-row locked">
+        <div class="q-main">
+          <div class="q-title">${def.title}</div>
+          <div class="q-desc">🔒 파티 최고 레벨 ${def.minLevel} 이상 필요</div>
+        </div>
+      </div>`).join('');
+
+    document.getElementById('board-body').innerHTML = `
+      <div class="q-hint">수주한 의뢰는 퀘스트 창(J)에서도 진행도를 볼 수 있습니다. 동시 수주 최대 ${MAX_ACTIVE_GENERAL}개.</div>
+      ${rows || '<p style="opacity:0.6;">지금 받을 수 있는 의뢰가 없습니다.</p>'}
+      ${lockedRows}
+    `;
+
+    const bind = (attr, cb) => document.querySelectorAll(`[data-${attr}]`).forEach((b) => {
+      b.addEventListener('click', () => cb(b.dataset[attr.replace(/-(.)/g, (m, c) => c.toUpperCase())]));
+    });
+    bind('board-accept', (id) => this.onBoardAccept && this.onBoardAccept(id));
+    bind('board-claim', (id) => this.onBoardClaim && this.onBoardClaim(id));
+    bind('board-deliver', (id) => this.onBoardDeliver && this.onBoardDeliver(id));
+    bind('board-abandon', (id) => this.onBoardAbandon && this.onBoardAbandon(id));
+  }
+
   // ---------- 가문 특성 ----------
   refreshFamily() {
     const fm = this.fm;
@@ -671,6 +738,14 @@ class UIManager {
       <div class="section-title">시나리오 — 챕터 ${ch.chapter} "${ch.title}"</div>
       <p style="color:#f1c40f;">현재 목표: ${this.sm.objectiveText()}</p>
       ${chapterList}
+      <div class="section-title">진행 중인 일반 의뢰</div>
+      ${this.gq.active.length
+        ? this.gq.active.map((q) => {
+          const def = this.gq.def(q.id);
+          const ready = this.gq.isReady(q);
+          return `<div class="skill-row"><span>${def.title}</span><span style="color:${ready ? '#2ecc71' : '#ccc'}">${this.gq.stepText(q)}</span></div>`;
+        }).join('')
+        : '<p style="opacity:0.6;">수주한 의뢰가 없습니다. 마을 게시판에서 받으세요.</p>'}
       <div class="section-title">진행 중인 영입 퀘스트</div>
       ${list}
       <div class="section-title">현황</div>

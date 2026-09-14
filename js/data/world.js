@@ -39,6 +39,7 @@ const ZONE_DATA = [
       { id: 'marta', name: '약초상 마르타', x: 1250, floor: 2 },
     ],
     shopNpc: { name: '잡화상 페드로', x: 700, floor: 2 },
+    questBoard: { x: 980, name: '의뢰 게시판' },
     recruits: makeRecruits(['paion', 'clode', 'itju', 'panfilos', 'scowt', 'wizarr', 'jackson'], 1, 250, 210),
   },
   {
@@ -76,6 +77,7 @@ const ZONE_DATA = [
       { id: 'herrera', name: '대장장이 에레라', x: 1300, floor: 2 },
     ],
     shopNpc: { name: '잡화상 니콜라', x: 700, floor: 2 },
+    questBoard: { x: 980, name: '의뢰 게시판' },
     recruits: makeRecruits(['ramirof', 'adelin', 'emilrea', 'sohoa', 'vernelia', 'mbomar', 'risael'], 2, 250, 210),
   },
   {
@@ -113,6 +115,7 @@ const ZONE_DATA = [
       { id: 'tobias', name: '밀수꾼 토비아스', x: 1320, floor: 2 },
     ],
     shopNpc: { name: '항구 잡화상 마리', x: 700, floor: 2 },
+    questBoard: { x: 980, name: '의뢰 게시판' },
     recruits: makeRecruits(['musketya', 'cortasal', 'andrei', 'alejandr', 'graciel', 'rorken', 'tiburan'], 3, 250, 210),
   },
   {
@@ -150,6 +153,7 @@ const ZONE_DATA = [
       { id: 'jamal', name: '대상 상인 자말', x: 1290, floor: 2 },
     ],
     shopNpc: { name: '대상 잡화상 하산', x: 700, floor: 2 },
+    questBoard: { x: 980, name: '의뢰 게시판' },
     recruits: makeRecruits(['catrenne', 'granmar', 'rominas', 'sharife', 'brunia', 'yeganel', 'vikia'], 4, 250, 210),
   },
   {
@@ -187,6 +191,7 @@ const ZONE_DATA = [
       { id: 'rosalind', name: '종군사제 로잘린', x: 1270, floor: 2 },
     ],
     shopNpc: { name: '군납 상인 오르텐', x: 700, floor: 2 },
+    questBoard: { x: 980, name: '의뢰 게시판' },
     recruits: makeRecruits(['wolak', 'valerian', 'beatria', 'lionello', 'darian', 'helenia', 'clera'], 5, 250, 210),
   },
   {

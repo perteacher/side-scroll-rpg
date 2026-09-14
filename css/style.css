@@ -304,3 +304,20 @@ html, body {
 .fam-btns { display: flex; gap: 4px; }
 .fam-btns button { width: 26px; height: 26px; font-size: 14px; background: #2c2c44; border: 1px solid #555; color: #fff; border-radius: 3px; cursor: pointer; }
 .fam-btns button:disabled { opacity: 0.3; cursor: default; }
+
+/* ---------- 의뢰 게시판 ---------- */
+#board-body { padding: 10px 12px; overflow-y: auto; max-height: 390px; }
+.q-hint { font-size: 10px; color: #888; margin-bottom: 8px; line-height: 1.5; }
+.q-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-bottom: 5px; }
+.q-row.q-active { border-left: 2px solid #f1c40f; background: rgba(241,196,15,0.08); }
+.q-row.locked { opacity: 0.4; }
+.q-main { flex: 1; }
+.q-title { font-size: 12px; font-weight: bold; }
+.q-count { font-size: 9px; color: #2ecc71; margin-left: 6px; font-weight: normal; }
+.q-desc { font-size: 10px; color: #999; margin: 2px 0 3px; }
+.q-meta { font-size: 10px; color: #85c1e9; }
+.q-prog { font-size: 10px; color: #f1c40f; }
+.q-done { font-size: 10px; color: #2ecc71; font-weight: bold; }
+.q-btns { display: flex; flex-direction: column; gap: 4px; }
+.q-btns button { font-size: 10px; padding: 4px 10px; background: #2c2c44; border: 1px solid #555; color: #fff; border-radius: 3px; cursor: pointer; white-space: nowrap; }
+.q-btns button.primary { background: #b7950b; border-color: #f1c40f; color: #111; font-weight: bold; }

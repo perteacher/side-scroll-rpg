@@ -44,6 +44,7 @@ class Renderer {
     state.warps.forEach((w) => this._drawWarp(w, state.time, w === state.warpPrompt));
     state.storyNpcs.forEach((npc) => this._drawStoryNpc(npc, state.activeStoryNpcId, state.time));
     if (state.shopNpc) this._drawShopNpc(state.shopNpc, state.time);
+    if (state.questBoard) this._drawQuestBoard(state.questBoard, state.time, state.boardHasQuest);
     state.recruitNpcs.forEach((npc) => this._drawRecruitNpc(npc, state.time));
     state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemy(e, state.time, e === state.target));
     state.partyUnits.forEach((u, i) => this._drawUnit(u, i === state.activeIndex, state.time));
@@ -573,6 +574,34 @@ class Renderer {
     ctx.fillStyle = '#abebc6';
     ctx.font = '11px sans-serif';
     ctx.fillText(npc.name, cx, npc.y - 3);
+  }
+
+  // 의뢰 게시판: 나무 기둥에 걸린 공고판.
+  _drawQuestBoard(b, time, hasQuest) {
+    const { ctx } = this;
+    const cx = b.x + b.width / 2;
+    this._shadow(cx, b.y + b.height, b.width);
+    ctx.fillStyle = '#6b4f2a';
+    ctx.fillRect(b.x + 6, b.y + 28, 6, b.height - 28);
+    ctx.fillRect(b.x + b.width - 12, b.y + 28, 6, b.height - 28);
+    ctx.fillStyle = '#8d6e3a';
+    this._roundRect(b.x, b.y, b.width, 34, 3); ctx.fill();
+    ctx.strokeStyle = '#5a4020'; ctx.lineWidth = 2;
+    this._roundRect(b.x, b.y, b.width, 34, 3); ctx.stroke();
+    ctx.fillStyle = '#f2e6c8';
+    ctx.fillRect(b.x + 6, b.y + 6, 14, 10);
+    ctx.fillRect(b.x + 24, b.y + 8, 14, 12);
+    ctx.fillRect(b.x + 8, b.y + 20, 12, 8);
+    if (hasQuest) {
+      ctx.fillStyle = '#f1c40f';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('!', cx, b.y - 12 + Math.sin(time / 280) * 2);
+    }
+    ctx.fillStyle = '#f9e79f';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.name, cx, b.y - 2);
   }
 
   // ---------- 워프 ----------

@@ -328,6 +328,16 @@ class ShopNpc {
   }
 }
 
+// 마을 의뢰 게시판. 클릭하면 일반 퀘스트를 수주/완료한다.
+class QuestBoard {
+  constructor(def, platforms = []) {
+    this.name = def.name;
+    this.width = 44; this.height = 54;
+    this.x = def.x;
+    this.y = floorYFor(def, platforms, this.height);
+  }
+}
+
 // 시나리오 진행용 마을 NPC.
 class StoryNpc {
   constructor(def, platforms = []) {

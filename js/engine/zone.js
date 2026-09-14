@@ -19,6 +19,7 @@ class ZoneManager {
     this.recruitNpcs = [];
     this.storyNpcs = [];
     this.shopNpc = null;
+    this.questBoard = null;
     this.platforms = [];
     this.warps = [];
     this.def = null;
@@ -33,6 +34,7 @@ class ZoneManager {
     this.recruitNpcs = (this.def.recruits || []).map((r) => new RecruitNpc(r, this.platforms));
     this.storyNpcs = (this.def.storyNpcs || []).map((n) => new StoryNpc(n, this.platforms));
     this.shopNpc = this.def.shopNpc ? new ShopNpc(this.def.shopNpc, this.platforms) : null;
+    this.questBoard = this.def.questBoard ? new QuestBoard(this.def.questBoard, this.platforms) : null;
     this.warps = this._buildWarps();
     if (announce) this.log(`${this.def.name} 도착. (권장 Lv.${this.def.level})`, 'system');
   }

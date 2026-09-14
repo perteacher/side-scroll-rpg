@@ -59,6 +59,7 @@ const SaveManager = {
           stepIndex: q.stepIndex, huntCount: q.huntCount,
         })),
       },
+      generalQuests: { active: game.gq.active.map((q) => ({ ...q })), cleared: { ...game.gq.cleared } },
       family: {
         level: game.fm.level, xp: game.fm.xp, allocations: { ...game.fm.allocations },
       },
@@ -127,6 +128,10 @@ const SaveManager = {
       steps: makeRecruitSteps(q.tier, q.charName),
     }));
 
+    if (data.generalQuests) {
+      game.gq.active = (data.generalQuests.active || []).filter((q) => game.gq.def(q.id));
+      game.gq.cleared = data.generalQuests.cleared || {};
+    }
     if (data.family) {
       game.fm.level = data.family.level || 1;
       game.fm.xp = data.family.xp || 0;
