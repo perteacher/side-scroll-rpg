@@ -127,6 +127,7 @@ class Game {
       this.ui.logChat(ok ? '게임을 저장했습니다.' : '저장에 실패했습니다(브라우저 저장소 차단).', 'system');
     };
     this.ui.onResetSave = () => {
+      this.resetting = true; // beforeunload가 방금 지운 세이브를 다시 쓰지 않도록
       SaveManager.clear();
       window.location.reload();
     };
@@ -135,6 +136,7 @@ class Game {
     this.input.onMouseClickWorld = (wx, wy) => this._handleWorldClick(wx, wy);
 
     window.addEventListener('beforeunload', () => {
+      if (this.resetting) return;
       if (this.pm.partyIds.length > 0) SaveManager.save(this);
     });
 

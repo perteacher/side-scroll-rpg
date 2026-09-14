@@ -23,6 +23,8 @@ const SaveManager = {
   },
 
   save(game) {
+    // 초기화 직후에는 어떤 경로로도 다시 쓰지 않는다(리로드 전 자동저장 방지).
+    if (game.resetting) return false;
     const { pm, zm, qm, sm } = game;
     const data = {
       v: 1,
