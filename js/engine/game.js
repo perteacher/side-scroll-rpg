@@ -14,7 +14,7 @@ class Game {
     this.pm = new PartyManager(log);
     this.zm = new ZoneManager(log);
     this.qm = new QuestManager(log, this.pm);
-    this.sm = new ScenarioManager(log);
+    this.sm = new ScenarioManager(log, this.pm);
     this.fm = new FamilyManager(log);
     this.gq = new GeneralQuestManager(log, this.pm);
     this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm; this.ui.fm = this.fm; this.ui.gq = this.gq;
@@ -34,7 +34,8 @@ class Game {
 
     this.ui.onCreateCharacter = (specs) => this._startGame(specs);
     this.ui.onStoryTalk = (npcId) => {
-      this.sm.onTalk(npcId);
+      if (this.sm.isDeliverNpc(npcId)) this.sm.tryDeliver();
+      else this.sm.onTalk(npcId);
       this.qm.onTalk(npcId);
       this.ui.refreshQuest();
     };
@@ -85,10 +86,10 @@ class Game {
       this.ui.refreshOpenWindows();
     };
     this.ui.onSell = (itemId, count) => { this.pm.sellItem(itemId, count); this.ui.refreshShop(); };
-    this.ui.onBuy = (itemId) => { this.pm.buyItem(itemId, 1); this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.ui.refreshShop(); };
+    this.ui.onBuy = (itemId) => { this.pm.buyItem(itemId, 1); this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.sm.checkItemSteps(); this.ui.refreshShop(); };
     this.ui.onCraft = (recipeId) => {
       const recipe = RECIPE_DATA.find((r) => r.id === recipeId);
-      if (this.pm.craft(recipe)) { this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.ui.refreshShop(); }
+      if (this.pm.craft(recipe)) { this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.sm.checkItemSteps(); this.ui.refreshShop(); }
     };
     this.ui.onDeliver = (charId) => {
       const quest = this.qm.find(charId);
@@ -508,7 +509,7 @@ class Game {
       const gear = this.pm.addGear(equipId);
       this.ui.logChat(`[장비 드랍] ${gear.displayName} 획득!`, 'system');
     }
-    this.qm.checkItemSteps(); this.gq.checkItemSteps();
+    this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.sm.checkItemSteps();
   }
 
   _enemiesNear(center, radius) {

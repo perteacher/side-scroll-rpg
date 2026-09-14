@@ -992,15 +992,23 @@ class UIManager {
     document.getElementById('npc-dialogue-name').textContent = npc.name;
     actionsEl.innerHTML = '';
 
-    const isTarget = this.sm.isStepNpc(npc.id);
+    const isTarget = this.sm.isStepNpc(npc.id) || this.sm.isDeliverNpc(npc.id);
     const ch = this.sm.chapter;
     let body = `<div style="color:#85c1e9;font-weight:bold;">챕터 ${ch.chapter} — ${ch.title}</div>`;
 
     if (isTarget) {
-      body += `<div style="margin:8px 0;">${this.sm.step.line}</div>`;
+      const step = this.sm.step;
+      const deliver = step.type === 'deliver';
+      const have = deliver && this.pm.itemCount(step.itemId) >= step.count;
+      body += `<div style="margin:8px 0;">${step.line || step.text}</div>`;
+      if (deliver) {
+        body += `<div style="font-size:11px;color:${have ? '#2ecc71' : '#e74c3c'}">`
+          + `${ITEM_DATA[step.itemId].name} ${this.pm.itemCount(step.itemId)}/${step.count}</div>`;
+      }
       const proceed = document.createElement('button');
       proceed.className = 'primary';
-      proceed.textContent = '알겠습니다';
+      proceed.textContent = deliver ? '납품하기' : '알겠습니다';
+      if (deliver && !have) proceed.disabled = true;
       proceed.addEventListener('click', () => {
         if (this.onStoryTalk) this.onStoryTalk(npc.id);
         this.closeWindow('npc-dialogue-window');

@@ -1,7 +1,8 @@
 // 시나리오 챕터 진행 관리. 챕터 → 스텝 순서대로 진행하며, 스텝은 대화/사냥/도달 3종.
 class ScenarioManager {
-  constructor(logFn) {
+  constructor(logFn, partyManager) {
     this.log = logFn;
+    this.pm = partyManager;
     this.chapterIndex = 0;
     this.stepIndex = 0;
     this.huntCount = 0;
@@ -22,7 +23,32 @@ class ScenarioManager {
     if (this.finished) return '모든 챕터를 완료했습니다.';
     const s = this.step;
     if (s.type === 'hunt') return `${s.text} (${this.huntCount}/${s.count})`;
+    if ((s.type === 'collect' || s.type === 'deliver') && this.pm) {
+      return `${s.text} (${this.pm.itemCount(s.itemId)}/${s.count})`;
+    }
     return s.text;
+  }
+
+  // 재료 수집 단계는 인벤토리가 바뀔 때마다 확인한다.
+  checkItemSteps() {
+    const s = this.step;
+    if (!s || s.type !== 'collect' || !this.pm) return;
+    if (this.pm.itemCount(s.itemId) >= s.count) this._advance();
+  }
+
+  // 납품 단계는 NPC에게 제출할 때 재료를 소모한다.
+  tryDeliver() {
+    const s = this.step;
+    if (!s || s.type !== 'deliver' || !this.pm) return false;
+    if (!this.pm.removeItem(s.itemId, s.count)) return false;
+    this._advance();
+    return true;
+  }
+
+  // 대화 단계에서, 그 NPC가 납품도 받는 경우를 함께 처리한다.
+  isDeliverNpc(npcId) {
+    const s = this.step;
+    return !!s && s.type === 'deliver' && s.npcId === npcId;
   }
 
   onTalk(npcId) {
@@ -51,6 +77,12 @@ class ScenarioManager {
   _advance() {
     this.huntCount = 0;
     this.stepIndex += 1;
+    // 이미 재료를 갖고 있으면 수집 단계는 건너뛴다.
+    while (this.stepIndex < this.chapter.steps.length) {
+      const next = this.chapter.steps[this.stepIndex];
+      if (next.type !== 'collect' || !this.pm || this.pm.itemCount(next.itemId) < next.count) break;
+      this.stepIndex += 1;
+    }
     if (this.stepIndex < this.chapter.steps.length) {
       this.log(`[시나리오] 다음 목표 — ${this.objectiveText()}`, 'npc');
       return;
