@@ -15,7 +15,8 @@ class Game {
     this.zm = new ZoneManager(log);
     this.qm = new QuestManager(log, this.pm);
     this.sm = new ScenarioManager(log);
-    this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm;
+    this.fm = new FamilyManager(log);
+    this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm; this.ui.fm = this.fm;
     this.renderer = new Renderer(this.ctx, WORLD_WIDTH, WORLD_HEIGHT);
     this.effects = new EffectManager();
     EFFECTS = this.effects;
@@ -23,6 +24,7 @@ class Game {
     this.lastTime = 0;
     this.elapsed = 0;
     this.warpCooldown = 0;
+    this._seenLevels = new Map();
   }
 
   init() {
@@ -116,6 +118,9 @@ class Game {
       this.ui.rebuildPartySlots();
       this.ui.refreshCharInfo();
     };
+    this.ui.onFamilyInvest = (id) => { if (this.fm.invest(id)) this.ui.refreshFamily(); };
+    this.ui.onFamilyRefund = (id) => { if (this.fm.refund(id)) this.ui.refreshFamily(); };
+    this.ui.onFamilyReset = () => { this.fm.resetAll(); this.ui.refreshFamily(); };
     this.ui.onQuestAccept = (npc) => { this.qm.accept(npc); this.ui.refreshQuest(); };
     this.ui.onQuestComplete = (charId) => this._completeRecruit(charId);
 
@@ -224,6 +229,7 @@ class Game {
     this._updateProjectiles(dt);
     this._checkDowned();
     this._updateSynergies();
+    this._syncFamilyProgress();
     this._tickCooldowns(dt);
     this._tickAutosave(dt);
     this.zm.update(dt);
@@ -257,6 +263,7 @@ class Game {
     if (input.wasPressed('j')) ui.toggleWindow('quest-window');
     if (input.wasPressed('b')) ui.toggleWindow('barracks-window');
     if (input.wasPressed('t')) ui.toggleWindow('teleport-window');
+    if (input.wasPressed('f')) ui.toggleWindow('family-window');
     if (input.wasPressed('alt+e')) ui.toggleWindow('char-info-window');
     if (input.wasPressed('escape')) ui.closeTopWindow();
   }
@@ -266,7 +273,7 @@ class Game {
     const unit = this.pm.activeUnit;
     if (!unit) return;
     if (unit.downed) { unit.vx = 0; this._applyPhysics(unit, dt); return; }
-    const speed = MOVE_SPEED * unit.stance.moveSpeedMult;
+    const speed = MOVE_SPEED * unit.stance.moveSpeedMult * (1 + (unit.family || EMPTY_FAMILY_BONUS).moveSpeed);
     const manualLeft = this.input.isDown('arrowleft');
     const manualRight = this.input.isDown('arrowright');
 
@@ -293,7 +300,7 @@ class Game {
       const target = this._getAttackTarget(unit);
       if (target) {
         performBasicAttack(unit, target, (u, t, dmg, crit, color) => this._spawnProjectile(u, t, dmg, crit, color));
-        unit.basicAtkCooldown = 450;
+        unit.basicAtkCooldown = 450 / (1 + (unit.family || EMPTY_FAMILY_BONUS).atkSpeed);
         this._checkEnemyDeath(target, unit);
       }
     }
@@ -328,6 +335,9 @@ class Game {
   }
 
   _updateSynergies() {
+    // 가문 특성은 전 캐릭터에 적용된다.
+    const famBonus = this.fm.bonus();
+    this.pm.units.forEach((u) => { u.family = famBonus; });
     const active = this.pm.recomputeSynergies();
     const key = active.map((s) => s.id).join(',');
     if (key === this.synergyKey) return;
@@ -456,8 +466,8 @@ class Game {
       }
       const targets = skillDef.type === 'aoe' ? this._enemiesNear(target, skillDef.aoeRadius) : [target];
       targets.forEach((t) => {
-        const { dmg, isCrit } = rollDamage(unit, t, mult);
-        applyDamageToEnemy(t, dmg, isCrit);
+        const r = rollDamage(unit, t, mult);
+        applyDamageToEnemy(t, r.dmg, r.isCrit, r.miss);
         this._checkEnemyDeath(t, unit);
       });
       if (verbose) this.ui.logChat(`${unit.name}의 [${skillDef.name} Lv.${lv}]! (${targets.length}체 타격)`, 'system');
@@ -470,7 +480,9 @@ class Game {
     unit.attackAnim = 320;
     unit.facing = target.x >= unit.x ? 1 : -1;
     this.effects.cast(unit, color);
-    const { dmg, isCrit } = rollDamage(unit, target, mult);
+    const r = rollDamage(unit, target, mult);
+    if (r.miss) { applyDamageToEnemy(target, 0, false, true); return true; }
+    const { dmg, isCrit } = r;
     const p = this._spawnProjectile(unit, target, dmg, isCrit, color);
     if (skillDef.type === 'aoe') { p.aoeRadius = skillDef.aoeRadius; p.aoeMult = mult; p.casterRef = unit; }
     if (verbose) this.ui.logChat(`${unit.name}의 [${skillDef.name} Lv.${lv}] 시전!`, 'system');
@@ -513,6 +525,18 @@ class Game {
       if (d < nearestDist && d <= unit.stance.range * 1.5) { nearestDist = d; nearest = e; }
     });
     return nearest;
+  }
+
+  // 캐릭터 레벨이 오르면 그만큼 가문 경험치를 준다.
+  _syncFamilyProgress() {
+    this.pm.units.forEach((u) => {
+      const seen = this._seenLevels.get(u.id);
+      if (seen === undefined) { this._seenLevels.set(u.id, u.level); return; }
+      if (u.level > seen) {
+        for (let lv = seen + 1; lv <= u.level; lv++) this.fm.onCharacterLevelUp(lv);
+        this._seenLevels.set(u.id, u.level);
+      }
+    });
   }
 
   _checkEnemyDeath(enemy, killerUnit) {

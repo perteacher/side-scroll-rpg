@@ -90,6 +90,7 @@ class UIManager {
 
   _openTargetId(key) {
     return {
+      family: 'family-window',
       inventory: 'inventory-window', charinfo: 'char-info-window',
       barracks: 'barracks-window', quest: 'quest-window', teleport: 'teleport-window',
     }[key];
@@ -187,6 +188,7 @@ class UIManager {
     if (id === 'barracks-window') this.refreshBarracks();
     if (id === 'quest-window') this.refreshQuest();
     if (id === 'teleport-window') this.refreshTeleport();
+    if (id === 'family-window') this.refreshFamily();
     if (id === 'inventory-window') this.refreshInventory();
     document.getElementById(id).classList.remove('hidden');
   }
@@ -199,6 +201,7 @@ class UIManager {
     if (this.isWindowOpen('shop-window')) this.refreshShop();
     if (this.isWindowOpen('barracks-window')) this.refreshBarracks();
     if (this.isWindowOpen('inventory-window')) this.refreshInventory();
+    if (this.isWindowOpen('family-window')) this.refreshFamily();
   }
 
   closeWindow(id) { document.getElementById(id).classList.add('hidden'); }
@@ -594,6 +597,51 @@ class UIManager {
         if (this.onCreateInBarracks) this.onCreateInBarracks(el.querySelector('#bc-class').value, nickname);
       });
     }
+  }
+
+  // ---------- 가문 특성 ----------
+  refreshFamily() {
+    const fm = this.fm;
+    const pct = clamp(fm.xp / familyXpToNext(fm.level), 0, 1) * 100;
+    document.getElementById('family-header').innerHTML = `
+      <div class="fam-top">
+        <span class="fam-level">가문 Lv.${fm.level}<span style="opacity:0.5">/${FAMILY_MAX_LEVEL}</span></span>
+        <span class="fam-points">남은 포인트 <b>${fm.freePoints}</b> / ${fm.totalPoints}</span>
+        <button id="fam-reset">전체 회수</button>
+      </div>
+      <div class="bar-bg" style="height:9px;"><div class="bar-fill xp" style="width:${pct}%"></div></div>
+      <div class="fam-hint">캐릭터가 레벨업하면 가문 경험치가 쌓이고, 가문 레벨 1당 포인트 1개를 얻습니다. 효과는 모든 캐릭터에 적용됩니다.</div>
+    `;
+
+    const tree = [1, 2, 3].map((tier) => {
+      const rows = FAMILY_TRAITS.filter((t) => t.tier === tier).map((t) => {
+        const pts = fm.allocations[t.id];
+        const unlocked = fm.isUnlocked(t);
+        const reason = fm.lockReason(t);
+        return `
+          <div class="fam-row ${unlocked ? '' : 'locked'}">
+            <div class="fam-main">
+              <div class="fam-name">${t.name} <b>${pts}/${t.max}</b></div>
+              <div class="fam-eff">${pts > 0 ? familyTraitEffectText(t, pts) : `1포인트당 ${familyTraitEffectText(t, 1)}`}</div>
+              ${unlocked ? '' : `<div class="fam-lock">🔒 ${reason}</div>`}
+            </div>
+            <div class="fam-btns">
+              <button data-fam-down="${t.id}" ${pts > 0 ? '' : 'disabled'}>−</button>
+              <button data-fam-up="${t.id}" ${fm.canInvest(t) ? '' : 'disabled'}>+</button>
+            </div>
+          </div>`;
+      }).join('');
+      return `<div class="section-title">${FAMILY_TIER_LABEL[tier]} <span style="opacity:0.5;font-size:10px">(투자 ${fm.pointsInTier(tier)}p)</span></div>${rows}`;
+    }).join('');
+    document.getElementById('family-tree').innerHTML = tree;
+
+    document.getElementById('fam-reset').addEventListener('click', () => this.onFamilyReset && this.onFamilyReset());
+    document.querySelectorAll('[data-fam-up]').forEach((b) => {
+      b.addEventListener('click', () => this.onFamilyInvest && this.onFamilyInvest(b.dataset.famUp));
+    });
+    document.querySelectorAll('[data-fam-down]').forEach((b) => {
+      b.addEventListener('click', () => this.onFamilyRefund && this.onFamilyRefund(b.dataset.famDown));
+    });
   }
 
   // ---------- 퀘스트 ----------

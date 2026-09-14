@@ -202,12 +202,62 @@ const ZONE_DATA = [
   {
     id: 'field5b', theme: 'demon', type: 'field', name: '마족의 진지', level: 45, width: 3800, groundColor: '#402f3f',
     platforms: [{ x: 880, width: 580, y: FLOOR2_Y }, { x: 2600, width: 600, y: FLOOR2_Y }],
-    exits: [{ to: 'town5', x: 40 }, { to: 'field5a', x: 1900 }],
+    exits: [{ to: 'town5', x: 40 }, { to: 'field5a', x: 1900 }, { to: 'town6', x: 3680 }],
     enemies: [
       ...makeEnemies({ name: '마족 전사', hp: 420, atk: 52, defense: 34, xpReward: 320, race: 'demon', aggressive: true }, 14, 420, 230),
       ...makeEnemies({ name: '마족 전사', hp: 420, atk: 52, defense: 34, xpReward: 320, race: 'demon', aggressive: true }, 4, 940, 170, 2),
       ...makeEnemies({ name: '마족 대장', hp: 900, atk: 70, defense: 45, xpReward: 900, race: 'demon', aggressive: true }, 2, 2660, 300, 2),
       { name: '마왕군 사령관 발데', x: 3500, hp: 12000, atk: 96, defense: 64, xpReward: 12000, race: 'demon', aggressive: true, boss: true, floor: 1 },
+    ],
+  },
+  // ================= 승급 구간 (베테랑 / 익스퍼트 / 마스터) =================
+  // 기본 100레벨을 찍은 뒤 들어오는 지역. 몹 경험치가 자릿수부터 다르다.
+  {
+    id: 'town6', theme: 'town_castle', type: 'town', name: '고룡의 관문 드라켄호프', level: 100, width: 1800, groundColor: '#2f3a4d',
+    platforms: TOWN_PLATFORMS,
+    exits: [
+      { to: 'field5b', x: 60 },
+      { to: 'field6a', x: 1400 }, { to: 'field6b', x: 1620 },
+    ],
+    storyNpcs: [
+      { id: 'valen', name: '관문지기 발렌', x: 430 },
+      { id: 'orla', name: '연대기 기록자 오를라', x: 1280, floor: 2 },
+    ],
+    shopNpc: { name: '관문 보급관 테오', x: 700, floor: 2 },
+    questBoard: { x: 980, name: '드라켄호프 의뢰 게시판' },
+    recruits: [],
+  },
+  {
+    id: 'field6a', theme: 'warfront', type: 'field', name: '용의 둥지 외곽', level: 100, width: 4000, groundColor: '#3b3340',
+    platforms: [{ x: 800, width: 620, y: FLOOR2_Y }, { x: 2600, width: 640, y: FLOOR2_Y }],
+    exits: [{ to: 'town6', x: 40 }, { to: 'field6b', x: 2000 }],
+    enemies: [
+      ...makeEnemies({ name: '용린 병사', hp: 9000, atk: 320, defense: 180, xpReward: 42000, race: 'humanoid', aggressive: true }, 12, 420, 280),
+      ...makeEnemies({ name: '둥지 수호룡', hp: 12000, atk: 280, defense: 220, xpReward: 48000, race: 'beast', aggressive: false }, 4, 860, 180, 2),
+      ...makeEnemies({ name: '용린 병사', hp: 9000, atk: 320, defense: 180, xpReward: 42000, race: 'humanoid', aggressive: true }, 4, 2660, 180, 2),
+      { name: '둥지의 어미용 바르가', x: 3800, hp: 120000, atk: 520, defense: 300, xpReward: 900000, race: 'beast', aggressive: true, boss: true, floor: 1 },
+    ],
+  },
+  {
+    id: 'field6b', theme: 'demon', type: 'field', name: '심연의 균열', level: 110, width: 4200, groundColor: '#2a1c33',
+    platforms: [{ x: 900, width: 640, y: FLOOR2_Y }, { x: 2800, width: 660, y: FLOOR2_Y }],
+    exits: [{ to: 'town6', x: 40 }, { to: 'field6a', x: 2100 }, { to: 'field6c', x: 4080 }],
+    enemies: [
+      ...makeEnemies({ name: '균열의 포식자', hp: 42000, atk: 1100, defense: 640, xpReward: 260000, race: 'demon', aggressive: true }, 13, 420, 270),
+      ...makeEnemies({ name: '공허 유충', hp: 55000, atk: 900, defense: 780, xpReward: 290000, race: 'demon', aggressive: false }, 4, 960, 180, 2),
+      ...makeEnemies({ name: '균열의 포식자', hp: 42000, atk: 1100, defense: 640, xpReward: 260000, race: 'demon', aggressive: true }, 4, 2860, 180, 2),
+      { name: '균열 군주 네뷸라', x: 4000, hp: 620000, atk: 1800, defense: 1100, xpReward: 5200000, race: 'demon', aggressive: true, boss: true, floor: 1 },
+    ],
+  },
+  {
+    id: 'field6c', theme: 'ruins', type: 'field', name: '시간이 멈춘 회랑', level: 120, width: 4400, groundColor: '#4a4433',
+    platforms: [{ x: 950, width: 660, y: FLOOR2_Y }, { x: 2950, width: 680, y: FLOOR2_Y }],
+    exits: [{ to: 'field6b', x: 40 }],
+    enemies: [
+      ...makeEnemies({ name: '정지된 파수꾼', hp: 260000, atk: 4200, defense: 2600, xpReward: 1600000, race: 'inanimate', aggressive: true }, 14, 420, 260),
+      ...makeEnemies({ name: '태엽 거인', hp: 340000, atk: 3600, defense: 3200, xpReward: 1800000, race: 'inanimate', aggressive: false }, 5, 1010, 180, 2),
+      ...makeEnemies({ name: '정지된 파수꾼', hp: 260000, atk: 4200, defense: 2600, xpReward: 1600000, race: 'inanimate', aggressive: true }, 5, 3010, 180, 2),
+      { name: '시간의 지배자 크로노스', x: 4200, hp: 4200000, atk: 7200, defense: 4800, xpReward: 42000000, race: 'inanimate', aggressive: true, boss: true, floor: 1 },
     ],
   },
 ];

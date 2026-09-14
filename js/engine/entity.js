@@ -53,7 +53,8 @@ class PartyUnit {
     const base = 60 + this.stats.vit * 8 + this.level * 10;
     const gearBonus = this.equipment ? this.equipmentBonus().hpPct : 0;
     const synergyBonus = (this.synergy || EMPTY_SYNERGY).hpPct;
-    return Math.round(base * (1 + gearBonus + synergyBonus));
+    const familyBonus = (this.family || EMPTY_FAMILY_BONUS).hpPct;
+    return Math.round(base * (1 + gearBonus + synergyBonus + familyBonus));
   }
   _calcMaxMp() { return 30 + this.stats.int * 3 + this.stats.sen * 2; }
 
@@ -168,9 +169,10 @@ class PartyUnit {
   }
 
   gainXp(amount, logFn) {
+    if (this.level >= MAX_LEVEL) { this.xp = 0; return; }
     this.xp += amount;
     let leveled = false;
-    while (this.xp >= xpToNextLevel(this.level)) {
+    while (this.level < MAX_LEVEL && this.xp >= xpToNextLevel(this.level)) {
       this.xp -= xpToNextLevel(this.level);
       this.level += 1;
       this.maxHp = this._calcMaxHp();
@@ -203,6 +205,7 @@ class Enemy {
     this.maxHp = def.hp; this.hp = def.hp;
     this.atk = def.atk; this.defense = def.defense; this.xpReward = def.xpReward;
     this.aggroRange = 220; this.attackRange = 46;
+    this.evade = def.evade !== undefined ? def.evade : 0.06; // 기본 회피율(가문 조준 숙련으로 상쇄)
     this.attackCooldownMs = 0;
     this.alive = true;
     this.respawnTimer = 0;

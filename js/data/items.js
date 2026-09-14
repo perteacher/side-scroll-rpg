@@ -52,6 +52,15 @@ const ITEM_DATA = {
   a_cloth_helm: { name: '천 모자', slot: 'helmet', armorClass: 'cloth', def: 3, price: 60, tier: 1 },
   a_cloth_boots: { name: '천 신발', slot: 'boots', armorClass: 'cloth', def: 3, price: 55, tier: 1 },
 
+  // --- 경험치 카드 (퀘스트 보상) ---
+  // consumable: 'exp' 는 캐릭터 경험치, 'stanceExp' 는 현재 스탠스 숙련도에 들어간다.
+  exp_card_basic: { name: '경험치 카드', price: 400, tier: 1, consumable: 'exp', amount: 5000 },
+  exp_card_veteran: { name: '베테랑 경험치 카드', price: 4000, tier: 3, consumable: 'exp', amount: 300000, minTier: 'veteran' },
+  exp_card_expert: { name: '익스퍼트 경험치 카드', price: 20000, tier: 4, consumable: 'exp', amount: 2000000, minTier: 'expert' },
+  exp_card_master: { name: '마스터 경험치 카드', price: 90000, tier: 5, consumable: 'exp', amount: 12000000, minTier: 'master' },
+  stance_card_basic: { name: '스탠스 수련서', price: 350, tier: 1, consumable: 'stanceExp', amount: 600 },
+  stance_card_high: { name: '고급 스탠스 수련서', price: 3000, tier: 4, consumable: 'stanceExp', amount: 6000 },
+
   // --- 소모품 ---
   hp_potion: { name: 'HP 물약', price: 60, buyPrice: 120, tier: 1, consumable: 'hp', power: 0.5 },
   mp_potion: { name: 'MP 물약', price: 60, buyPrice: 120, tier: 1, consumable: 'mp', power: 0.5 },

@@ -62,7 +62,7 @@ function tryAutoAttack(unit, target, spawnProjectile, tryCastSkill) {
     return;
   }
   performBasicAttack(unit, target, spawnProjectile);
-  unit.basicAtkCooldown = 700;
+  unit.basicAtkCooldown = 700 / (1 + ((unit.family || EMPTY_FAMILY_BONUS).atkSpeed));
 }
 
 // 화면상 가장 가까운 적. 높이 차도 거리로 친다(바로 위층 몹 > 멀리 있는 같은 층 몹).
@@ -268,13 +268,16 @@ function sameLevel(a, b) {
 
 function performBasicAttack(unit, target, spawnProjectile) {
   const stance = unit.stance;
-  const { dmg, isCrit } = rollDamage(unit, target, stance.basicAtkMult);
+  const roll = rollDamage(unit, target, stance.basicAtkMult);
+  const { dmg, isCrit } = roll;
   unit.attackAnim = 260;
   unit.facing = target.x >= unit.x ? 1 : -1;
   if (stance.attackType === 'melee') {
     if (EFFECTS) EFFECTS.slash(unit);
     const dist = Math.abs((target.x + target.width / 2) - (unit.x + unit.width / 2));
-    if (dist <= stance.range && sameLevel(unit, target)) applyDamageToEnemy(target, dmg, isCrit);
+    if (dist <= stance.range && sameLevel(unit, target)) applyDamageToEnemy(target, dmg, isCrit, roll.miss);
+  } else if (roll.miss) {
+    applyDamageToEnemy(target, 0, false, true);
   } else {
     spawnProjectile(unit, target, dmg, isCrit, elementColor(stance.element));
   }
@@ -287,7 +290,12 @@ function elementColor(element) {
   return '#ecf0f1';
 }
 
-function applyDamageToEnemy(enemy, dmg, isCrit) {
+function applyDamageToEnemy(enemy, dmg, isCrit, miss) {
+  if (miss) {
+    if (EFFECTS) EFFECTS.damage(enemy.x + enemy.width / 2, enemy.y - 4, 0, { text: 'MISS', color: '#bdc3c7' });
+    enemy.provoked = true;
+    return;
+  }
   enemy.hp = Math.max(0, enemy.hp - dmg);
   enemy.provoked = true; // 비선공 몹도 맞으면 반격한다
   enemy.hitFlash = 160;

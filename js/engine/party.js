@@ -118,6 +118,28 @@ class PartyManager {
     const def = ITEM_DATA[itemId];
     if (!def || !def.consumable || !unit || unit.downed) return false;
     if (this.itemCount(itemId) < 1) return false;
+    if (def.consumable === 'exp') {
+      // 승급 카드는 해당 등급에 도달한 캐릭터에게만 쓸 수 있다.
+      if (def.minTier) {
+        const tier = levelTier(unit.level).tier;
+        const order = ['veteran', 'expert', 'master'];
+        if (!tier || order.indexOf(tier.id) < order.indexOf(def.minTier)) {
+          this.log(`${def.name}는 ${LEVEL_TIERS.find((t) => t.id === def.minTier).name} 이상만 사용할 수 있습니다.`, 'system');
+          return false;
+        }
+      }
+      if (unit.level >= MAX_LEVEL) { this.log(`${unit.name}(은/는) 이미 최고 레벨입니다.`, 'system'); return false; }
+      unit.gainXp(def.amount, (t, tag) => this.log(t, tag));
+      this.log(`${unit.name} ${def.name} 사용 (+${def.amount.toLocaleString()} EXP)`, 'system');
+      this.removeItem(itemId, 1);
+      return true;
+    }
+    if (def.consumable === 'stanceExp') {
+      unit.gainStanceXp(def.amount, (t, tag) => this.log(t, tag));
+      this.log(`${unit.name} ${def.name} 사용 (+${def.amount.toLocaleString()} 스탠스 EXP)`, 'system');
+      this.removeItem(itemId, 1);
+      return true;
+    }
     if (def.consumable === 'hp') {
       if (unit.hp >= unit.maxHp) return false;
       const amount = Math.round(unit.maxHp * def.power);

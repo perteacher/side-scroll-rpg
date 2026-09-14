@@ -59,6 +59,10 @@ const SaveManager = {
           stepIndex: q.stepIndex, huntCount: q.huntCount,
         })),
       },
+      family: {
+        level: game.fm.level, xp: game.fm.xp, allocations: { ...game.fm.allocations },
+      },
+      seenLevels: [...(game._seenLevels || new Map())],
       scenario: {
         chapterIndex: sm.chapterIndex, stepIndex: sm.stepIndex,
         huntCount: sm.huntCount, finished: sm.finished,
@@ -122,6 +126,16 @@ const SaveManager = {
       ...q,
       steps: makeRecruitSteps(q.tier, q.charName),
     }));
+
+    if (data.family) {
+      game.fm.level = data.family.level || 1;
+      game.fm.xp = data.family.xp || 0;
+      FAMILY_TRAITS.forEach((t) => {
+        game.fm.allocations[t.id] = (data.family.allocations || {})[t.id] || 0;
+      });
+    }
+    // 레벨업 감지 기준선을 복원해야 로드 직후 가문 경험치가 중복 지급되지 않는다.
+    game._seenLevels = new Map(data.seenLevels || []);
 
     sm.chapterIndex = data.scenario.chapterIndex || 0;
     sm.stepIndex = data.scenario.stepIndex || 0;
