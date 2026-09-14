@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>메이플×그라나도 RPG 리부트</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="game-root">
+  <canvas id="game-canvas" width="960" height="540"></canvas>
+
+  <div id="top-bar">
+    <div id="menu-icons">
+      <button data-open="inventory" title="인벤토리 (I)">🎒</button>
+      <button data-open="charinfo" title="캐릭터 정보 (Alt+E)">📜</button>
+      <button data-open="barracks" title="병영 (B)">🏕️</button>
+      <button data-open="quest" title="퀘스트 (J)">📖</button>
+      <button data-open="teleport" title="텔레포트 (T)">🌀</button>
+      <button id="chat-toggle-btn" title="채팅창 열기">💬</button>
+      <button id="save-btn" title="저장 (10초마다 자동 저장됨)">💾</button>
+      <button id="reset-btn" title="새로 시작 (저장 삭제)">🔄</button>
+    </div>
+    <div id="zone-label"></div>
+    <div id="target-bar" class="hidden">
+      <div id="target-name"></div>
+      <div class="bar-bg small"><div id="target-hp-fill" class="bar-fill hp"></div></div>
+    </div>
+    <div id="minimap-wrap"><canvas id="minimap-canvas" width="120" height="120"></canvas></div>
+  </div>
+
+  <div id="boss-bar" class="hidden">
+    <div id="boss-name"></div>
+    <div class="bar-bg"><div id="boss-hp-fill" class="bar-fill hp"></div><span id="boss-hp-text" class="bar-text"></span></div>
+    <div id="boss-warn"></div>
+  </div>
+
+  <div id="bottom-bar">
+    <div id="gold-display">💰 <span id="gold-amount">0</span></div>
+    <div id="party-slots"></div>
+  </div>
+
+  <div id="chat-window">
+    <div id="chat-drag-handle">
+      <span>💬 채팅 (드래그로 이동)</span>
+      <span class="chat-btns">
+        <button id="chat-minimize-btn" title="최소화">─</button>
+        <button id="chat-close-btn" title="닫기">✕</button>
+      </span>
+    </div>
+    <div id="chat-tabs"></div>
+    <div id="chat-log"></div>
+  </div>
+
+  <div id="hint-bar">방향키 이동 · ↑ 점프/포탈진입 · ↓ 아래층 내려가기 · Space 공격 · 스킬 QWE(1번)/ASD(2번)/ZXC(3번) · V 스탠스 · Tab 리더전환 · I 인벤 · Alt+E 정보 · J 퀘스트 · B 병영 · T 텔레포트</div>
+
+  <!-- 캐릭터 생성 화면 -->
+  <div id="create-screen">
+    <div id="create-box">
+      <h1>캐릭터 생성</h1>
+      <p class="create-sub">최대 3명까지 만들어 파티로 시작합니다. 기본 클래스 5종은 중복 선택 가능하며 모두 Lv.1로 생성됩니다.</p>
+      <div id="class-list"></div>
+      <div id="create-form">
+        <input id="nickname-input" type="text" maxlength="12" placeholder="닉네임 (최대 12자)" />
+        <button id="create-btn">파티에 추가</button>
+        <button id="start-btn" disabled>모험 시작</button>
+      </div>
+      <div id="created-list"></div>
+      <div id="create-error"></div>
+    </div>
+  </div>
+
+  <!-- 캐릭터 정보 창 -->
+  <div id="char-info-window" class="game-window hidden">
+    <div class="window-title-bar">
+      <span>캐릭터 정보</span>
+      <button class="close-btn" data-close="char-info-window">✕</button>
+    </div>
+    <div class="window-tabs">
+      <button class="tab-btn active" data-tab="equip">장비</button>
+      <button class="tab-btn" data-tab="stance-skill">스탠스,스킬</button>
+      <button class="tab-btn" data-tab="equip-preset">장비교체등록</button>
+    </div>
+    <div class="tab-panel" id="tab-equip"></div>
+    <div class="tab-panel hidden" id="tab-stance-skill"></div>
+    <div class="tab-panel hidden" id="tab-equip-preset"></div>
+  </div>
+
+  <!-- 인벤토리 창 -->
+  <div id="inventory-window" class="game-window hidden">
+    <div class="window-title-bar"><span>인벤토리</span><button class="close-btn" data-close="inventory-window">✕</button></div>
+    <div id="inventory-grid"></div>
+  </div>
+
+  <!-- 퀘스트 창 -->
+  <div id="quest-window" class="game-window hidden">
+    <div class="window-title-bar"><span>퀘스트</span><button class="close-btn" data-close="quest-window">✕</button></div>
+    <div id="quest-content"></div>
+  </div>
+
+  <!-- 텔레포트 창 -->
+  <div id="teleport-window" class="game-window hidden">
+    <div class="window-title-bar"><span>텔레포트 — 레벨별 이동</span><button class="close-btn" data-close="teleport-window">✕</button></div>
+    <div id="teleport-list"></div>
+  </div>
+
+  <!-- 상점 창 -->
+  <div id="shop-window" class="game-window hidden">
+    <div class="window-title-bar"><span id="shop-title">상점</span><button class="close-btn" data-close="shop-window">✕</button></div>
+    <div class="window-tabs">
+      <button class="tab-btn active" data-shoptab="sell">판매</button>
+      <button class="tab-btn" data-shoptab="buy">구매</button>
+      <button class="tab-btn" data-shoptab="craft">제작</button>
+      <button class="tab-btn" data-shoptab="enhance">강화·인챈트</button>
+    </div>
+    <div id="shop-gold"></div>
+    <div id="shop-body"></div>
+  </div>
+
+  <!-- 병영 창 -->
+  <div id="barracks-window" class="game-window hidden">
+    <div class="window-title-bar"><span>병영 — 캐릭터 교체</span><button class="close-btn" data-close="barracks-window">✕</button></div>
+    <div id="barracks-party"></div>
+    <div id="barracks-create"></div>
+    <div id="barracks-list"></div>
+  </div>
+
+  <!-- NPC 영입 퀘스트 창 -->
+  <div id="npc-dialogue-window" class="game-window hidden">
+    <div class="window-title-bar"><span id="npc-dialogue-name"></span><button class="close-btn" data-close="npc-dialogue-window">✕</button></div>
+    <div id="npc-dialogue-text"></div>
+    <div id="npc-dialogue-actions"></div>
+  </div>
+</div>
+
+<script src="js/data/stances.js"></script>
+<script src="js/data/roles.js"></script>
+<script src="js/data/classes.js"></script>
+<script src="js/data/characters.js"></script>
+<script src="js/data/items.js"></script>
+<script src="js/data/recruitquests.js"></script>
+<script src="js/data/world.js"></script>
+<script src="js/data/scenario.js"></script>
+<script src="js/data/bosses.js"></script>
+<script src="js/data/synergy.js"></script>
+<script src="js/engine/utils.js"></script>
+<script src="js/engine/stats.js"></script>
+<script src="js/engine/input.js"></script>
+<script src="js/engine/entity.js"></script>
+<script src="js/engine/ai.js"></script>
+<script src="js/engine/party.js"></script>
+<script src="js/engine/zone.js"></script>
+<script src="js/engine/quest.js"></script>
+<script src="js/engine/save.js"></script>
+<script src="js/engine/scenario.js"></script>
+<script src="js/engine/effects.js"></script>
+<script src="js/engine/renderer.js"></script>
+<script src="js/engine/ui.js"></script>
+<script src="js/engine/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
