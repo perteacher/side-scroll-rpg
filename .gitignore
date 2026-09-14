@@ -10,3 +10,7 @@ desktop.ini
 # 에디터
 .vscode/
 .idea/
+
+# Electron 빌드
+node_modules/
+dist/

@@ -1,0 +1,38 @@
+{
+  "name": "side-scroll-rpg",
+  "version": "1.0.0",
+  "description": "사이드스크롤 액션 + 캐릭터 영입·스탠스 성장 브라우저 RPG",
+  "main": "electron-main.js",
+  "author": "perteacher",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.perteacher.sidescrollrpg",
+    "productName": "SideScrollRPG",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron-main.js",
+      "index.html",
+      "css/**/*",
+      "js/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "artifactName": "SideScrollRPG-${version}.exe",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "unpackDirName": "SideScrollRPG"
+    }
+  }
+}
