@@ -423,3 +423,14 @@ html, body {
 }
 .shop-meta .item-icon, .q-meta .item-icon { margin-right: 2px; background: none; }
 .inv-row .inv-name { display: flex; align-items: center; flex: 1; }
+
+/* ---- 단계별 스탠스 ---- */
+.grade-badge { font-size: 9px; padding: 0 4px; border-radius: 3px; margin-right: 4px; vertical-align: 1px; }
+.grade-badge.advanced { background: rgba(93, 173, 226, 0.25); color: #85c1e9; }
+.grade-badge.master { background: rgba(245, 176, 65, 0.25); color: #f5b041; }
+.stance-chip .lock-why { font-size: 9px; opacity: 0.7; margin-left: 3px; }
+.growth-box {
+  font-size: 11px; padding: 6px 8px; margin-bottom: 6px; border-radius: 4px;
+  background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.25); color: #abebc6;
+}
+.class-upper { font-size: 10px; opacity: 0.65; margin-top: 3px; }

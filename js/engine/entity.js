@@ -25,13 +25,17 @@ class PartyUnit {
 
     this.level = runtime.level || 1;
     this.xp = runtime.xp || 0;
-    this.stats = { ...def.baseStats };
+    // 스탯은 기본치에 모든 스탠스의 레벨 성장분을 더한 값이다(get stats). 스탠스 레벨이 바뀌면 캐시를 비운다.
+    this.baseStats = { ...def.baseStats };
+    this._statsCache = null;
     this.currentStanceIndex = 0;
     this.autoMode = runtime.autoMode || 'off';
 
     // 스탠스별 숙련도: 레벨/경험치/미사용 스킬포인트/스킬레벨 (맨손 포함)
+    // 단계 스탠스(베테랑/익스퍼트/마스터)도 자리를 미리 만들어 둔다. 해금 전에는 목록에 안 나올 뿐이다.
+    this.tierStances = tierStancesFor(this.stanceIds);
     this.stanceProgress = {};
-    ['bare', ...this.stanceIds].forEach((sid) => {
+    ['bare', ...this.stanceIds, ...this.tierStances.map((t) => t.stanceId)].forEach((sid) => {
       this.stanceProgress[sid] = { level: 1, xp: 0, points: 1, skills: {} };
     });
 
@@ -139,14 +143,54 @@ class PartyUnit {
     return [...armor, ...this.weaponSets.flat()].filter(Boolean);
   }
 
-  // 실제로 쓸 수 있는 스탠스 = 장착한 무기가 주는 스탠스. 무기가 없으면 맨손뿐.
+  // ---------- 스탯 ----------
+  get stats() {
+    if (!this._statsCache) {
+      const out = { ...this.baseStats };
+      const bonus = this.stanceGrowthBonus();
+      Object.keys(bonus).forEach((k) => { out[k] = (out[k] || 0) + Math.floor(bonus[k]); });
+      this._statsCache = out;
+    }
+    return this._statsCache;
+  }
+
+  // 모든 스탠스의 (레벨-1) × 레벨당 성장치. 스탠스를 여럿 키울수록 강해진다.
+  stanceGrowthBonus() {
+    const bonus = {};
+    Object.entries(this.stanceProgress).forEach(([sid, p]) => {
+      const per = stanceGrowthPerLevel(sid);
+      Object.entries(per).forEach(([k, v]) => { bonus[k] = (bonus[k] || 0) + v * (p.level - 1); });
+    });
+    return bonus;
+  }
+
+  // 스탠스 레벨이 바뀌었을 때: 스탯 캐시를 비우고 최대 HP/MP를 다시 잰다(현재 비율 유지).
+  invalidateStats() {
+    this._statsCache = null;
+    if (!this.maxHp) return;
+    const hpRatio = this.hp / this.maxHp;
+    const mpRatio = this.maxMp ? this.mp / this.maxMp : 1;
+    this.maxHp = this._calcMaxHp();
+    this.maxMp = this._calcMaxMp();
+    this.hp = clamp(Math.round(this.maxHp * hpRatio), 0, this.maxHp);
+    this.mp = clamp(Math.round(this.maxMp * mpRatio), 0, this.maxMp);
+  }
+
+  // ---------- 스탠스 ----------
+  // 해금된 스탠스 = 기본 스탠스 + 도달한 단계(베테랑/익스퍼트/마스터)의 스탠스
+  get unlockedStanceIds() {
+    const upper = this.tierStances.filter((t) => this.level >= tierStartLevel(t.tier)).map((t) => t.stanceId);
+    return [...this.stanceIds, ...upper];
+  }
+
+  // 실제로 쓸 수 있는 스탠스 = 해금된 스탠스 중 장착 무기와 계열이 맞는 것. 무기가 없으면 맨손뿐.
   get availableStances() {
-    const ids = ['weapon1', 'weapon2']
+    const weapons = new Set(['weapon1', 'weapon2']
       .map((slot) => this.equipment[slot])
       .filter(Boolean)
-      .map((gear) => gear.stanceId);
-    const unique = [...new Set(ids)];
-    return unique.length ? unique : ['bare'];
+      .map((gear) => gear.stanceId));
+    const list = this.unlockedStanceIds.filter((sid) => weapons.has(STANCE_DATA[sid].weapon));
+    return list.length ? list : ['bare'];
   }
 
   get currentStanceId() {
@@ -247,22 +291,30 @@ class PartyUnit {
   }
 
   gainStanceXp(amount, logFn) {
+    const sid = this.currentStanceId;
     const st = this.stanceState;
+    const max = stanceMaxLevel(sid);
+    if (st.level >= max) { st.xp = 0; return; }
     st.xp += amount;
     let leveled = false;
-    while (st.xp >= stanceXpToNext(st.level)) {
-      st.xp -= stanceXpToNext(st.level);
+    while (st.level < max && st.xp >= stanceXpToNext(st.level, sid)) {
+      st.xp -= stanceXpToNext(st.level, sid);
       st.level += 1;
       st.points += 1;
       leveled = true;
     }
-    if (leveled && logFn) {
-      logFn(`${this.name} [${this.stance.name}] 스탠스 Lv.${st.level}! (스킬포인트 +1)`, 'system');
+    if (st.level >= max) st.xp = 0;
+    if (!leveled) return;
+    this.invalidateStats();
+    if (logFn) {
+      const growth = statBonusText(stanceGrowthPerLevel(sid), 1);
+      logFn(`${this.name} [${this.stance.name}] 스탠스 Lv.${st.level}${st.level >= max ? ' (MAX)' : ''}! 스킬포인트 +1 · ${growth}`, 'system');
     }
   }
 
   gainXp(amount, logFn) {
     if (this.level >= MAX_LEVEL) { this.xp = 0; return; }
+    const levelBefore = this.level;
     this.xp += amount;
     let leveled = false;
     while (this.level < MAX_LEVEL && this.xp >= xpToNextLevel(this.level)) {
@@ -277,6 +329,14 @@ class PartyUnit {
       if (EFFECTS) EFFECTS.levelUp(this);
       if (SOUND) SOUND.levelUp();
       if (logFn) logFn(`${this.name} 레벨업! (${rankLabel(this.level)})`, 'system');
+      // 베테랑·익스퍼트·마스터에 막 도달했으면 새 스탠스를 알린다.
+      this.tierStances.forEach((t) => {
+        const start = tierStartLevel(t.tier);
+        if (levelBefore >= start || this.level < start || !logFn) return;
+        const stance = STANCE_DATA[t.stanceId];
+        const tierName = LEVEL_TIERS.find((x) => x.id === t.tier).name;
+        logFn(`[스탠스 해금] ${this.name} ${tierName} 달성! 새 스탠스 「${stance.name}」 — ${weaponNoun(stance.weapon)} 계열 무기로 사용`, 'party');
+      });
     }
   }
 }

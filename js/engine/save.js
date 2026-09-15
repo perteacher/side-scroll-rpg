@@ -110,6 +110,7 @@ const SaveManager = {
       unit.currentStanceIndex = ud.currentStanceIndex || 0;
       unit.downed = !!ud.downed;
       if (ud.stanceProgress) Object.assign(unit.stanceProgress, ud.stanceProgress);
+      unit.invalidateStats();
       // 무기 세트가 저장돼 있으면 그쪽을 쓰고, 구버전 세이브는 장비 슬롯을 세트1로 옮겨 담는다.
       if (ud.weaponSets) {
         unit.activeSet = clamp(ud.activeSet || 0, 0, WEAPON_SET_COUNT - 1);

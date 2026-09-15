@@ -153,12 +153,14 @@ class UIManager {
     listEl.innerHTML = CLASS_DATA.map((c) => {
       const role = { melee: '근접', ranged: '원거리', magic: '마법' }[c.attackType];
       const stances = c.stanceIds.map((s) => STANCE_DATA[s].name).join(' / ');
+      const upper = tierStancesFor(c.stanceIds).map((t) => STANCE_DATA[t.stanceId].name).join(' → ');
       return `
         <div class="class-card" data-class="${c.id}">
           <div class="class-icon" style="background:${c.color}"></div>
           <div class="class-name">${c.name}</div>
           <div class="class-role">${role} · ${stances}</div>
           <div class="class-desc">${c.desc}</div>
+          <div class="class-upper">승급 스탠스: ${upper}</div>
           <div class="class-stats">힘${c.baseStats.str} 민${c.baseStats.agi} 체${c.baseStats.vit} 기${c.baseStats.skl} 지${c.baseStats.int} 감${c.baseStats.sen}</div>
         </div>`;
     }).join('');
@@ -491,9 +493,11 @@ class UIManager {
 
       const st = unit.stanceState;
       const sxpFill = slot.querySelector('.bar-fill.sxp');
-      sxpFill.style.width = `${clamp(st.xp / stanceXpToNext(st.level), 0, 1) * 100}%`;
-      sxpFill.parentElement.title = `${unit.stance.name} 스탠스 Lv.${st.level} — ${Math.floor(st.xp)}/${stanceXpToNext(st.level)} (포인트 ${st.points})`;
-      slot.querySelector('.sxp-text').textContent = `${unit.stance.name} Lv.${st.level}${st.points > 0 ? ` · SP${st.points}` : ''}`;
+      const sid = unit.currentStanceId;
+      const stMax = st.level >= stanceMaxLevel(sid);
+      sxpFill.style.width = `${stMax ? 100 : clamp(st.xp / stanceXpToNext(st.level, sid), 0, 1) * 100}%`;
+      sxpFill.parentElement.title = `${unit.stance.name} 스탠스 Lv.${st.level}${stMax ? ' (MAX)' : ` — ${Math.floor(st.xp)}/${stanceXpToNext(st.level, sid)}`} (포인트 ${st.points})`;
+      slot.querySelector('.sxp-text').textContent = `${unit.stance.name} Lv.${st.level}${stMax ? ' MAX' : ''}${st.points > 0 ? ` · SP${st.points}` : ''}`;
       slot.querySelectorAll('.auto-modes button').forEach((b) => {
         b.classList.toggle('on', b.dataset.mode === unit.autoMode);
       });
@@ -667,18 +671,36 @@ class UIManager {
   _renderStanceSkillTab(unit) {
     const el = document.getElementById('tab-stance-skill');
     const available = unit.availableStances;
+    const unlocked = unit.unlockedStanceIds;
+    const gradeBadge = (sid) => {
+      const g = STANCE_DATA[sid].grade;
+      return g === 'advanced' || g === 'master' ? `<span class="grade-badge ${g}">${STANCE_GRADE[g].label}</span>` : '';
+    };
+
     const chips = available.map((sid) => {
       const s = STANCE_DATA[sid];
       const p = unit.stanceProgress[sid];
-      return `<div class="stance-chip ${sid === unit.currentStanceId ? 'current' : ''}" data-stance="${sid}">${s.name} Lv.${p.level}${p.points > 0 ? ` (SP${p.points})` : ''}</div>`;
+      const max = p.level >= stanceMaxLevel(sid) ? ' MAX' : '';
+      return `<div class="stance-chip ${sid === unit.currentStanceId ? 'current' : ''}" data-stance="${sid}">${gradeBadge(sid)}${s.name} Lv.${p.level}${max}${p.points > 0 ? ` (SP${p.points})` : ''}</div>`;
     }).join('');
-    const lockedChips = unit.stanceIds.filter((sid) => !available.includes(sid)).map((sid) => {
-      const item = ITEM_DATA[STARTER_WEAPON_BY_STANCE[sid]];
-      return `<div class="stance-chip locked" title="${item ? item.name : ''} 계열 무기를 장착해야 사용">🔒 ${STANCE_DATA[sid].name}</div>`;
+    const needWeapon = unlocked.filter((sid) => !available.includes(sid)).map((sid) => {
+      const s = STANCE_DATA[sid];
+      return `<div class="stance-chip locked" title="${weaponNoun(s.weapon)} 계열 무기를 장착해야 사용">${gradeBadge(sid)}🔒 ${s.name} <span class="lock-why">${weaponNoun(s.weapon)} 필요</span></div>`;
+    }).join('');
+    const needTier = unit.tierStances.filter((t) => !unlocked.includes(t.stanceId)).map((t) => {
+      const s = STANCE_DATA[t.stanceId];
+      const tier = LEVEL_TIERS.find((x) => x.id === t.tier);
+      return `<div class="stance-chip locked" title="${tier.name} 달성(내부 Lv.${tier.start}) 시 해금">${gradeBadge(t.stanceId)}🔒 ${s.name} <span class="lock-why">${tier.name}</span></div>`;
     }).join('');
 
+    const sid = unit.currentStanceId;
     const st = unit.stanceState;
-    const xpPct = clamp(st.xp / stanceXpToNext(st.level), 0, 1) * 100;
+    const maxLv = stanceMaxLevel(sid);
+    const isMax = st.level >= maxLv;
+    const need = stanceXpToNext(st.level, sid);
+    const xpPct = isMax ? 100 : clamp(st.xp / need, 0, 1) * 100;
+    const totalBonus = statBonusText(unit.stanceGrowthBonus()) || '아직 없음 — 스탠스 레벨을 올리면 스탯이 오릅니다';
+    const perLevel = statBonusText(stanceGrowthPerLevel(sid), 1) || '없음';
 
     const skills = unit.stance.skillIds.map((skid) => {
       const sk = ROLE_SKILLS_DATA[unit.attackType][skid];
@@ -699,11 +721,16 @@ class UIManager {
     }).join('');
 
     el.innerHTML = `
-      <div class="section-title">사용 가능 스탠스 — 장착 무기로 결정 (클릭 전환, 단축키 V)</div>
-      <div class="stance-list">${chips}${lockedChips}</div>
-      <div class="section-title">${unit.stance.name} 스탠스 Lv.${st.level} · 스킬포인트 ${st.points}</div>
+      <div class="section-title">스탠스 — 장착 무기 계열로 결정 (클릭 전환, 단축키 V)</div>
+      <div class="stance-list">${chips}${needWeapon}${needTier}</div>
+      <p class="hint-text">일반 단계는 기본 스탠스 2개, 베테랑·익스퍼트·마스터에 도달할 때마다 같은 무기로 쓰는 상위 스탠스를 하나씩 배웁니다.</p>
+      <div class="section-title">스탠스 성장 보너스 (모든 스탠스 레벨 합산)</div>
+      <div class="growth-box">${totalBonus}</div>
+      <div class="section-title">${gradeBadge(sid)}${unit.stance.name} 스탠스 Lv.${st.level} / ${maxLv} · 스킬포인트 ${st.points}</div>
       <div class="bar-bg" style="height:10px;margin-bottom:4px;"><div class="bar-fill sxp" style="width:${xpPct}%"></div></div>
-      <div style="font-size:10px;opacity:0.7;margin-bottom:8px;">스탠스 EXP ${Math.floor(st.xp)} / ${stanceXpToNext(st.level)} — 사냥으로 획득, 레벨업 시 스킬포인트 +1</div>
+      <div style="font-size:10px;opacity:0.7;margin-bottom:8px;">
+        ${isMax ? '최고 레벨 달성' : `스탠스 EXP ${Math.floor(st.xp).toLocaleString()} / ${need.toLocaleString()}`} — 레벨업마다 스킬포인트 +1, ${perLevel}
+      </div>
       ${skills}
     `;
 
@@ -1414,7 +1441,9 @@ class UIManager {
     const actionsEl = document.getElementById('npc-dialogue-actions');
     const def = npc.charDef;
     const role = { melee: '근접', ranged: '원거리', magic: '마법' }[def.attackType];
-    const stances = def.stanceIds.map((s) => STANCE_DATA[s].name).join(' / ');
+    const upper = tierStancesFor(def.stanceIds)
+      .map((t) => `${LEVEL_TIERS.find((x) => x.id === t.tier).name} ${STANCE_DATA[t.stanceId].name}`).join(' · ');
+    const stances = `${def.stanceIds.map((s) => STANCE_DATA[s].name).join(' / ')}<br><span style="opacity:0.75">승급 스탠스: ${upper}</span>`;
     document.getElementById('npc-dialogue-name').textContent = `${def.name} — 영입 퀘스트`;
 
     const already = this.pm.units.has(npc.charId);

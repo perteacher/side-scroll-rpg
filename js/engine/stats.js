@@ -37,7 +37,16 @@ function xpToNextLevel(level) {
   return Math.round(base * TIER_XP_MULT[tier.id] * (1 + (sub - 1) * 0.45));
 }
 
-function stanceXpToNext(stanceLevel) { return 40 + stanceLevel * 45; }
+// 스탠스 경험치 요구량. 상급·마스터 스탠스는 등급 배율을 곱한다.
+function stanceXpToNext(stanceLevel, stanceId = null) {
+  const mult = stanceId ? stanceGradeOf(stanceId).xpMult : 1;
+  return (40 + stanceLevel * 45) * mult;
+}
+
+function tierStartLevel(tierId) {
+  const t = LEVEL_TIERS.find((x) => x.id === tierId);
+  return t ? t.start : Infinity;
+}
 
 // 몹 레벨 - 내 레벨 차이를 색으로. 회색=거저 / 흰색=적정 / 주황·빨강=위험.
 function dangerColor(enemyLevel, myLevel) {

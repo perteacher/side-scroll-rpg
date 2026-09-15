@@ -116,6 +116,11 @@ const SHOP_STOCK = ['hp_potion', 'mp_potion'];
 const TIER_COLOR = { 1: '#bdc3c7', 2: '#5dade2', 3: '#58d68d', 4: '#bb8fce', 5: '#f5b041' };
 
 const EQUIP_TIER_PREFIX = { 2: '강철', 3: '정예', 4: '고대', 5: '마력' };
+
+function weaponNoun(stanceId) {
+  const b = WEAPON_BASES.find((w) => w.stanceId === stanceId);
+  return b ? b.noun : '무기';
+}
 const EQUIP_TIER_SCALE = { 2: 2.5, 3: 5.5, 4: 10, 5: 17 };
 
 const WEAPON_BASES = [

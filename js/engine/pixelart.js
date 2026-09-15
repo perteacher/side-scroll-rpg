@@ -85,7 +85,8 @@ function unitLook(unit) {
 function heldWeaponGear(unit) {
   if (!unit.equipment) return null;
   const list = [unit.equipment.weapon1, unit.equipment.weapon2].filter(Boolean);
-  return list.find((g) => g.stanceId === unit.currentStanceId) || null;
+  const stance = STANCE_DATA[unit.currentStanceId];
+  return list.find((g) => stance && g.stanceId === stance.weapon) || null;
 }
 
 // ---------- 몬스터 합성 ----------
