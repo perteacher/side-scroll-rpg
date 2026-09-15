@@ -7,8 +7,9 @@ const GAME_HEIGHT = 540;
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: GAME_WIDTH + 16,
-    height: GAME_HEIGHT + 39,
+    // useContentSize: 창 테두리를 뺀 안쪽이 정확히 960x540
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
     useContentSize: true,
     resizable: true,
     backgroundColor: '#000000',

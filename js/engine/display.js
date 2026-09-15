@@ -64,7 +64,10 @@ const DisplayManager = {
   // 데스크톱(exe)에서는 고른 해상도로 창 안쪽 크기까지 바꾼다. 브라우저는 창 크기를 못 바꾸므로 배율만.
   _resizeDesktopWindow() {
     const opt = this.option;
-    if (opt.w && window.desktopApp && window.desktopApp.setContentSize) window.desktopApp.setContentSize(opt.w, opt.h);
+    if (!opt.w || !window.desktopApp || !window.desktopApp.setContentSize) return;
+    window.desktopApp.setContentSize(opt.w, opt.h);
+    // 창이 뒤에 가려져 있으면 resize 이벤트가 렌더링 때까지 밀린다. 타이머로 한 번 더 맞춘다.
+    [200, 700].forEach((ms) => setTimeout(() => this.apply(), ms));
   },
 
   isFullscreen() {
