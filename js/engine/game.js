@@ -587,13 +587,22 @@ class Game {
     this.potionTimer = 800;
     const cfg = SettingsManager.values;
     if (!cfg.autoPotion) return;
+    // 많이 비었으면 고급 물약부터, 조금 비었으면 기본 물약부터 — 좋은 물약을 반만 채우고 버리지 않게.
+    const pick = (ids, ratio) => {
+      const order = ratio < 0.4 ? [ids[1], ids[0]] : ids;
+      return order.find((id) => this.pm.itemCount(id) > 0) || null;
+    };
     for (const unit of this.pm.partyUnits) {
       if (unit.downed || unit.hp <= 0) continue;
-      if (unit.hp / unit.maxHp < cfg.hpThreshold && this.pm.itemCount('hp_potion') > 0) {
-        if (this.pm.useConsumable('hp_potion', unit)) { this.ui.refreshOpenWindows(); return; }
+      const hpRatio = unit.hp / unit.maxHp;
+      const mpRatio = unit.mp / unit.maxMp;
+      if (hpRatio < cfg.hpThreshold) {
+        const id = pick(['hp_potion', 'hp_potion_large'], hpRatio);
+        if (id && this.pm.useConsumable(id, unit)) { this.ui.refreshOpenWindows(); return; }
       }
-      if (unit.mp / unit.maxMp < cfg.mpThreshold && this.pm.itemCount('mp_potion') > 0) {
-        if (this.pm.useConsumable('mp_potion', unit)) { this.ui.refreshOpenWindows(); return; }
+      if (mpRatio < cfg.mpThreshold) {
+        const id = pick(['mp_potion', 'mp_potion_large'], mpRatio);
+        if (id && this.pm.useConsumable(id, unit)) { this.ui.refreshOpenWindows(); return; }
       }
     }
   }
@@ -626,22 +635,66 @@ class Game {
     const leader = this.pm.activeUnit;
     this.pm.partyUnits.forEach((unit, i) => {
       if (i === this.pm.activeIndex) return;
-      unit.onRope = null;
-      unit.flashTimer = 0;
+      if (isHardCc(unit)) {
+        unit.vx = 0; unit.flashTimer = 0;
+        if (!unit.onRope) this._applyPhysics(unit, dt);
+        return;
+      }
+      // 로프에 매달렸으면 리더 높이까지 자동으로 오르내린다.
+      if (unit.onRope) { this._climbCompanionRope(unit, leader, dt); return; }
+
       // 리더와 너무 멀어지면 사냥을 멈추고 따라붙는다(홀드 모드는 제자리 유지가 목적이므로 제외).
       const gap = (leader.x + leader.width / 2) - (unit.x + unit.width / 2);
-      if (isHardCc(unit)) {
-        unit.vx = 0;
-      } else if (unit.autoMode !== 'hold' && Math.abs(gap) > FOLLOW_DISTANCE) {
+      const heightGap = (unit.y + unit.height) - (leader.y + leader.height);
+      // 리더가 위층에 있고 발밑에 로프가 있으면 잡는다. 점프로는 못 오르는 높이를 로프로 따라붙는다.
+      if (unit.autoMode !== 'hold' && heightGap > 30 && unit.grounded) {
+        const rope = this._ropeAt(unit);
+        if (rope) { this._grabRope(unit, rope); return; }
+      }
+      if (unit.autoMode !== 'hold' && Math.abs(gap) > FOLLOW_DISTANCE) {
         const dir = Math.sign(gap);
         unit.vx = FOLLOW_SPEED * dir;
         unit.facing = dir;
+        // 많이 처졌으면 점프 → 플래시 점프로 단숨에 따라붙는다.
+        if (Math.abs(gap) > FOLLOW_DISTANCE * 1.8) {
+          if (unit.grounded) { unit.vy = JUMP_VELOCITY; unit.grounded = false; }
+          else if (!unit.usedFlashJump) this._flashJump(unit);
+        }
       } else {
         this._runAutoMode(unit, dt);
+      }
+      if (unit.flashTimer > 0) {
+        unit.flashTimer = Math.max(0, unit.flashTimer - dt);
+        unit.vx = FLASH_JUMP_SPEED * unit.facing;
       }
       this._applyPhysics(unit, dt);
       unit.x = clamp(unit.x, 0, this.zm.width - unit.width);
     });
+  }
+
+  // 동료 자동 등반. 리더 발높이를 목표로 오르내리고, 꼭대기·바닥에 닿으면 로프에서 내린다.
+  _climbCompanionRope(unit, leader, dt) {
+    const rope = unit.onRope;
+    const leaderBottom = leader.y + leader.height;
+    const bottom = unit.y + unit.height;
+    // 리더가 발판 위면 끝까지 오르고, 바닥이면 끝까지 내린다.
+    // 리더 발높이만 목표로 삼으면 여유 구간에 걸려 발판 코앞에서 매달린 채 멈춘다.
+    const toPlatform = leaderBottom <= rope.platformY + 4;
+    const toGround = leaderBottom >= rope.bottom - 4;
+    let dir = 0;
+    if (toPlatform) dir = -1;
+    else if (toGround) dir = 1;
+    else if (bottom > leaderBottom + 6) dir = -1;
+    else if (bottom < leaderBottom - 6) dir = 1;
+
+    unit.climbing = dir !== 0;
+    unit.vx = 0; unit.vy = 0;
+    unit.grounded = false;
+    unit.x = clamp(rope.x - unit.width / 2, 0, this.zm.width - unit.width);
+    unit.y += dir * ROPE_CLIMB_SPEED * dt / 1000;
+    const now = unit.y + unit.height;
+    if (now <= rope.platformY + 2) { this._leaveRope(unit, rope.platformY - unit.height); return; }
+    if (now >= rope.bottom - 2) this._leaveRope(unit, rope.bottom - unit.height);
   }
 
   // 파티 슬롯별 스킬 사용(1번 QWE / 2번 ASD / 3번 ZXC). 조작 캐릭터가 아니어도 쓸 수 있다.

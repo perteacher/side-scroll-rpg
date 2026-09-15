@@ -21,14 +21,29 @@ html, body {
   padding: 6px 10px; pointer-events: none;
 }
 #menu-icons, #target-bar, #minimap-wrap { pointer-events: auto; }
-/* 아이콘 12개가 한 줄에 들어가야 한다(줄바꿈되면 화면을 가린다). */
-#menu-icons { display: flex; flex-wrap: nowrap; }
+/* 창 여는 버튼들은 MENU 하나로 접어둔다(화면 위에 아이콘이 늘어서면 시야를 가린다). */
+#menu-icons { position: relative; }
 #menu-icons button {
-  width: 30px; height: 30px; margin-right: 3px; font-size: 14px; flex: 0 0 auto;
+  height: 30px; font-size: 14px;
   display: flex; align-items: center; justify-content: center; padding: 0;
   background: rgba(20,20,30,0.85); border: 1px solid #555; border-radius: 4px; color: #fff; cursor: pointer;
 }
 #menu-icons button:hover { background: rgba(60,60,80,0.9); }
+#menu-btn { width: auto; padding: 0 12px; font-size: 12px; font-weight: bold; letter-spacing: 1px; }
+#menu-dropdown {
+  position: absolute; top: 34px; left: 0; width: 196px; z-index: 30;
+  display: flex; flex-direction: column; gap: 2px; padding: 4px;
+  background: rgba(15,15,22,0.96); border: 1px solid #555; border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+#menu-dropdown.hidden { display: none; }
+#menu-dropdown button {
+  width: 100%; height: 26px; justify-content: flex-start; gap: 6px;
+  font-size: 11px; padding: 0 6px; border-color: transparent; background: transparent;
+}
+#menu-dropdown button:hover { background: rgba(80,80,110,0.9); }
+#menu-dropdown .mi-icon { width: 16px; text-align: center; font-size: 13px; }
+#menu-dropdown .mi-key { margin-left: auto; opacity: 0.5; font-size: 10px; }
 #target-bar { text-align: center; min-width: 220px; }
 #target-bar.hidden { visibility: hidden; }
 #target-name { font-size: 13px; margin-bottom: 2px; text-shadow: 1px 1px 2px #000; }
@@ -451,7 +466,19 @@ html, body {
 }
 .class-upper { font-size: 10px; opacity: 0.65; margin-top: 3px; }
 
-/* ---- 스타포스 · 잠재능력 ---- */
+/* ---- 아이템 설명 풍선 ---- */
+#item-tip {
+  position: absolute; z-index: 60; width: 200px; pointer-events: none;
+  background: rgba(12,12,18,0.96); border: 1px solid #666; border-radius: 4px;
+  padding: 6px 8px; font-size: 11px; line-height: 1.5; box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+}
+#item-tip.hidden { display: none; }
+#item-tip .tip-name { display: flex; align-items: center; gap: 4px; font-weight: bold; font-size: 12px; margin-bottom: 2px; }
+#item-tip .tip-kind { opacity: 0.6; font-size: 10px; margin-bottom: 4px; }
+#item-tip .tip-dim { opacity: 0.6; font-size: 10px; }
+#item-tip .tip-pot { border-top: 1px solid #444; margin-top: 4px; padding-top: 4px; }
+
+/* ---- 강화 · 잠재능력 ---- */
 .enh-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; max-height: 120px; overflow-y: auto; }
 .enh-pick {
   position: relative; width: 48px; height: 52px; padding: 2px; border-radius: 4px; cursor: pointer;
@@ -469,10 +496,6 @@ html, body {
 .sf-max { font-size: 11px; color: #f7dc6f; }
 .sf-protect { display: block; font-size: 10px; margin: 4px 0; }
 .sf-protect.disabled { opacity: 0.4; }
-.starcatch { position: relative; height: 18px; margin: 6px 0; border-radius: 9px; background: #1b1b2a; border: 1px solid #444; opacity: 0.45; }
-.starcatch.on { opacity: 1; }
-.starcatch .sc-zone { position: absolute; left: 38%; width: 24%; top: 0; bottom: 0; background: rgba(247,220,111,0.25); border-left: 1px solid #f7dc6f; border-right: 1px solid #f7dc6f; }
-.starcatch .sc-star { position: absolute; top: -2px; transform: translateX(-50%); color: #f7dc6f; font-size: 16px; text-shadow: 0 0 4px #f1c40f; }
 .sf-btns { display: flex; gap: 8px; align-items: center; }
 .sf-btns button, .cube-btns button { font-size: 11px; padding: 4px 10px; background: #2c2c44; border: 1px solid #555; color: #fff; border-radius: 3px; cursor: pointer; }
 .sf-btns button.primary { background: #b9770e; border-color: #f7dc6f; }

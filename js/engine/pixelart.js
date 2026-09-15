@@ -155,6 +155,18 @@ function unitSprite(unit, frame = 'idle0') {
   return c;
 }
 
+// 두 색을 t(0~1)로 섞는다. 하늘을 계단식 색 띠로 나눌 때 쓴다.
+function mixHex(hexA, hexB, t) {
+  const a = parseInt(hexA.slice(1), 16);
+  const b = parseInt(hexB.slice(1), 16);
+  const ch = (shift) => {
+    const va = (a >> shift) & 255;
+    const vb = (b >> shift) & 255;
+    return Math.round(va + (vb - va) * t);
+  };
+  return `#${((1 << 24) + (ch(16) << 16) + (ch(8) << 8) + ch(0)).toString(16).slice(1)}`;
+}
+
 // 상태이상 색을 스프라이트 모양 그대로 덧칠한 사본(빙결=얼음색 등). 원본 캔버스별로 캐시.
 const _tintCache = new WeakMap();
 function tintedSprite(sprite, color, alpha) {

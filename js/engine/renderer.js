@@ -115,201 +115,186 @@ class Renderer {
     if (state.shopNpc) this._drawShopNpcLabel(state.shopNpc, state.time);
     state.recruitNpcs.forEach((npc) => this._drawRecruitNpcLabel(npc, state.time, state.recruitStatus[npc.charId]));
     state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemyLabel(e, state.time, e === state.target, state.partyLevel));
-    state.partyUnits.forEach((u, i) => this._drawUnitLabel(u, i === state.activeIndex, state.time));
+    state.partyUnits.forEach((u, i) => this._drawUnitLabel(u, i === state.activeIndex, state.time, state.partyUnits, i));
     state.effects.drawTexts(m);
     m.restore();
   }
 
   // ---------- 배경 ----------
+  // 배경은 카메라 이동을 직접 반영한다(이 단계에서는 아직 월드 좌표로 옮기기 전이다).
   _drawBackground(theme, state) {
     const { ctx } = this;
-    const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-    sky.addColorStop(0, theme.sky[0]);
-    sky.addColorStop(1, theme.sky[1]);
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, this.width, GROUND_Y);
-
+    // 하늘: 그라데이션 대신 계단식 색 띠. 도트 화면에 맞춰 색 단계를 눈에 보이게 끊는다.
+    const bands = 9;
+    for (let i = 0; i < bands; i++) {
+      const y = snapPx((GROUND_Y / bands) * i);
+      const y2 = i === bands - 1 ? GROUND_Y : snapPx((GROUND_Y / bands) * (i + 1));
+      ctx.fillStyle = mixHex(theme.sky[0], theme.sky[1], i / (bands - 1));
+      ctx.fillRect(0, y, this.width, y2 - y);
+    }
+    this._drawClouds();
     this._drawFarLayer(theme);
     this._drawMidLayer(theme);
+    this._drawGround(state);
+  }
 
-    // 지면
-    ctx.fillStyle = state.groundColor;
-    ctx.fillRect(0, GROUND_Y, this.width, this.height - GROUND_Y);
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.fillRect(0, GROUND_Y, this.width, 4);
-
-    // 지면 결
-    ctx.strokeStyle = 'rgba(0,0,0,0.16)';
-    ctx.lineWidth = 2;
-    const step = 46;
-    const offset = -(this.cam * 0.9) % step;
-    for (let x = offset; x < this.width; x += step) {
-      ctx.beginPath();
-      ctx.moveTo(x, GROUND_Y + 12);
-      ctx.lineTo(x - 14, this.height);
-      ctx.stroke();
+  _drawClouds() {
+    const { ctx } = this;
+    const period = 520;
+    const off = -(this.cam * 0.08) % period;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    for (let i = -1; i < this.width / period + 2; i++) {
+      const bx = off + i * period;
+      CLOUD_LAYOUT.forEach((c) => {
+        const spr = cachedSprite(`scenery:cloud:${c.shape}`, SCENERY_SHAPES[c.shape], cloudPalette());
+        drawSprite(ctx, spr, snapPx(bx + c.x), snapPx(c.y), c.scale);
+      });
     }
+    ctx.restore();
   }
 
   _drawFarLayer(theme) {
-    const { ctx } = this;
     const off = -(this.cam * 0.18) % 420;
-    ctx.fillStyle = theme.far;
+    // 대기 원근: 먼 산일수록 하늘색을 섞어 흐리게. 안 그러면 앞의 장식과 같은 거리로 보인다.
+    const hazed = {
+      a: mixHex(shadeHex(theme.far, 1.3), theme.sky[1], 0.45),
+      b: mixHex(theme.far, theme.sky[1], 0.35),
+      c: mixHex(shadeHex(theme.far, 0.78), theme.sky[1], 0.3),
+    };
+    const cell = Math.floor((this.cam * 0.18) / 420);
     for (let i = -1; i < this.width / 420 + 2; i++) {
       const bx = off + i * 420;
-      ctx.beginPath();
-      ctx.moveTo(bx - 60, GROUND_Y);
-      ctx.lineTo(bx + 110, GROUND_Y - 150);
-      ctx.lineTo(bx + 250, GROUND_Y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(bx + 180, GROUND_Y);
-      ctx.lineTo(bx + 310, GROUND_Y - 104);
-      ctx.lineTo(bx + 440, GROUND_Y);
-      ctx.closePath();
-      ctx.fill();
+      FAR_MOUNTAINS.forEach((m, k) => {
+        // 칸마다 크기를 조금씩 흔들어 같은 산이 반복되는 티를 줄인다.
+        const h = hashStr(`mt:${cell + i}:${k}`);
+        const width = m.width + ((h % 5) - 2) * 18;
+        const height = m.height + (((h >>> 4) % 5) - 2) * 10;
+        this._pixelMountain(bx + m.x + ((h >>> 8) % 40) - 20, width, height, hazed);
+      });
+    }
+  }
+
+  // 먼 산: 삼각형 대신 4px 단으로 쌓는다. 비탈이 계단으로 보여야 도트 화면과 붙는다.
+  _pixelMountain(cx, width, height, pal) {
+    const { ctx } = this;
+    const step = 4;
+    const rows = Math.max(1, Math.round(height / step));
+    const baseY = GROUND_Y - 10; // 지평선보다 살짝 위에서 끝내 뒤쪽에 있는 것처럼 보이게
+    for (let r = 0; r < rows; r++) {
+      const y = snapPx(baseY - (r + 1) * step);
+      const w = snapPx((width * (rows - r)) / rows);
+      if (w <= 0) continue;
+      const x = snapPx(cx - w / 2);
+      const side = Math.min(6, w / 2);
+      ctx.fillStyle = r >= rows - 3 ? pal.a : pal.b; // 꼭대기는 밝게(눈·햇빛)
+      ctx.fillRect(x, y, w, step);
+      ctx.fillStyle = pal.a;
+      ctx.fillRect(x, y, side, step);
+      ctx.fillStyle = pal.c;
+      ctx.fillRect(x + w - side, y, side, step);
     }
   }
 
   _drawMidLayer(theme) {
+    const layout = DECOR_LAYOUT[theme.decor];
+    if (!layout) return;
+    const pal = sceneryPalette(theme, 'mid');
     const off = -(this.cam * 0.45) % 260;
+    const cell = Math.floor((this.cam * 0.45) / 260);
     for (let i = -1; i < this.width / 260 + 2; i++) {
-      this._drawDecor(theme, off + i * 260);
+      const bx = off + i * 260;
+      layout.forEach((d, k) => {
+        // 칸마다 위치·좌우를 흔들고 가끔 하나를 비운다. 같은 배치가 반복되면 배경이 벽지처럼 보인다.
+        const h = hashStr(`dc:${theme.decor}:${cell + i}:${k}`);
+        if ((h >>> 12) % 7 === 0) return;
+        const rows = SCENERY_SHAPES[d.shape];
+        const spr = cachedSprite(`scenery:${d.shape}:${theme.mid}${theme.accent}`, rows, pal);
+        const x = snapPx(bx + d.x + (h % 36) - 18);
+        const y = snapPx(GROUND_Y - rows.length * d.scale);
+        drawSprite(this.ctx, spr, x, y, d.scale, ((h >>> 5) & 1) === 1);
+      });
     }
   }
 
-  _drawDecor(theme, bx) {
+  // 지면: 표면 타일을 이어 붙이고 그 아래는 흙 + 자갈. 자갈은 월드 좌표에 고정해 스크롤해도 제자리다.
+  _drawGround(state) {
     const { ctx } = this;
-    const base = GROUND_Y;
-    ctx.fillStyle = theme.mid;
-    switch (theme.decor) {
-      case 'trees':
-      case 'valley':
-        ctx.fillRect(bx + 26, base - 46, 10, 46);
-        ctx.beginPath();
-        ctx.arc(bx + 31, base - 62, 30, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillRect(bx + 150, base - 34, 8, 34);
-        ctx.beginPath();
-        ctx.arc(bx + 154, base - 46, 22, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      case 'deadtrees':
-        ctx.fillRect(bx + 40, base - 70, 8, 70);
-        ctx.fillRect(bx + 44, base - 56, 34, 6);
-        ctx.fillRect(bx + 14, base - 44, 30, 6);
-        ctx.fillRect(bx + 170, base - 52, 8, 52);
-        ctx.fillRect(bx + 150, base - 40, 24, 4);
-        break;
-      case 'rocks':
-        ctx.beginPath();
-        ctx.moveTo(bx + 20, base);
-        ctx.lineTo(bx + 60, base - 54);
-        ctx.lineTo(bx + 104, base);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillRect(bx + 150, base - 26, 54, 26);
-        break;
-      case 'houses':
-        ctx.fillRect(bx + 24, base - 74, 86, 74);
-        ctx.fillStyle = theme.accent;
-        ctx.beginPath();
-        ctx.moveTo(bx + 14, base - 74);
-        ctx.lineTo(bx + 67, base - 110);
-        ctx.lineTo(bx + 120, base - 74);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255,236,170,0.85)';
-        ctx.fillRect(bx + 44, base - 54, 18, 18);
-        ctx.fillRect(bx + 76, base - 54, 18, 18);
-        ctx.fillStyle = theme.mid;
-        ctx.fillRect(bx + 170, base - 50, 58, 50);
-        break;
-      case 'ships':
-        ctx.beginPath();
-        ctx.moveTo(bx + 20, base - 10);
-        ctx.lineTo(bx + 130, base - 10);
-        ctx.lineTo(bx + 112, base + 14);
-        ctx.lineTo(bx + 38, base + 14);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillRect(bx + 70, base - 84, 6, 74);
-        ctx.fillStyle = theme.accent;
-        ctx.beginPath();
-        ctx.moveTo(bx + 76, base - 80);
-        ctx.lineTo(bx + 118, base - 40);
-        ctx.lineTo(bx + 76, base - 26);
-        ctx.closePath();
-        ctx.fill();
-        break;
-      case 'wrecks':
-        ctx.save();
-        ctx.translate(bx + 70, base);
-        ctx.rotate(-0.25);
-        ctx.fillRect(-60, -18, 120, 18);
-        ctx.fillRect(-6, -78, 6, 62);
-        ctx.restore();
-        break;
-      case 'dunes':
-        ctx.beginPath();
-        ctx.moveTo(bx - 30, base);
-        ctx.quadraticCurveTo(bx + 70, base - 74, bx + 190, base);
-        ctx.closePath();
-        ctx.fill();
-        break;
-      case 'pillars':
-        [0, 90, 180].forEach((dx, idx) => {
-          const h = idx === 1 ? 40 : 96;
-          ctx.fillRect(bx + 30 + dx, base - h, 22, h);
-          ctx.fillStyle = theme.accent;
-          ctx.fillRect(bx + 25 + dx, base - h - 8, 32, 8);
-          ctx.fillStyle = theme.mid;
-        });
-        break;
-      case 'walls':
-        ctx.fillRect(bx, base - 96, 220, 96);
-        ctx.fillStyle = theme.accent;
-        for (let i = 0; i < 6; i++) ctx.fillRect(bx + 8 + i * 36, base - 110, 22, 16);
-        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-        ctx.lineWidth = 2;
-        for (let r = 0; r < 4; r++) {
-          for (let c = 0; c < 6; c++) ctx.strokeRect(bx + c * 37, base - 96 + r * 24, 37, 24);
-        }
-        break;
-      case 'spikes':
-        ctx.beginPath();
-        ctx.moveTo(bx + 20, base);
-        ctx.lineTo(bx + 46, base - 92);
-        ctx.lineTo(bx + 72, base);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = theme.accent;
-        ctx.beginPath();
-        ctx.moveTo(bx + 130, base);
-        ctx.lineTo(bx + 150, base - 58);
-        ctx.lineTo(bx + 172, base);
-        ctx.closePath();
-        ctx.fill();
-        break;
-      default:
-        break;
+    const pal = groundPalette(state.groundColor);
+    ctx.fillStyle = pal.c;
+    ctx.fillRect(0, GROUND_Y, this.width, this.height - GROUND_Y);
+
+    const top = cachedSprite(`ground:${state.groundColor}`, SCENERY_SHAPES.ground_top, pal);
+    const tileW = 16 * PIXEL_SCALE;
+    const off = -(this.cam % tileW);
+    for (let x = off - tileW; x < this.width + tileW; x += tileW) {
+      drawSprite(ctx, top, snapPx(x), GROUND_Y, PIXEL_SCALE);
+    }
+
+    ctx.fillStyle = pal.d;
+    const cell = 26;
+    const first = Math.floor(this.cam / cell) - 1;
+    const rows = Math.ceil((this.height - GROUND_Y - 20) / cell);
+    for (let i = 0; i < this.width / cell + 3; i++) {
+      const c = first + i;
+      for (let r = 0; r < rows; r++) {
+        const h = hashStr(`${c}:${r}`);
+        if (h % 3 !== 0) continue;
+        const px = snapPx(c * cell + (h >>> 3) % cell - this.cam);
+        const py = snapPx(GROUND_Y + 20 + r * cell + (h >>> 11) % 12);
+        ctx.fillRect(px, py, 4, 4);
+      }
     }
   }
 
+  // 2층 발판: 판자 타일을 이어 붙이고 기둥으로 받친다. 색은 존 테마의 강조색을 나무색 자리에 넣는다.
   _drawPlatform(p, theme) {
     const { ctx } = this;
-    ctx.fillStyle = theme.accent;
-    ctx.fillRect(p.x, p.y, p.width, 10);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(p.x, p.y + 10, p.width, 6);
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.fillRect(p.x, p.y, p.width, 2);
-    // 나무 판자 이음새
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    for (let x = p.x + 40; x < p.x + p.width; x += 40) ctx.fillRect(x, p.y + 2, 2, 8);
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    [p.x + 16, p.x + p.width - 24].forEach((cx) => ctx.fillRect(cx, p.y + 16, 8, GROUND_Y - p.y - 16));
+    const pal = {
+      h: theme.accent,
+      j: shadeHex(theme.accent, 0.72),
+      d: shadeHex(theme.accent, 0.42),
+    };
+    const plank = cachedSprite(`plat:${theme.accent}`, SCENERY_SHAPES.plank, pal);
+    const post = cachedSprite(`post:${theme.accent}`, SCENERY_SHAPES.post, pal);
+    const tileW = 16 * PIXEL_SCALE;
+    const deckH = 8 * PIXEL_SCALE;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(p.x, p.y, p.width, deckH);
+    ctx.clip();
+    for (let x = snapPx(p.x); x < p.x + p.width; x += tileW) {
+      drawSprite(ctx, plank, x, snapPx(p.y), PIXEL_SCALE);
+    }
+    ctx.restore();
+
+    const postH = 8 * PIXEL_SCALE;
+    [snapPx(p.x + 16), snapPx(p.x + p.width - 28)].forEach((px) => {
+      for (let y = snapPx(p.y + deckH); y < GROUND_Y; y += postH) {
+        drawSprite(ctx, post, px, y, PIXEL_SCALE);
+      }
+    });
+  }
+
+  // 2px 격자에 맞춘 타원. 워프·폭발처럼 곡선이 필요한 곳에서 도형 대신 쓴다.
+  _pixelEllipse(cx, cy, rx, ry, color, filled = true) {
+    const { ctx } = this;
+    const S = PIXEL_SCALE;
+    ctx.fillStyle = color;
+    for (let y = -ry; y <= ry; y += S) {
+      const t = 1 - (y * y) / (ry * ry);
+      if (t <= 0) continue;
+      const w = snapPx(rx * Math.sqrt(t));
+      if (w < S) continue;
+      const yy = snapPx(cy + y);
+      if (filled) {
+        ctx.fillRect(snapPx(cx) - w, yy, w * 2, S);
+      } else {
+        ctx.fillRect(snapPx(cx) - w, yy, S * 2, S);
+        ctx.fillRect(snapPx(cx) + w - S * 2, yy, S * 2, S);
+      }
+    }
   }
 
   // 로프: 굵은 줄 + 매듭 + 꼭대기 고리
@@ -465,10 +450,16 @@ class Renderer {
     ctx.restore();
   }
 
-  _drawUnitLabel(u, isActive, time = 0) {
+  _drawUnitLabel(u, isActive, time = 0, party = [], index = 0) {
     const { ctx } = this;
     const cx = u.x + u.width / 2;
-    const top = u.downed ? u.y + u.height - 34 : this._unitTop(u);
+    // 파티가 겹쳐 서면 이름표가 포개진다. 앞 순서의 가까운 동료 수만큼 위로 띄운다.
+    let stack = 0;
+    for (let i = 0; i < index; i++) {
+      const o = party[i];
+      if (o && Math.abs((o.x + o.width / 2) - cx) < 46) stack += 1;
+    }
+    const top = (u.downed ? u.y + u.height - 34 : this._unitTop(u)) - stack * 13;
     this._drawStatusIcons(u, cx, top - (isActive ? 54 : 38), time);
 
     if (isActive) {
@@ -645,26 +636,21 @@ class Renderer {
     const cy = w.y + w.height / 2;
     const pulse = 0.75 + Math.sin(time / 260) * 0.25;
 
-    const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, w.width / 2 + 6);
-    grad.addColorStop(0, 'rgba(180, 240, 255, 0.95)');
-    grad.addColorStop(0.45, `rgba(90, 170, 255, ${0.55 * pulse})`);
-    grad.addColorStop(1, 'rgba(40, 60, 160, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, w.width / 2 + 6, w.height / 2, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // 도트 포털: 색 단계가 다른 타원을 겹쳐 깊이를 낸다(그라데이션 대신).
+    const rx = w.width / 2 + 6;
+    const ry = w.height / 2;
+    this._pixelEllipse(cx, cy, rx, ry, '#1b3f8f');
+    this._pixelEllipse(cx, cy, rx * 0.82, ry * 0.86, '#2f7fd0');
+    this._pixelEllipse(cx, cy, rx * 0.55, ry * 0.6, '#6cc5f5');
+    this._pixelEllipse(cx, cy, rx * (0.3 + pulse * 0.1), ry * (0.3 + pulse * 0.1), '#e8fbff');
+    this._pixelEllipse(cx, cy, rx * (0.9 + pulse * 0.08), ry * (0.94 + pulse * 0.06), '#bff0ff', false);
 
-    ctx.strokeStyle = `rgba(140, 220, 255, ${pulse})`;
-    ctx.lineWidth = 4;
-    for (let i = 0; i < 3; i++) {
-      const spin = time / (500 + i * 160);
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(Math.sin(spin) * 0.35);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, (w.width / 2) - i * 7, (w.height / 2) - i * 9, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+    // 위로 흐르는 빛 알갱이
+    ctx.fillStyle = '#e8fbff';
+    for (let i = 0; i < 4; i++) {
+      const t = ((time / 900) + i * 0.25) % 1;
+      const px = snapPx(cx + Math.sin((time / 400) + i * 2) * rx * 0.55);
+      ctx.fillRect(px, snapPx(cy + ry - t * (ry * 2)), 4, 4);
     }
   }
 
@@ -677,18 +663,19 @@ class Renderer {
 
   _drawProjectile(p) {
     const { ctx } = this;
+    const dir = Math.sign(p.vx) || 1;
     ctx.save();
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.45;
     ctx.fillStyle = p.color;
     for (let i = 1; i <= 3; i++) {
-      ctx.fillRect(p.x - Math.sign(p.vx) * i * 8 - 3, p.y - 3, 6, 6);
+      ctx.fillRect(snapPx(p.x - dir * i * 8), snapPx(p.y - 2), 4, 4);
     }
     ctx.restore();
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(p.x - 4, p.y - 4, 8, 8);
     ctx.fillStyle = p.color;
-    ctx.fillRect(p.x - 6, p.y - 2, 12, 4);
-    ctx.fillRect(p.x - 2, p.y - 6, 4, 12);
+    ctx.fillRect(snapPx(p.x - 6), snapPx(p.y - 2), 12, 4);
+    ctx.fillRect(snapPx(p.x - 2), snapPx(p.y - 6), 4, 12);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(snapPx(p.x - 2), snapPx(p.y - 2), 4, 4);
   }
 
   // ---------- 공통 ----------

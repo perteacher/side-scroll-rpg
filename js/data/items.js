@@ -69,6 +69,9 @@ const ITEM_DATA = {
   // --- 소모품 ---
   hp_potion: { name: 'HP 물약', price: 60, buyPrice: 120, tier: 1, consumable: 'hp', power: 0.5 },
   mp_potion: { name: 'MP 물약', price: 60, buyPrice: 120, tier: 1, consumable: 'mp', power: 0.5 },
+  hp_potion_large: { name: '고급 HP 물약', price: 220, buyPrice: 440, tier: 3, consumable: 'hp', power: 0.9 },
+  mp_potion_large: { name: '고급 MP 물약', price: 220, buyPrice: 440, tier: 3, consumable: 'mp', power: 0.9 },
+  antidote: { name: '만병통치약', price: 180, buyPrice: 360, tier: 2, consumable: 'cure' },
 };
 
 // 몹 이름 → 드랍 테이블
@@ -111,9 +114,15 @@ const RECIPE_DATA = [
     materials: [{ id: 'beast_hide', count: 1 }] },
   { id: 'mp_potion', result: 'mp_potion', gold: 80, tier: 1,
     materials: [{ id: 'grave_moss', count: 1 }] },
+  { id: 'hp_potion_large', result: 'hp_potion_large', gold: 300, tier: 3,
+    materials: [{ id: 'beast_hide', count: 2 }, { id: 'sand_scale', count: 1 }] },
+  { id: 'mp_potion_large', result: 'mp_potion_large', gold: 300, tier: 3,
+    materials: [{ id: 'grave_moss', count: 2 }, { id: 'deep_pearl', count: 1 }] },
+  { id: 'antidote', result: 'antidote', gold: 240, tier: 2,
+    materials: [{ id: 'grave_moss', count: 1 }, { id: 'wolf_fang', count: 1 }] },
 ];
 
-const SHOP_STOCK = ['hp_potion', 'mp_potion', 'suspicious_cube'];
+const SHOP_STOCK = ['hp_potion', 'mp_potion', 'hp_potion_large', 'mp_potion_large', 'antidote', 'suspicious_cube'];
 
 // ===== 2~5티어 장비 생성 =====
 // 1티어는 생성 시 기본 지급품이고, 상위 티어는 몹 드랍과 제작으로만 얻는다.
@@ -225,7 +234,7 @@ function tierFromLevel(level) {
   });
 });
 
-// ===== 스타포스 (메이플스토리식 장비 강화) =====
+// ===== 강화 (별 하나가 한 단계) =====
 // 별을 하나씩 올린다. 높을수록 성공률이 떨어지고, 12성부터는 파괴될 수 있다.
 // 15성 이상에서 실패하면 한 단계 떨어지고(15·20성은 보호), 두 번 연속 떨어지면 다음 강화는 반드시 성공한다(찬스 타임).
 // 확률은 시도 전체 기준으로 성공 / 파괴 / 실패를 나눈다.
@@ -236,7 +245,6 @@ const STARFORCE_DESTROY = {
   12: 0.006, 13: 0.013, 14: 0.014, 15: 0.021, 16: 0.021, 17: 0.021,
   18: 0.028, 19: 0.028, 20: 0.07, 21: 0.07, 22: 0.15, 23: 0.2, 24: 0.25,
 };
-const STARCATCH_BONUS = 1.05;       // 스타캐치(가운데서 멈추기) 성공 시 성공률 배율
 const STAR_PROTECT_RANGE = [12, 16]; // 파괴 방지를 걸 수 있는 구간(비용 2배)
 
 function starforceSuccessRate(star) { return STARFORCE_SUCCESS[star] ?? 0; }

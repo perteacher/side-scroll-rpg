@@ -58,10 +58,10 @@ class PartyManager {
     return this.gold >= cost.gold && cost.materials.every((m) => this.itemCount(m.id) >= m.count);
   }
 
-  // ---------- 스타포스 ----------
-  // catchStar: 스타캐치 성공 여부, protect: 파괴 방지(12~16성, 비용 2배)
+  // ---------- 강화 ----------
+  // protect: 파괴 방지(12~16성, 비용 2배)
   // result: success / keep(실패·유지) / drop(실패·하락) / destroy(파괴)
-  starforceGear(gear, { catchStar = false, protect = false } = {}) {
+  starforceGear(gear, { protect = false } = {}) {
     if (gear.star >= gear.maxStar) return { ok: false, reason: 'max' };
     const from = gear.star;
     const useProtect = protect && canProtectStar(from);
@@ -69,7 +69,7 @@ class PartyManager {
     if (!this._payCost(cost)) return { ok: false, reason: 'cost' };
 
     const chanceTime = gear.failStreak >= 2;
-    const success = chanceTime ? 1 : Math.min(1, starforceSuccessRate(from) * (catchStar ? STARCATCH_BONUS : 1));
+    const success = chanceTime ? 1 : starforceSuccessRate(from);
     const destroy = chanceTime || useProtect ? 0 : starforceDestroyRate(from);
     const roll = Math.random();
     let result;
@@ -77,21 +77,21 @@ class PartyManager {
       gear.star += 1;
       gear.failStreak = 0;
       result = 'success';
-      this.log(`[스타포스 성공] ${gear.item.name} ★${from} → ★${gear.star}${chanceTime ? ' (찬스 타임)' : ''}`, 'system');
+      this.log(`[강화 성공] ${gear.item.name} ★${from} → ★${gear.star}${chanceTime ? ' (찬스 타임)' : ''}`, 'system');
     } else if (roll < success + destroy) {
       result = 'destroy';
       this.removeGearEverywhere(gear);
       (TIER_MATERIALS[gear.tier] || []).forEach((id) => this.addItem(id, 2));
-      this.log(`[스타포스 파괴] ${gear.item.name} ★${from} 장비가 파괴되었습니다. 재료 일부를 돌려받았습니다.`, 'system');
+      this.log(`[강화 파괴] ${gear.item.name} ★${from} 장비가 파괴되었습니다. 재료 일부를 돌려받았습니다.`, 'system');
     } else if (starDropsOnFail(from)) {
       gear.star -= 1;
       gear.failStreak += 1;
       result = 'drop';
-      this.log(`[스타포스 실패] ${gear.item.name} ★${from} → ★${gear.star}${gear.failStreak >= 2 ? ' — 다음 강화는 찬스 타임(100% 성공)' : ''}`, 'system');
+      this.log(`[강화 실패] ${gear.item.name} ★${from} → ★${gear.star}${gear.failStreak >= 2 ? ' — 다음 강화는 찬스 타임(100% 성공)' : ''}`, 'system');
     } else {
       gear.failStreak = 0;
       result = 'keep';
-      this.log(`[스타포스 실패] ${gear.item.name} ★${from} 유지`, 'system');
+      this.log(`[강화 실패] ${gear.item.name} ★${from} 유지`, 'system');
     }
     this.units.forEach((u) => u.invalidateStats());
     return { ok: true, result, from, to: gear.star, caught: catchStar };
@@ -207,6 +207,15 @@ class PartyManager {
     if (def.consumable === 'stanceExp') {
       unit.gainStanceXp(def.amount, (t, tag) => this.log(t, tag));
       this.log(`${unit.name} ${def.name} 사용 (+${def.amount.toLocaleString()} 스탠스 EXP)`, 'system');
+      this.removeItem(itemId, 1);
+      return true;
+    }
+    if (def.consumable === 'cure') {
+      const count = Object.keys(unit.statuses || {}).length;
+      if (count === 0) return false;
+      clearStatuses(unit);
+      if (EFFECTS) EFFECTS.damage(unit.x + unit.width / 2, unit.y - 4, 0, { text: '해제', color: '#2ecc71' });
+      this.log(`${unit.name} ${def.name} 사용 — 상태이상 ${count}종 해제`, 'system');
       this.removeItem(itemId, 1);
       return true;
     }

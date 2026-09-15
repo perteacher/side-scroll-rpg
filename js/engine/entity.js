@@ -465,7 +465,7 @@ class RecruitNpc {
   }
 }
 
-// 장비 한 점. 같은 아이템이라도 스타포스·잠재능력이 달라서 개별 인스턴스로 관리한다.
+// 장비 한 점. 같은 아이템이라도 강화·잠재능력이 달라서 개별 인스턴스로 관리한다.
 class Gear {
   constructor(itemId) {
     this.uid = nextUid();

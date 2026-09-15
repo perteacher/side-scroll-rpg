@@ -133,74 +133,66 @@ class EffectManager {
     ctx.fillText(it.text, it.x, it.y);
   }
 
+  // ---------- 도트 연출 ----------
+  // 이펙트도 도트 격자(2px)에 맞춰 네모로만 찍는다. 매끈한 곡선이 섞이면 배경·캐릭터와 그림체가 어긋난다.
+  _dot(ctx, x, y, size = 4) {
+    ctx.fillRect(snapPx(x - size / 2), snapPx(y - size / 2), size, size);
+  }
+
+  // 각도 구간을 따라 점을 찍어 그린 호. 두께는 점 크기로 낸다.
+  _dotArc(ctx, cx, cy, radius, from, to, color, size = 4) {
+    ctx.fillStyle = color;
+    const steps = Math.max(6, Math.round(radius * Math.abs(to - from) / 5));
+    for (let i = 0; i <= steps; i++) {
+      const a = from + (to - from) * (i / steps);
+      this._dot(ctx, cx + Math.cos(a) * radius, cy + Math.sin(a) * radius, size);
+    }
+  }
+
+  _dotRing(ctx, cx, cy, rx, ry, color, size = 4) {
+    ctx.fillStyle = color;
+    const steps = Math.max(8, Math.round((rx + ry) / 3));
+    for (let i = 0; i < steps; i++) {
+      const a = (Math.PI * 2 * i) / steps;
+      this._dot(ctx, cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, size);
+    }
+  }
+
   _drawSlash(ctx, it, t) {
     const spread = Math.PI * 0.75;
     const start = -spread / 2 + (1 - t) * spread * 0.6;
     ctx.translate(it.x, it.y);
     ctx.scale(it.facing, 1);
-    ctx.strokeStyle = `rgba(255,255,255,${0.25 + t * 0.6})`;
-    ctx.lineWidth = 4 * t + 1;
-    ctx.beginPath();
-    ctx.arc(0, 0, it.radius, start, start + spread * 0.7);
-    ctx.stroke();
-    ctx.strokeStyle = `rgba(160,220,255,${t * 0.5})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, it.radius * 0.72, start, start + spread * 0.7);
-    ctx.stroke();
+    this._dotArc(ctx, 0, 0, it.radius, start, start + spread * 0.7, `rgba(255,255,255,${0.35 + t * 0.6})`, 6);
+    this._dotArc(ctx, 0, 0, it.radius * 0.72, start, start + spread * 0.7, `rgba(160,220,255,${t * 0.7})`, 4);
   }
 
   _drawSpark(ctx, it) {
     ctx.fillStyle = it.color;
-    ctx.beginPath();
-    ctx.arc(it.x, it.y, 2.4, 0, Math.PI * 2);
-    ctx.fill();
+    this._dot(ctx, it.x, it.y, 4);
   }
 
   _drawBurst(ctx, it, t) {
     const r = it.radius * (1.05 - t * 0.75);
-    const grad = ctx.createRadialGradient(it.x, it.y, r * 0.15, it.x, it.y, r);
-    grad.addColorStop(0, 'rgba(255,255,255,0.85)');
-    grad.addColorStop(0.45, it.color);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(it.x, it.y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = it.color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(it.x, it.y, r, 0, Math.PI * 2);
-    ctx.stroke();
+    // 안쪽부터 바깥쪽으로 색이 옅어지는 고리 세 겹
+    this._dotRing(ctx, it.x, it.y, r, r, it.color, 6);
+    this._dotRing(ctx, it.x, it.y, r * 0.72, r * 0.72, 'rgba(255,255,255,0.85)', 4);
+    this._dotRing(ctx, it.x, it.y, r * 0.42, r * 0.42, it.color, 4);
   }
 
   _drawSwap(ctx, it, t) {
     const r = 10 + (1 - t) * 34;
-    ctx.strokeStyle = it.color;
-    ctx.lineWidth = 3 * t + 0.5;
-    ctx.beginPath();
-    ctx.ellipse(it.x, it.y - 4, r, r * 0.32, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = `rgba(255,255,255,${t * 0.7})`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(it.x, it.y - 4, r * 0.6, r * 0.2, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    this._dotRing(ctx, it.x, it.y - 4, r, r * 0.32, it.color, 4);
+    this._dotRing(ctx, it.x, it.y - 4, r * 0.6, r * 0.2, `rgba(255,255,255,${t * 0.8})`, 4);
   }
 
   _drawCast(ctx, it, t) {
     const r = 16 + (1 - t) * 14;
-    ctx.strokeStyle = it.color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(it.x, it.y + 14, r, r * 0.35, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    this._dotRing(ctx, it.x, it.y + 14, r, r * 0.35, it.color, 4);
+    ctx.fillStyle = '#ffffff';
     for (let i = 0; i < 3; i++) {
       const a = (1 - t) * Math.PI * 2 + i * (Math.PI * 2 / 3);
-      ctx.fillStyle = it.color;
-      ctx.beginPath();
-      ctx.arc(it.x + Math.cos(a) * r, it.y + 14 + Math.sin(a) * r * 0.35, 2.5, 0, Math.PI * 2);
-      ctx.fill();
+      this._dot(ctx, it.x + Math.cos(a) * r, it.y + 14 + Math.sin(a) * r * 0.35, 4);
     }
   }
 }

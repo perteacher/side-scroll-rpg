@@ -12,19 +12,22 @@
 
   <div id="top-bar">
     <div id="menu-icons">
-      <button data-open="inventory" title="인벤토리 (I)">🎒</button>
-      <button data-open="charinfo" title="캐릭터 정보 (Alt+E)">📜</button>
-      <button data-open="barracks" title="병영 (B)">🏕️</button>
-      <button data-open="quest" title="퀘스트 (J)">📖</button>
-      <button data-open="teleport" title="텔레포트 (T)">🌀</button>
-      <button data-open="family" title="가문 특성 (F)">🏰</button>
-      <button data-open="tower" title="심연의 탑 (G)">🗼</button>
-      <button data-open="collection" title="컬렉션 (K)">📕</button>
-      <button data-open="settings" title="설정 (O)">⚙️</button>
-      <button id="sound-btn" title="소리">🔊</button>
-      <button id="chat-toggle-btn" title="채팅창 열기">💬</button>
-      <button id="save-btn" title="저장 (10초마다 자동 저장됨)">💾</button>
-      <button id="reset-btn" title="새로 시작 (저장 삭제)">🔄</button>
+      <button id="menu-btn" title="메뉴 열기">☰ MENU</button>
+      <div id="menu-dropdown" class="hidden">
+        <button data-open="inventory"><span class="mi-icon">🎒</span>인벤토리 <span class="mi-key">I</span></button>
+        <button data-open="charinfo"><span class="mi-icon">📜</span>캐릭터 정보 <span class="mi-key">Alt+E</span></button>
+        <button data-open="barracks"><span class="mi-icon">🏕️</span>병영 <span class="mi-key">B</span></button>
+        <button data-open="quest"><span class="mi-icon">📖</span>퀘스트 <span class="mi-key">J</span></button>
+        <button data-open="teleport"><span class="mi-icon">🌀</span>텔레포트 <span class="mi-key">T</span></button>
+        <button data-open="family"><span class="mi-icon">🏰</span>가문 특성 <span class="mi-key">F</span></button>
+        <button data-open="tower"><span class="mi-icon">🗼</span>심연의 탑 <span class="mi-key">G</span></button>
+        <button data-open="collection"><span class="mi-icon">📕</span>컬렉션 <span class="mi-key">K</span></button>
+        <button data-open="settings"><span class="mi-icon">⚙️</span>설정 <span class="mi-key">O</span></button>
+        <button id="sound-btn"><span class="mi-icon" id="sound-icon">🔊</span>소리</button>
+        <button id="chat-toggle-btn"><span class="mi-icon">💬</span>채팅창 열기</button>
+        <button id="save-btn"><span class="mi-icon">💾</span>저장</button>
+        <button id="reset-btn"><span class="mi-icon">🔄</span>새로 시작</button>
+      </div>
     </div>
     <div id="zone-label"></div>
     <div id="target-bar" class="hidden">
@@ -120,7 +123,7 @@
       <button class="tab-btn active" data-shoptab="sell">판매</button>
       <button class="tab-btn" data-shoptab="buy">구매</button>
       <button class="tab-btn" data-shoptab="craft">제작</button>
-      <button class="tab-btn" data-shoptab="enhance">스타포스·잠재능력</button>
+      <button class="tab-btn" data-shoptab="enhance">강화·잠재능력</button>
     </div>
     <div id="shop-gold"></div>
     <div id="shop-body"></div>
@@ -169,6 +172,9 @@
     <div id="barracks-list"></div>
   </div>
 
+  <!-- 아이템 설명 풍선 (목록 위에 마우스를 올리면 뜬다) -->
+  <div id="item-tip" class="hidden"></div>
+
   <!-- NPC 영입 퀘스트 창 -->
   <div id="npc-dialogue-window" class="game-window hidden">
     <div class="window-title-bar"><span id="npc-dialogue-name"></span><button class="close-btn" data-close="npc-dialogue-window">✕</button></div>
@@ -185,6 +191,7 @@
 <script src="js/data/sprites_items.js"></script>
 <script src="js/data/sprites_units.js"></script>
 <script src="js/data/sprites_monsters.js"></script>
+<script src="js/data/sprites_scenery.js"></script>
 <script src="js/data/recruitquests.js"></script>
 <script src="js/data/world.js"></script>
 <script src="js/data/scenario.js"></script>

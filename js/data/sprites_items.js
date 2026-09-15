@@ -307,6 +307,10 @@ const SPECIAL_SPRITES = {
   master_cube: { shape: 'cube', pal: { w: '#f5b7b1', m: '#e74c3c', d: '#922b21' } },
   hp_potion: { shape: 'potion', pal: { l: '#e74c3c', w: '#fde2df', d: '#922b21', b: '#8d6e3a' } },
   mp_potion: { shape: 'potion', pal: { l: '#3498db', w: '#d6eaf8', d: '#1f5f8b', b: '#8d6e3a' } },
+  // 고급 물약은 같은 병에 색을 진하게 하고 마개를 금색으로 바꿔 한눈에 구분되게 한다.
+  hp_potion_large: { shape: 'potion', pal: { l: '#c0392b', w: '#ffd5cf', d: '#641e16', b: '#d4a017' } },
+  mp_potion_large: { shape: 'potion', pal: { l: '#2471a3', w: '#cfe6f7', d: '#11364f', b: '#d4a017' } },
+  antidote: { shape: 'potion', pal: { l: '#27ae60', w: '#d6f5e3', d: '#145a32', b: '#8d6e3a' } },
   exp_card_basic: { shape: 'card', pal: { z: '#b9770e', c: '#f7dc6f', e: '#ffffff', t: '#7d6608' } },
   exp_card_veteran: { shape: 'card', pal: { z: '#1f618d', c: '#85c1e9', e: '#ffffff', t: '#154360' } },
   exp_card_expert: { shape: 'card', pal: { z: '#6c3483', c: '#c39bd3', e: '#ffffff', t: '#4a235a' } },

@@ -31,10 +31,10 @@ const KEY_GUIDE = [
   ['마우스', 'NPC·게시판·몹 클릭'],
 ];
 
+// 실제로 쓰는 태그만 남긴다(빈 탭이 여섯 개 있으면 눌러볼 이유가 없다).
 const CHAT_TABS = [
-  { id: 'all', label: '전체' }, { id: 'general', label: '일반' }, { id: 'squad', label: '스퀴드' },
-  { id: 'party', label: '당' }, { id: 'whisper', label: '귓속말' }, { id: 'npc', label: 'NPC' },
-  { id: 'custom', label: '커스텀' }, { id: 'system', label: '시스템' },
+  { id: 'all', label: '전체' }, { id: 'system', label: '시스템' },
+  { id: 'party', label: '파티' }, { id: 'npc', label: 'NPC' },
 ];
 
 class UIManager {
@@ -63,7 +63,6 @@ class UIManager {
     this.onStarforce = null;
     this.onCube = null;
     this.starProtect = false;
-    this.starcatch = null;
     this.enhanceResult = null;
     this._monsterIcons = new Map();
     this.onTowerEnter = null;
@@ -78,6 +77,8 @@ class UIManager {
     document.querySelectorAll('[data-open]').forEach((btn) => {
       btn.addEventListener('click', () => this.openWindow(this._openTargetId(btn.dataset.open)));
     });
+    this._initMenuButton();
+    this._initItemTooltip();
     document.querySelectorAll('[data-close]').forEach((btn) => {
       btn.addEventListener('click', () => this.closeWindow(btn.dataset.close));
     });
@@ -120,10 +121,104 @@ class UIManager {
   }
 
   // 음량 버튼: 100% → 50% → 음소거 순환. 설정은 브라우저에 남는다.
+  // 창 여는 버튼들은 MENU 하나로 접어둔다. 단축키(I·J·B…)는 그대로 쓸 수 있다.
+  _initMenuButton() {
+    const btn = document.getElementById('menu-btn');
+    const menu = document.getElementById('menu-dropdown');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('hidden');
+      if (SOUND) SOUND.ui();
+    });
+    // 메뉴 안에서 뭔가 고르면 닫는다. 소리 버튼만은 음량을 여러 번 돌릴 수 있게 열어둔다.
+    menu.addEventListener('click', (e) => {
+      const hit = e.target.closest('button');
+      if (hit && hit.id !== 'sound-btn') menu.classList.add('hidden');
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== btn) {
+        menu.classList.add('hidden');
+      }
+    });
+  }
+
+  // 아이템 설명 풍선. 목록 종류가 많아서 행마다 붙이지 않고 위임으로 한 번에 처리한다.
+  _initItemTooltip() {
+    const tip = document.getElementById('item-tip');
+    if (!tip) return;
+    document.addEventListener('mouseover', (e) => {
+      const el = e.target.closest && e.target.closest('[data-tip-item], [data-tip-gear]');
+      if (!el) { tip.classList.add('hidden'); return; }
+      const gear = el.dataset.tipGear ? this.pm.findGear(Number(el.dataset.tipGear)) : null;
+      const html = this._itemTipHtml(gear ? gear.itemId : el.dataset.tipItem, gear);
+      if (!html) { tip.classList.add('hidden'); return; }
+      tip.innerHTML = html;
+      tip.classList.remove('hidden');
+      this._placeTip(tip, e);
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!tip.classList.contains('hidden')) this._placeTip(tip, e);
+    });
+  }
+
+  // 화면 배율이 걸려 있으므로 마우스 좌표를 960x540 기준으로 되돌려 놓는다.
+  _placeTip(tip, e) {
+    const root = this._rootRect();
+    const x = (e.clientX - root.r.left) / root.k + 14;
+    const y = (e.clientY - root.r.top) / root.k + 16;
+    tip.style.left = `${clamp(x, 4, root.width - tip.offsetWidth - 4)}px`;
+    tip.style.top = `${clamp(y, 4, root.height - tip.offsetHeight - 4)}px`;
+  }
+
+  _itemTipHtml(itemId, gear) {
+    const it = ITEM_DATA[itemId];
+    if (!it) return '';
+    const rows = [];
+    const kind = it.slot
+      ? (it.slot === 'weapon' ? '무기' : `방어구 · ${SLOT_LABEL[it.slot] || ''}`)
+      : (it.consumable ? '소모품' : '재료');
+    rows.push(`<div class="tip-kind">${kind}${it.tier ? ` · T${it.tier}` : ''}</div>`);
+
+    if (gear) {
+      const bonus = gear.star ? ` <span class="tip-dim">(기본 ${gear.item.atk || gear.item.def} · 강화 +${Math.round((starforceStatMult(gear.star) - 1) * 100)}%)</span>` : '';
+      if (gear.item.atk) rows.push(`<div>공격력 <b>+${gear.atk}</b>${bonus}</div>`);
+      if (gear.item.def) rows.push(`<div>방어력 <b>+${gear.def}</b>${bonus}</div>`);
+      if (gear.potential) {
+        const g = POTENTIAL_GRADES[gear.potential.grade];
+        rows.push(`<div class="tip-pot"><span style="color:${g.color}">${g.name} 잠재능력</span>`
+          + gear.potential.lines.map((l) => `<div style="color:${POTENTIAL_GRADES[l.grade || gear.potential.grade].color}">${potentialLineText(l)}</div>`).join('')
+          + '</div>');
+      }
+      rows.push(`<div class="tip-dim">판매 ${gear.sellPrice}G</div>`);
+    } else {
+      if (it.atk) rows.push(`<div>공격력 +${it.atk}</div>`);
+      if (it.def) rows.push(`<div>방어력 +${it.def}</div>`);
+      if (it.consumable === 'hp') rows.push(`<div>최대 HP의 <b>${Math.round(it.power * 100)}%</b> 회복</div>`);
+      if (it.consumable === 'mp') rows.push(`<div>최대 MP의 <b>${Math.round(it.power * 100)}%</b> 회복</div>`);
+      if (it.consumable === 'cure') rows.push('<div>걸려 있는 <b>상태이상 전부</b> 해제</div>');
+      if (it.consumable === 'exp') rows.push(`<div>경험치 <b>+${it.amount.toLocaleString()}</b></div>`);
+      if (it.consumable === 'stanceExp') rows.push(`<div>스탠스 경험치 <b>+${it.amount.toLocaleString()}</b></div>`);
+      if (CUBES[itemId]) rows.push(`<div>잠재능력 재설정 — 최대 <b>${POTENTIAL_GRADES[CUBES[itemId].maxGrade].name}</b></div>`);
+      rows.push(`<div class="tip-dim">판매 ${it.price}G${it.buyPrice ? ` · 구매 ${it.buyPrice}G` : ''}</div>`);
+    }
+    if (it.stanceId) rows.push(`<div class="tip-dim">${STANCE_DATA[it.stanceId].name} 스탠스 전용</div>`);
+    if (it.armorClass) rows.push(`<div class="tip-dim">${ARMOR_CLASS_LABEL[it.armorClass]} 전용</div>`);
+
+    const color = TIER_COLOR[it.tier] || '#ecf0f1';
+    return `<div class="tip-name" style="color:${color}">${itemIconHtml(itemId, 20)}${gear ? gear.displayName : it.name}</div>${rows.join('')}`;
+  }
+
+  closeMenu() {
+    const menu = document.getElementById('menu-dropdown');
+    if (menu) menu.classList.add('hidden');
+  }
+
   _initSoundButton() {
     const btn = document.getElementById('sound-btn');
     const label = () => {
-      btn.textContent = SOUND.icon;
+      const icon = document.getElementById('sound-icon');
+      if (icon) icon.textContent = SOUND.icon;
       btn.title = `소리 ${Math.round(SOUND.volume * 100)}% (눌러서 전환)`;
     };
     label();
@@ -409,6 +504,7 @@ class UIManager {
     if (el.classList.contains('hidden')) this.openWindow(id); else this.closeWindow(id);
   }
   closeTopWindow() {
+    this.closeMenu();
     const openWins = [...document.querySelectorAll('.game-window')].filter((w) => !w.classList.contains('hidden'));
     if (openWins.length) openWins[openWins.length - 1].classList.add('hidden');
   }
@@ -696,7 +792,7 @@ class UIManager {
           : `<button data-equip="${gear.uid}">장착</button>`);
       const sellBtn = opts.sell ? `<button data-sellgear="${gear.uid}" title="${gear.sellPrice}G에 판매">판매</button>` : '';
       return `
-        <div class="equip-row">
+        <div class="equip-row" data-tip-gear="${gear.uid}">
           <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
           <span class="equip-stat">${gear.item.atk ? `공격 +${gear.atk}` : `방어 +${gear.def}`}</span>
           ${ok ? this._gearDeltaHtml(unit, gear) : ''}
@@ -1025,8 +1121,8 @@ class UIManager {
       SOUND.unlock();
       SOUND.setVolume(e.target.value / 100);
       document.getElementById('set-volume-val').textContent = `${e.target.value}%`;
-      const btn = document.getElementById('sound-btn');
-      btn.textContent = SOUND.icon;
+      const icon = document.getElementById('sound-icon');
+      if (icon) icon.textContent = SOUND.icon;
     });
     bind('set-autopotion', 'change', (e) => { SettingsManager.set('autoPotion', e.target.checked); this.refreshSettings(); });
     bind('set-hp', 'input', (e) => {
@@ -1333,7 +1429,7 @@ class UIManager {
       : `<div class="inv-list">${entries.map(([id, c]) => {
           const it = ITEM_DATA[id];
           const useBtn = it.consumable ? `<button data-use="${id}">사용</button>` : '';
-          return `<div class="inv-row"><span class="inv-name" style="color:${TIER_COLOR[it.tier] || '#ecf0f1'}">${itemIconHtml(id)}${it.name}</span>`
+          return `<div class="inv-row" data-tip-item="${id}"><span class="inv-name" style="color:${TIER_COLOR[it.tier] || '#ecf0f1'}">${itemIconHtml(id)}${it.name}</span>`
             + `<span style="opacity:0.7">x${c}</span><span style="color:#f1c40f">${it.price * c}G</span>${useBtn}</div>`;
         }).join('')}</div>`;
 
@@ -1357,7 +1453,7 @@ class UIManager {
     });
   }
 
-  // 스타포스·잠재능력 탭(메이플스토리식). 위에서 장비를 고르고 아래에서 강화한다.
+  // 강화·잠재능력 탭. 위에서 장비를 고르고 아래에서 강화한다.
   _renderEnhanceTab(body) {
     const unit = this.pm.activeUnit;
     const entries = [
@@ -1370,7 +1466,7 @@ class UIManager {
 
     const picker = entries.map(({ gear: g, where }) => {
       const grade = g.potential ? POTENTIAL_GRADES[g.potential.grade] : null;
-      return `<button class="enh-pick ${g.uid === gear.uid ? 'on' : ''}" data-enh-sel="${g.uid}" title="${g.displayName} (${where})"
+      return `<button class="enh-pick ${g.uid === gear.uid ? 'on' : ''}" data-enh-sel="${g.uid}" data-tip-gear="${g.uid}" title="${g.displayName} (${where})"
         style="${grade ? `border-color:${grade.color}` : ''}">${itemIconHtml(g.itemId, 32)}
         <span class="enh-pick-star">${g.star ? `★${g.star}` : ''}</span><span class="enh-pick-where">${where}</span></button>`;
     }).join('');
@@ -1382,7 +1478,7 @@ class UIManager {
       return `<span style="color:${have >= m.count ? '#2ecc71' : '#e74c3c'}">${itemIconHtml(m.id, 16)}${ITEM_DATA[m.id].name} ${have}/${m.count}</span>`;
     }).join(' ');
 
-    // ----- 스타포스 -----
+    // ----- 강화 -----
     let sfHtml;
     if (gear.star >= gear.maxStar) {
       sfHtml = `<div class="sf-max">최대 ★${gear.maxStar} 달성 — T${gear.tier} 장비의 상한입니다.</div>`;
@@ -1393,18 +1489,15 @@ class UIManager {
       const chanceTime = gear.failStreak >= 2;
       const s = starforceSuccessRate(gear.star);
       const d = protect ? 0 : starforceDestroyRate(gear.star);
-      const running = this.starcatch && this.starcatch.uid === gear.uid;
       sfHtml = `
         <div class="sf-rates">${chanceTime
           ? '<b style="color:#f7dc6f">찬스 타임! 이번 강화는 100% 성공합니다</b>'
           : `성공 <b style="color:#2ecc71">${(s * 100).toFixed(1)}%</b> · 파괴 <b style="color:${d ? '#e74c3c' : '#7f8c8d'}">${(d * 100).toFixed(1)}%</b> · 실패 시 ${starDropsOnFail(gear.star) ? '<b style="color:#e67e22">하락</b>' : '유지'}`}</div>
         <div class="shop-meta">★${gear.star} → ★${gear.star + 1} · 비용 ${cost.gold.toLocaleString()}G ${matText(cost)}</div>
         <label class="sf-protect ${protectable ? '' : 'disabled'}"><input type="checkbox" id="sf-protect" ${protect ? 'checked' : ''} ${protectable ? '' : 'disabled'}> 파괴 방지 (12~16성, 비용 2배)</label>
-        <div class="starcatch ${running ? 'on' : ''}"><div class="sc-zone"></div><div class="sc-star" id="sc-star" style="left:${running ? this.starcatch.pos * 100 : 50}%">★</div></div>
         <div class="sf-btns">
-          ${running ? '<button id="sf-stop" class="primary">STOP!</button>'
-            : `<button id="sf-start" ${this.pm.canAfford(cost) ? '' : 'disabled'}>강화하기</button>`}
-          <span class="hint-text" style="margin:0">움직이는 별을 가운데서 멈추면 성공률 ×1.05</span>
+          <button id="sf-start" class="primary" ${this.pm.canAfford(cost) ? '' : 'disabled'}>강화하기</button>
+          <span class="hint-text" style="margin:0">실패가 두 번 쌓이면 다음 강화는 반드시 성공합니다</span>
         </div>`;
     }
 
@@ -1430,11 +1523,11 @@ class UIManager {
           <div>
             <div style="color:${TIER_COLOR[gear.tier]};font-weight:bold">${gear.displayName} <span class="tier-badge">T${gear.tier}</span></div>
             <div class="enh-stars">${stars}</div>
-            <div class="shop-meta">${stat} (스타포스 +${Math.round((starforceStatMult(gear.star) - 1) * 100)}%)</div>
+            <div class="shop-meta">${stat} (강화 +${Math.round((starforceStatMult(gear.star) - 1) * 100)}%)</div>
           </div>
         </div>
         ${result}
-        <div class="section-title">스타포스</div>
+        <div class="section-title">강화</div>
         ${sfHtml}
         <div class="section-title">잠재능력 ${grade ? `<span class="pot-grade" style="color:${grade.color};border-color:${grade.color}">${grade.name}</span>` : ''}</div>
         <div class="pot-box" style="${grade ? `border-color:${grade.color}` : ''}">${lines}</div>
@@ -1443,7 +1536,6 @@ class UIManager {
 
     body.querySelectorAll('[data-enh-sel]').forEach((b) => {
       b.addEventListener('click', () => {
-        this._cancelStarcatch();
         this.enhanceSel = Number(b.dataset.enhSel);
         this.enhanceResult = null;
         this.refreshShop();
@@ -1452,9 +1544,7 @@ class UIManager {
     const protectBox = body.querySelector('#sf-protect');
     if (protectBox) protectBox.addEventListener('change', () => { this.starProtect = protectBox.checked; this.refreshShop(); });
     const start = body.querySelector('#sf-start');
-    if (start) start.addEventListener('click', () => this._startStarcatch(gear.uid));
-    const stop = body.querySelector('#sf-stop');
-    if (stop) stop.addEventListener('click', () => this._stopStarcatch());
+    if (start) start.addEventListener('click', () => this._doEnhance(gear.uid));
     body.querySelectorAll('[data-cube]').forEach((b) => {
       b.addEventListener('click', () => {
         const r = this.onCube ? this.onCube(gear.uid, b.dataset.cube) : null;
@@ -1469,34 +1559,10 @@ class UIManager {
     });
   }
 
-  // 스타캐치: 막대 위를 오가는 별을 멈춘다. 가운데 구간이면 성공률이 오른다.
-  _startStarcatch(uid) {
-    if (this.starcatch) return;
+  // 강화 한 번. 성공/유지/하락/파괴 결과를 그 자리에 띄운다.
+  _doEnhance(uid) {
     this.enhanceResult = null;
-    this.starcatch = { uid, t0: performance.now(), pos: 0.5, raf: 0 };
-    this.refreshShop();
-    const step = (now) => {
-      if (!this.starcatch) return;
-      this.starcatch.pos = (Math.sin((now - this.starcatch.t0) / 1000 * 5.2) + 1) / 2;
-      const el = document.getElementById('sc-star');
-      if (el) el.style.left = `${this.starcatch.pos * 100}%`;
-      this.starcatch.raf = requestAnimationFrame(step);
-    };
-    this.starcatch.raf = requestAnimationFrame(step);
-  }
-
-  _cancelStarcatch() {
-    if (!this.starcatch) return;
-    cancelAnimationFrame(this.starcatch.raf);
-    this.starcatch = null;
-  }
-
-  _stopStarcatch() {
-    const sc = this.starcatch;
-    if (!sc) return null;
-    this._cancelStarcatch();
-    const caught = Math.abs(sc.pos - 0.5) < 0.12;
-    const r = this.onStarforce ? this.onStarforce(sc.uid, { catchStar: caught, protect: this.starProtect }) : null;
+    const r = this.onStarforce ? this.onStarforce(uid, { protect: this.starProtect }) : null;
     if (r && r.ok) {
       const texts = {
         success: ['#2ecc71', `성공! ★${r.from} → ★${r.to}`],
@@ -1505,7 +1571,7 @@ class UIManager {
         destroy: ['#e74c3c', `★${r.from} 장비가 파괴되었습니다…`],
       };
       const [color, text] = texts[r.result];
-      this.enhanceResult = { color, text: `${caught ? '스타캐치 성공 · ' : ''}${text}` };
+      this.enhanceResult = { color, text };
     }
     this.refreshShop();
     return r;
@@ -1604,7 +1670,7 @@ class UIManager {
       const matRows = entries.map(([id, c]) => {
         const it = ITEM_DATA[id];
         return `
-          <div class="shop-row">
+          <div class="shop-row" data-tip-item="${id}">
             <span class="shop-name">${itemIconHtml(id)}${it.name} <span style="opacity:0.6">x${c}</span></span>
             <span style="color:#f1c40f">${it.price}G</span>
             <button data-sell="${id}" data-count="1">1개</button>
@@ -1612,7 +1678,7 @@ class UIManager {
           </div>`;
       }).join('');
       const gearRows = this.pm.gear.map((g) => `
-          <div class="shop-row">
+          <div class="shop-row" data-tip-gear="${g.uid}">
             <span class="shop-name" style="color:${TIER_COLOR[g.tier]}">${itemIconHtml(g.itemId)}${g.displayName} <span class="tier-badge">T${g.tier}</span></span>
             <span style="color:#f1c40f">${g.sellPrice}G</span>
             <button data-sellgear="${g.uid}">판매</button>
@@ -1631,7 +1697,7 @@ class UIManager {
         const it = ITEM_DATA[id];
         const cost = it.buyPrice || it.price;
         return `
-          <div class="shop-row">
+          <div class="shop-row" data-tip-item="${id}">
             <span class="shop-name">${itemIconHtml(id)}${it.name}</span>
             <span style="color:#f1c40f">${cost}G</span>
             <button data-buy="${id}" ${this.pm.gold < cost ? 'disabled' : ''}>구매</button>
