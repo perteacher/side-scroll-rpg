@@ -53,8 +53,30 @@ const FAMILY_TIER_LABEL = { 1: '1단계 — 기초', 2: '2단계 — 숙련', 3:
 // 가문 특성 · 캐릭터 고유 특성 · 전용기 버프가 모두 이 형태로 합산돼 unit.bonus가 된다.
 const EMPTY_FAMILY_BONUS = {
   atk: 0, def: 0, hpPct: 0, atkSpeed: 0, moveSpeed: 0, accuracy: 0, pierce: 0, atkPct: 0,
-  defPct: 0, crit: 0, critDmg: 0, lifesteal: 0,
+  defPct: 0, crit: 0, critDmg: 0, lifesteal: 0, bossDmg: 0,
 };
+
+// 보너스 항목 표시 이름. frac=비율(0.03→3%), point=퍼센트포인트(3→3%), flat=고정 수치
+const BONUS_LABEL = {
+  atk: ['공격력', 'flat'], def: ['방어력', 'flat'],
+  atkPct: ['공격력', 'frac'], defPct: ['방어력', 'frac'], hpPct: ['최대 HP', 'frac'],
+  atkSpeed: ['공격속도', 'frac'], moveSpeed: ['이동속도', 'frac'], accuracy: ['명중률', 'frac'],
+  pierce: ['방어율 무시', 'frac'], lifesteal: ['흡혈', 'frac'], bossDmg: ['보스 공격 시 데미지', 'frac'],
+  crit: ['크리티컬 확률', 'point'], critDmg: ['크리티컬 데미지', 'point'],
+};
+
+function bonusText(bonus) {
+  return Object.entries(bonus || {})
+    .filter(([k, v]) => v && BONUS_LABEL[k])
+    .map(([k, v]) => {
+      const [label, kind] = BONUS_LABEL[k];
+      const sign = v > 0 ? '+' : '';
+      if (kind === 'frac') return `${label} ${sign}${+(v * 100).toFixed(1)}%`;
+      if (kind === 'point') return `${label} ${sign}${+v.toFixed(1)}%`;
+      return `${label} ${sign}${Math.round(v)}`;
+    })
+    .join(' · ');
+}
 
 // 같은 형태의 보너스 여러 개를 더한다(가문 + 특성 + 버프).
 function mergeBonuses(...sources) {

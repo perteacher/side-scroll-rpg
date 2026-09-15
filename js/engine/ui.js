@@ -6,6 +6,8 @@ const WINDOW_TOP = 62; // 상단 바(56px) 아래에서 창이 시작한다
 const KEY_GUIDE = [
   ['← →', '이동'],
   ['↑', '점프 / 포탈 진입'],
+  ['공중에서 ↑', '플래시 점프'],
+  ['로프 앞 ↑ · ↓', '로프 오르내리기 (←→ 뛰어내리기)'],
   ['↓', '아래층으로 내려가기'],
   ['Space', '기본 공격'],
   ['Q W E', '1번 캐릭터 스킬'],
@@ -22,6 +24,7 @@ const KEY_GUIDE = [
   ['T', '텔레포트'],
   ['F', '가문 특성'],
   ['G', '심연의 탑'],
+  ['K', '컬렉션 (몬스터·링크)'],
   ['O', '설정'],
   ['Esc', '창 닫기'],
   ['마우스', 'NPC·게시판·몹 클릭'],
@@ -56,6 +59,12 @@ class UIManager {
     this.onQuestComplete = null;
     this.onSkillUpgrade = null;
     this.onSignaturePress = null;
+    this.onStarforce = null;
+    this.onCube = null;
+    this.starProtect = false;
+    this.starcatch = null;
+    this.enhanceResult = null;
+    this._monsterIcons = new Map();
     this.onTowerEnter = null;
     this.onTowerLeave = null;
     this.onPresetSwap = null;
@@ -73,6 +82,9 @@ class UIManager {
     });
     document.querySelectorAll('#char-info-window .tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => this._switchCharTab(btn.dataset.tab));
+    });
+    document.querySelectorAll('#collection-window .tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => { this.collectionTab = btn.dataset.coltab; this.refreshCollection(); });
     });
     document.querySelectorAll('#shop-window .tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => { this.shopTab = btn.dataset.shoptab; this.refreshShop(); });
@@ -141,7 +153,7 @@ class UIManager {
 
   _openTargetId(key) {
     return {
-      family: 'family-window', tower: 'tower-window', settings: 'settings-window',
+      family: 'family-window', tower: 'tower-window', settings: 'settings-window', collection: 'collection-window',
       inventory: 'inventory-window', charinfo: 'char-info-window',
       barracks: 'barracks-window', quest: 'quest-window', teleport: 'teleport-window',
     }[key];
@@ -351,6 +363,7 @@ class UIManager {
     if (id === 'family-window') this.refreshFamily();
     if (id === 'tower-window') this.refreshTower();
     if (id === 'settings-window') this.refreshSettings();
+    if (id === 'collection-window') this.refreshCollection();
     if (id === 'inventory-window') this.refreshInventory();
     const el = document.getElementById(id);
     el.classList.remove('hidden');
@@ -370,6 +383,7 @@ class UIManager {
     if (this.isWindowOpen('family-window')) this.refreshFamily();
     if (this.isWindowOpen('tower-window')) this.refreshTower();
     if (this.isWindowOpen('settings-window')) this.refreshSettings();
+    if (this.isWindowOpen('collection-window')) this.refreshCollection();
     if (this.isWindowOpen('board-window')) this.refreshBoard();
   }
 
@@ -1299,7 +1313,7 @@ class UIManager {
     });
   }
 
-  // 강화·인챈트 탭: 현재 조작 캐릭터의 장착 장비 + 보관 장비를 모두 다룬다.
+  // 스타포스·잠재능력 탭(메이플스토리식). 위에서 장비를 고르고 아래에서 강화한다.
   _renderEnhanceTab(body) {
     const unit = this.pm.activeUnit;
     const entries = [
@@ -1307,37 +1321,225 @@ class UIManager {
       ...this.pm.gear.map((gear) => ({ gear, where: '보관' })),
     ];
     if (entries.length === 0) { body.innerHTML = '<p style="opacity:0.6;">강화할 장비가 없습니다.</p>'; return; }
+    if (!entries.some((e) => e.gear.uid === this.enhanceSel)) this.enhanceSel = entries[0].gear.uid;
+    const gear = entries.find((e) => e.gear.uid === this.enhanceSel).gear;
 
-    body.innerHTML = entries.map(({ gear, where }) => {
-      const eCost = enhanceCost(gear.item, gear.plus);
-      const cCost = enchantCost(gear.item);
-      const rate = Math.round(enhanceChance(gear.plus) * 100);
-      const matText = (cost) => cost.materials.map((m) => {
-        const have = this.pm.itemCount(m.id);
-        return `<span style="color:${have >= m.count ? '#2ecc71' : '#e74c3c'}">${ITEM_DATA[m.id].name} ${have}/${m.count}</span>`;
-      }).join(', ');
-      const maxed = gear.plus >= MAX_ENHANCE;
-      return `
-        <div class="shop-row">
-          <span class="shop-name">
-            <span style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName}</span> <span class="tier-badge">T${gear.tier}</span> <span style="opacity:0.55">${where}</span>
-            <div class="shop-meta">${gear.item.atk ? `공격 +${gear.atk}` : `방어 +${gear.def}`}${gear.critBonus ? ` · 크리 +${gear.critBonus}` : ''}${gear.hpPct ? ` · HP +${Math.round(gear.hpPct * 100)}%` : ''}</div>
-            <div class="shop-meta">강화 ${maxed ? 'MAX' : `성공 ${rate}% · ${eCost.gold}G · ${matText(eCost)}`}</div>
-            <div class="shop-meta">인챈트 ${cCost.gold}G · ${matText(cCost)}</div>
-          </span>
-          <span class="enh-btns">
-            <button data-enhance="${gear.uid}" ${maxed || !this.pm.canAfford(eCost) ? 'disabled' : ''}>강화</button>
-            <button data-enchant="${gear.uid}" ${this.pm.canAfford(cCost) ? '' : 'disabled'}>인챈트</button>
-          </span>
-        </div>`;
+    const picker = entries.map(({ gear: g, where }) => {
+      const grade = g.potential ? POTENTIAL_GRADES[g.potential.grade] : null;
+      return `<button class="enh-pick ${g.uid === gear.uid ? 'on' : ''}" data-enh-sel="${g.uid}" title="${g.displayName} (${where})"
+        style="${grade ? `border-color:${grade.color}` : ''}">${itemIconHtml(g.itemId, 32)}
+        <span class="enh-pick-star">${g.star ? `★${g.star}` : ''}</span><span class="enh-pick-where">${where}</span></button>`;
     }).join('');
 
-    body.querySelectorAll('button[data-enhance]').forEach((b) => {
-      b.addEventListener('click', () => this.onEnhance && this.onEnhance(b.dataset.enhance));
+    const stars = Array.from({ length: gear.maxStar }, (_, i) => `<span class="${i < gear.star ? 'on' : ''}">★</span>`).join('');
+    const stat = gear.item.atk ? `공격 +${gear.atk}` : `방어 +${gear.def}`;
+    const matText = (cost) => cost.materials.map((m) => {
+      const have = this.pm.itemCount(m.id);
+      return `<span style="color:${have >= m.count ? '#2ecc71' : '#e74c3c'}">${itemIconHtml(m.id, 16)}${ITEM_DATA[m.id].name} ${have}/${m.count}</span>`;
+    }).join(' ');
+
+    // ----- 스타포스 -----
+    let sfHtml;
+    if (gear.star >= gear.maxStar) {
+      sfHtml = `<div class="sf-max">최대 ★${gear.maxStar} 달성 — T${gear.tier} 장비의 상한입니다.</div>`;
+    } else {
+      const protectable = canProtectStar(gear.star);
+      const protect = protectable && this.starProtect;
+      const cost = starforceCost(gear.item, gear.star, protect);
+      const chanceTime = gear.failStreak >= 2;
+      const s = starforceSuccessRate(gear.star);
+      const d = protect ? 0 : starforceDestroyRate(gear.star);
+      const running = this.starcatch && this.starcatch.uid === gear.uid;
+      sfHtml = `
+        <div class="sf-rates">${chanceTime
+          ? '<b style="color:#f7dc6f">찬스 타임! 이번 강화는 100% 성공합니다</b>'
+          : `성공 <b style="color:#2ecc71">${(s * 100).toFixed(1)}%</b> · 파괴 <b style="color:${d ? '#e74c3c' : '#7f8c8d'}">${(d * 100).toFixed(1)}%</b> · 실패 시 ${starDropsOnFail(gear.star) ? '<b style="color:#e67e22">하락</b>' : '유지'}`}</div>
+        <div class="shop-meta">★${gear.star} → ★${gear.star + 1} · 비용 ${cost.gold.toLocaleString()}G ${matText(cost)}</div>
+        <label class="sf-protect ${protectable ? '' : 'disabled'}"><input type="checkbox" id="sf-protect" ${protect ? 'checked' : ''} ${protectable ? '' : 'disabled'}> 파괴 방지 (12~16성, 비용 2배)</label>
+        <div class="starcatch ${running ? 'on' : ''}"><div class="sc-zone"></div><div class="sc-star" id="sc-star" style="left:${running ? this.starcatch.pos * 100 : 50}%">★</div></div>
+        <div class="sf-btns">
+          ${running ? '<button id="sf-stop" class="primary">STOP!</button>'
+            : `<button id="sf-start" ${this.pm.canAfford(cost) ? '' : 'disabled'}>강화하기</button>`}
+          <span class="hint-text" style="margin:0">움직이는 별을 가운데서 멈추면 성공률 ×1.05</span>
+        </div>`;
+    }
+
+    // ----- 잠재능력 -----
+    const pot = gear.potential;
+    const grade = pot ? POTENTIAL_GRADES[pot.grade] : null;
+    const lines = pot
+      ? pot.lines.map((l) => `<div class="pot-line" style="color:${POTENTIAL_GRADES[l.grade || pot.grade].color}">${potentialLineText(l)}</div>`).join('')
+      : '<div class="pot-line" style="opacity:0.55">잠재능력이 없습니다. 큐브를 쓰면 레어 등급이 열립니다.</div>';
+    const cubeBtns = Object.entries(CUBES).map(([id, c]) => {
+      const have = this.pm.itemCount(id);
+      const blocked = pot && pot.grade > c.maxGrade;
+      return `<button data-cube="${id}" ${have > 0 && !blocked ? '' : 'disabled'} title="최대 ${POTENTIAL_GRADES[c.maxGrade].name}까지">${itemIconHtml(id, 16)}${c.name} (${have})</button>`;
+    }).join('');
+
+    const result = this.enhanceResult
+      ? `<div class="enh-result" style="color:${this.enhanceResult.color}">${this.enhanceResult.text}</div>` : '';
+
+    body.innerHTML = `
+      <div class="enh-picker">${picker}</div>
+      <div class="enh-detail">
+        <div class="enh-head">${itemIconHtml(gear.itemId, 40)}
+          <div>
+            <div style="color:${TIER_COLOR[gear.tier]};font-weight:bold">${gear.displayName} <span class="tier-badge">T${gear.tier}</span></div>
+            <div class="enh-stars">${stars}</div>
+            <div class="shop-meta">${stat} (스타포스 +${Math.round((starforceStatMult(gear.star) - 1) * 100)}%)</div>
+          </div>
+        </div>
+        ${result}
+        <div class="section-title">스타포스</div>
+        ${sfHtml}
+        <div class="section-title">잠재능력 ${grade ? `<span class="pot-grade" style="color:${grade.color};border-color:${grade.color}">${grade.name}</span>` : ''}</div>
+        <div class="pot-box" style="${grade ? `border-color:${grade.color}` : ''}">${lines}</div>
+        <div class="cube-btns">${cubeBtns}</div>
+      </div>`;
+
+    body.querySelectorAll('[data-enh-sel]').forEach((b) => {
+      b.addEventListener('click', () => {
+        this._cancelStarcatch();
+        this.enhanceSel = Number(b.dataset.enhSel);
+        this.enhanceResult = null;
+        this.refreshShop();
+      });
     });
-    body.querySelectorAll('button[data-enchant]').forEach((b) => {
-      b.addEventListener('click', () => this.onEnchant && this.onEnchant(b.dataset.enchant));
+    const protectBox = body.querySelector('#sf-protect');
+    if (protectBox) protectBox.addEventListener('change', () => { this.starProtect = protectBox.checked; this.refreshShop(); });
+    const start = body.querySelector('#sf-start');
+    if (start) start.addEventListener('click', () => this._startStarcatch(gear.uid));
+    const stop = body.querySelector('#sf-stop');
+    if (stop) stop.addEventListener('click', () => this._stopStarcatch());
+    body.querySelectorAll('[data-cube]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const r = this.onCube ? this.onCube(gear.uid, b.dataset.cube) : null;
+        if (r && r.ok) {
+          const name = POTENTIAL_GRADES[r.grade].name;
+          this.enhanceResult = r.gradeUp
+            ? { color: POTENTIAL_GRADES[r.grade].color, text: `등급 상승! → ${name}` }
+            : { color: '#d6eaf8', text: r.before === 0 ? `${name} 잠재능력이 열렸습니다` : `옵션을 새로 굴렸습니다 (${name})` };
+        }
+        this.refreshShop();
+      });
     });
+  }
+
+  // 스타캐치: 막대 위를 오가는 별을 멈춘다. 가운데 구간이면 성공률이 오른다.
+  _startStarcatch(uid) {
+    if (this.starcatch) return;
+    this.enhanceResult = null;
+    this.starcatch = { uid, t0: performance.now(), pos: 0.5, raf: 0 };
+    this.refreshShop();
+    const step = (now) => {
+      if (!this.starcatch) return;
+      this.starcatch.pos = (Math.sin((now - this.starcatch.t0) / 1000 * 5.2) + 1) / 2;
+      const el = document.getElementById('sc-star');
+      if (el) el.style.left = `${this.starcatch.pos * 100}%`;
+      this.starcatch.raf = requestAnimationFrame(step);
+    };
+    this.starcatch.raf = requestAnimationFrame(step);
+  }
+
+  _cancelStarcatch() {
+    if (!this.starcatch) return;
+    cancelAnimationFrame(this.starcatch.raf);
+    this.starcatch = null;
+  }
+
+  _stopStarcatch() {
+    const sc = this.starcatch;
+    if (!sc) return null;
+    this._cancelStarcatch();
+    const caught = Math.abs(sc.pos - 0.5) < 0.12;
+    const r = this.onStarforce ? this.onStarforce(sc.uid, { catchStar: caught, protect: this.starProtect }) : null;
+    if (r && r.ok) {
+      const texts = {
+        success: ['#2ecc71', `성공! ★${r.from} → ★${r.to}`],
+        keep: ['#bdc3c7', `실패 — ★${r.to} 유지`],
+        drop: ['#e67e22', `실패 — ★${r.from} → ★${r.to} 하락`],
+        destroy: ['#e74c3c', `★${r.from} 장비가 파괴되었습니다…`],
+      };
+      const [color, text] = texts[r.result];
+      this.enhanceResult = { color, text: `${caught ? '스타캐치 성공 · ' : ''}${text}` };
+    }
+    this.refreshShop();
+    return r;
+  }
+
+  // ---------- 컬렉션 ----------
+  _monsterIcon(entry) {
+    let url = this._monsterIcons.get(entry.name);
+    if (!url) {
+      url = monsterSprite({ name: entry.name, race: entry.race }, 'a').toDataURL();
+      this._monsterIcons.set(entry.name, url);
+    }
+    return url;
+  }
+
+  refreshCollection() {
+    const col = this.collection;
+    const tab = this.collectionTab || 'monster';
+    document.querySelectorAll('#collection-window .tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.coltab === tab));
+    const body = document.getElementById('collection-body');
+
+    if (tab === 'monster') {
+      const reg = col.registeredCount;
+      const flat = statBonusText(ACCOUNT_FLAT_STATS) || '아직 없음';
+      const milestones = COLLECTION_MILESTONES.map((m) => {
+        const target = col.milestoneTarget(m);
+        const done = reg >= target;
+        return `<div class="ms-row ${done ? 'done' : ''}"><span>${done ? '✓' : '○'} ${target}종 등록</span><span>${bonusText(m.bonus)}</span></div>`;
+      }).join('');
+      const cards = col.entries.map((e) => {
+        const kills = col.kills[e.name] || 0;
+        const stage = col.stageOf(e);
+        const th = col.thresholds(e);
+        const next = th[stage];
+        const pips = th.map((_, i) => `<i class="${i < stage ? 'on' : ''}"></i>`).join('');
+        return `<div class="col-card ${kills === 0 ? 'unknown' : ''} ${e.boss ? 'boss' : ''}" title="${e.zone} · Lv.${e.level} · 단계마다 ${STAT_LABEL[COLLECTION_RACE_STAT[e.race] || 'str']} +1">
+          <img src="${this._monsterIcon(e)}" width="32" height="48" alt="">
+          <div class="col-name">${kills === 0 ? '???' : e.name}</div>
+          <div class="col-pips">${pips}</div>
+          <div class="col-kills">${next ? `${kills.toLocaleString()} / ${next.toLocaleString()}` : '정복 완료'}</div>
+        </div>`;
+      }).join('');
+      body.innerHTML = `
+        <p class="hint-text">같은 몬스터를 잡을수록 등록 → 숙련 → 정복으로 오르고, 단계마다 모든 캐릭터의 스탯이 +1 오릅니다(종족별: 인간형 힘 · 짐승 민첩 · 언데드 체력 · 마족 지능 · 무생물 기술).</p>
+        <div class="tower-stat">
+          <div><span>등록</span><b>${reg} / ${col.entries.length}</b></div>
+          <div><span>계정 스탯</span><b style="font-size:11px">${flat}</b></div>
+        </div>
+        <div class="section-title">마일스톤</div>
+        ${milestones}
+        <div class="section-title">몬스터</div>
+        <div class="col-grid">${cards}</div>`;
+      return;
+    }
+
+    const links = this.pm.linkSkills();
+    const total = bonusText(this.pm.linkBonus()) || '아직 없음';
+    const rows = [...this.pm.units.values()].sort((a, b) => b.level - a.level).map((u) => {
+      const entry = SIGNATURE_DATA[u.defId];
+      const trait = entry ? TRAIT_DATA[entry.traitId] : null;
+      const lv = linkLevelOf(u.level);
+      const applied = links.some((l) => l.unit === u);
+      const next = LINK_LEVELS[lv];
+      const effect = !trait ? '' : lv
+        ? `${bonusText(linkBonusOf(entry.traitId, lv))}${applied ? '' : ' <span style="opacity:.55">(같은 특성의 더 높은 링크가 적용 중)</span>'}`
+        : `Lv.${LINK_LEVELS[0].level}에 개방`;
+      return `<div class="link-row ${applied ? 'on' : ''}">
+        <div class="link-name">${u.name} <span style="opacity:.6">${rankLabel(u.level)}</span></div>
+        <div class="link-lv">${lv ? `링크 Lv.${lv}` : '미개방'}</div>
+        <div class="link-eff"><b>${trait ? trait.name : '-'}</b> ${effect}${next && lv ? ` <span style="opacity:.5">· 다음 Lv.${next.level}</span>` : ''}</div>
+      </div>`;
+    }).join('');
+    body.innerHTML = `
+      <p class="hint-text">보유 캐릭터(병영 포함)가 Lv.${LINK_LEVELS.map((l) => l.level).join(' / ')}에 오르면 그 캐릭터의 고유 특성이 ${LINK_LEVELS.map((l) => `${l.rate * 100}%`).join(' / ')} 세기로 파티 전체에 적용됩니다. 같은 특성은 가장 높은 링크 하나만 적용됩니다.</p>
+      <div class="section-title">적용 중인 링크 효과 (${links.length}종)</div>
+      <div class="growth-box">${total}</div>
+      <div class="section-title">보유 캐릭터</div>
+      ${rows}`;
   }
 
   // ---------- 상점 ----------

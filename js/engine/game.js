@@ -4,6 +4,20 @@ const WORLD_WIDTH = 960;
 const FOLLOW_DISTANCE = 220;
 const FOLLOW_SPEED = 230;
 
+// 메이플식 이동
+const FLASH_JUMP_SPEED = 560;  // 플래시 점프 수평 속도
+const FLASH_JUMP_MS = 260;
+const FLASH_JUMP_LIFT = -280;
+const ROPE_CLIMB_SPEED = 150;
+const ROPE_GRAB_RANGE = 12;
+const ROPE_JUMP_OFF_VY = -300;
+
+// 바닥 전리품
+const DROP_PICKUP_DELAY_MS = 400; // 튀어나온 직후엔 안 빨려온다
+const DROP_MAGNET_RANGE = 150;
+const DROP_LIFETIME_MS = 60000;
+const MAX_GROUND_DROPS = 150;
+
 class Game {
   constructor() {
     this.canvas = document.getElementById('game-canvas');
@@ -19,11 +33,14 @@ class Game {
     this.gq = new GeneralQuestManager(log, this.pm);
     this.tower = new TowerManager(log);
     this.stats = new StatsTracker();
+    this.collection = new CollectionManager(log);
+    this.drops = [];
     this.pm.stats = this.stats;
     SettingsManager.load();
     this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm; this.ui.fm = this.fm; this.ui.gq = this.gq;
     this.ui.tower = this.tower;
     this.ui.stats = this.stats;
+    this.ui.collection = this.collection;
     this.renderer = new Renderer(this.ctx, WORLD_WIDTH, WORLD_HEIGHT);
     this.effects = new EffectManager();
     EFFECTS = this.effects;
@@ -103,17 +120,27 @@ class Game {
       this.ui.refreshOpenWindows();
     };
     this.ui.onSellGear = (gearUid) => { this.pm.sellGear(gearUid); this.ui.refreshOpenWindows(); };
-    this.ui.onEnhance = (gearUid) => {
+    this.ui.onStarforce = (gearUid, opts) => {
       const gear = this.pm.findGear(gearUid);
-      if (gear) this.pm.enhanceGear(gear);
+      if (!gear) return null;
+      const r = this.pm.starforceGear(gear, opts);
+      if (r.ok) {
+        if (r.result === 'success') this.audio.levelUp();
+        else if (r.result === 'destroy') this.audio.kill(true);
+        else this.audio.miss();
+      }
       this.ui.rebuildPartySlots();
       this.ui.refreshOpenWindows();
+      return r;
     };
-    this.ui.onEnchant = (gearUid) => {
+    this.ui.onCube = (gearUid, cubeId) => {
       const gear = this.pm.findGear(gearUid);
-      if (gear) this.pm.enchantGear(gear);
+      if (!gear) return null;
+      const r = this.pm.useCube(gear, cubeId);
+      if (r.ok) (r.gradeUp ? this.audio.levelUp() : this.audio.signature());
       this.ui.rebuildPartySlots();
       this.ui.refreshOpenWindows();
+      return r;
     };
     this.ui.onSell = (itemId, count) => { this.pm.sellItem(itemId, count); this.ui.refreshShop(); };
     this.ui.onBuy = (itemId) => { this.pm.buyItem(itemId, 1); this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.sm.checkItemSteps(); this.ui.refreshShop(); };
@@ -227,6 +254,7 @@ class Game {
   _loadTowerZone() {
     this.zm._load(this.tower.zoneIndex, false);
     this.projectiles = [];
+    this.drops = [];
     this.ui.setTarget(null);
     this._resetPartyPositions(140);
     this.warpCooldown = 900;
@@ -268,6 +296,7 @@ class Game {
     if (this.tower.active && zoneIndex !== this.tower.zoneIndex) this.tower.stop();
     if (entryX === 'auto') entryX = this.zm.entryXFrom(fromZoneId);
     this.projectiles = [];
+    this.drops = [];
     this.ui.setTarget(null);
     this._resetPartyPositions(entryX);
     this.warpCooldown = 900;
@@ -283,6 +312,7 @@ class Game {
     this.pm.partyUnits.forEach((u, i) => {
       u.x = clamp(baseX + i * 50, 0, this.zm.width - u.width);
       u.y = GROUND_Y - u.height; u.vx = 0; u.vy = 0;
+      u.onRope = null; u.flashTimer = 0;
     });
   }
 
@@ -320,6 +350,7 @@ class Game {
     this._updateCompanions(dt);
     this._updateEnemies(dt);
     this._updateProjectiles(dt);
+    this._updateDrops(dt);
     this._checkDowned();
     this._updateSynergies();
     this._syncFamilyProgress();
@@ -369,6 +400,7 @@ class Game {
     if (input.wasPressed('t')) ui.toggleWindow('teleport-window');
     if (input.wasPressed('g')) ui.toggleWindow('tower-window');
     if (input.wasPressed('o')) ui.toggleWindow('settings-window');
+    if (input.wasPressed('k')) ui.toggleWindow('collection-window');
     if (input.wasPressed('f')) ui.toggleWindow('family-window');
     if (input.wasPressed('alt+e')) ui.toggleWindow('char-info-window');
     if (input.wasPressed('escape')) ui.closeTopWindow();
@@ -395,10 +427,23 @@ class Game {
   _updateActiveUnit(dt, warpedThisFrame = false) {
     const unit = this.pm.activeUnit;
     if (!unit) return;
-    if (unit.downed) { unit.vx = 0; this._applyPhysics(unit, dt); return; }
+    if (unit.downed) { unit.onRope = null; unit.vx = 0; this._applyPhysics(unit, dt); return; }
+    const { input } = this;
+    // 워프로 이동한 프레임에는 ↑가 이미 쓰였다.
+    const upPressed = !warpedThisFrame && input.wasPressed('arrowup');
+
+    // 로프에 매달린 동안은 로프 조작만 받는다.
+    if (unit.onRope) { this._updateOnRope(unit, dt); return; }
+
+    // 로프 잡기: 로프 앞에서 ↑(점프 중에 ↑를 누르고 있어도 잡힌다) / 로프가 달린 발판 위에서 ↓
+    const ropeHere = this._ropeAt(unit);
+    if (ropeHere && (upPressed || (!unit.grounded && input.isDown('arrowup')))) { this._grabRope(unit, ropeHere); return; }
+    const ropeBelow = unit.grounded ? this._ropeBelow(unit) : null;
+    if (ropeBelow && input.wasPressed('arrowdown')) { this._grabRope(unit, ropeBelow); unit.y += 12; return; }
+
     const speed = MOVE_SPEED * unit.stance.moveSpeedMult * (1 + (unit.bonus || EMPTY_FAMILY_BONUS).moveSpeed);
-    const manualLeft = this.input.isDown('arrowleft');
-    const manualRight = this.input.isDown('arrowright');
+    const manualLeft = input.isDown('arrowleft');
+    const manualRight = input.isDown('arrowright');
 
     if (manualLeft || manualRight) {
       unit.vx = manualLeft ? -speed : speed;
@@ -406,9 +451,14 @@ class Game {
     } else {
       this._runAutoMode(unit, dt);
     }
-    // 워프로 이동한 프레임에는 ↑가 소모됐으므로 점프하지 않는다.
-    if (!warpedThisFrame && this.input.wasPressed('arrowup') && unit.grounded) {
-      unit.vy = JUMP_VELOCITY; unit.grounded = false;
+    // ↑: 땅에서는 점프, 공중에서 한 번 더 누르면 플래시 점프
+    if (upPressed) {
+      if (unit.grounded) { unit.vy = JUMP_VELOCITY; unit.grounded = false; }
+      else if (!unit.usedFlashJump) this._flashJump(unit);
+    }
+    if (unit.flashTimer > 0) {
+      unit.flashTimer = Math.max(0, unit.flashTimer - dt);
+      unit.vx = FLASH_JUMP_SPEED * unit.facing;
     }
     // ↓ : 발판 위에 있을 때 아래층으로 내려간다.
     if (this.input.wasPressed('arrowdown') && unit.grounded && this._standingOnPlatform(unit)) {
@@ -466,8 +516,10 @@ class Game {
   _updateSynergies() {
     // 가문 특성은 전 캐릭터 공통이고, 고유 특성·전용기 버프는 캐릭터마다 다르다.
     // 셋을 합쳐 unit.bonus 하나로 만들어두면 데미지·이동·공속 계산이 그 값만 보면 된다.
+    // 링크 스킬(보유 캐릭터 특성 일부)과 몬스터 컬렉션 마일스톤도 계정 공용으로 더한다.
     const famBonus = this.fm.bonus();
-    this.pm.partyUnits.forEach((u) => { u.bonus = mergeBonuses(famBonus, u.personalBonus()); });
+    const shared = mergeBonuses(famBonus, this.pm.linkBonus(), this.collection.bonus);
+    this.pm.partyUnits.forEach((u) => { u.bonus = mergeBonuses(shared, u.personalBonus()); });
     const active = this.pm.recomputeSynergies();
     const key = active.map((s) => s.id).join(',');
     if (key === this.synergyKey) return;
@@ -559,6 +611,8 @@ class Game {
     const leader = this.pm.activeUnit;
     this.pm.partyUnits.forEach((unit, i) => {
       if (i === this.pm.activeIndex) return;
+      unit.onRope = null;
+      unit.flashTimer = 0;
       // 리더와 너무 멀어지면 사냥을 멈추고 따라붙는다(홀드 모드는 제자리 유지가 목적이므로 제외).
       const gap = (leader.x + leader.width / 2) - (unit.x + unit.width / 2);
       if (unit.autoMode !== 'hold' && Math.abs(gap) > FOLLOW_DISTANCE) {
@@ -757,27 +811,166 @@ class Game {
     return true;
   }
 
-  _rollDrops(enemy) {
-    const table = DROP_TABLE[enemy.name];
-    if (table) {
-      let row = 0;
-      table.forEach((d) => {
-        if (Math.random() > d.chance) return;
-        this.pm.addItem(d.id, 1);
-        this.audio.pickup();
-        this.effects.loot(enemy.x + enemy.width / 2, enemy.y - 14 - row * 16, ITEM_DATA[d.id].name, '#ecf0f1', d.id);
-        row += 1;
-        this.ui.logChat(`${ITEM_DATA[d.id].name} 획득`, 'system');
-      });
+  // ---------- 메이플식 이동 ----------
+  // 플래시 점프: 공중에서 ↑를 한 번 더 누르면 바라보는 쪽으로 크게 도약한다. 착지하면 다시 쓸 수 있다.
+  _flashJump(unit) {
+    unit.usedFlashJump = true;
+    unit.flashTimer = FLASH_JUMP_MS;
+    unit.vy = Math.min(unit.vy, FLASH_JUMP_LIFT);
+    this.effects.burst(unit.x + unit.width / 2 - unit.facing * 16, unit.y + unit.height * 0.6, 30, 'rgba(220,240,255,0.85)');
+    this.audio.swap();
+  }
+
+  // 로프 앞(발판 아래)에 서 있거나 매달릴 수 있는 높이에 있는가
+  _ropeAt(unit) {
+    const cx = unit.x + unit.width / 2;
+    const bottom = unit.y + unit.height;
+    return this.zm.ropes.find((r) => Math.abs(cx - r.x) <= ROPE_GRAB_RANGE && bottom > r.platformY + 4 && unit.y < r.bottom) || null;
+  }
+
+  // 로프가 달린 발판 위, 로프 바로 위에 서 있는가(↓로 내려가며 잡는다)
+  _ropeBelow(unit) {
+    const cx = unit.x + unit.width / 2;
+    const bottom = unit.y + unit.height;
+    return this.zm.ropes.find((r) => Math.abs(cx - r.x) <= ROPE_GRAB_RANGE && Math.abs(bottom - r.platformY) < 6) || null;
+  }
+
+  _grabRope(unit, rope) {
+    unit.onRope = rope;
+    unit.climbing = false;
+    unit.vx = 0; unit.vy = 0;
+    unit.flashTimer = 0;
+    unit.grounded = false;
+    unit.x = rope.x - unit.width / 2;
+  }
+
+  _leaveRope(unit, y) {
+    unit.onRope = null;
+    unit.climbing = false;
+    unit.y = y;
+    unit.vy = 0;
+    unit.grounded = true;
+    unit.usedFlashJump = false;
+  }
+
+  // 로프 위: ↑/↓로 오르내리고 꼭대기에 닿으면 발판에 올라선다. ←/→는 옆으로 뛰어내리기.
+  _updateOnRope(unit, dt) {
+    const rope = unit.onRope;
+    const { input } = this;
+    const side = input.wasPressed('arrowleft') ? -1 : (input.wasPressed('arrowright') ? 1 : 0);
+    if (side) {
+      unit.onRope = null;
+      unit.climbing = false;
+      unit.facing = side;
+      unit.vx = side * MOVE_SPEED;
+      unit.vy = ROPE_JUMP_OFF_VY;
+      unit.usedFlashJump = false;
+      this._applyPhysics(unit, dt);
+      return;
     }
+    const dir = (input.isDown('arrowdown') ? 1 : 0) - (input.isDown('arrowup') ? 1 : 0);
+    unit.climbing = dir !== 0;
+    unit.vx = 0; unit.vy = 0;
+    unit.x = clamp(rope.x - unit.width / 2, 0, this.zm.width - unit.width);
+    unit.y += dir * ROPE_CLIMB_SPEED * dt / 1000;
+    const bottom = unit.y + unit.height;
+    if (dir < 0 && bottom <= rope.platformY) { this._leaveRope(unit, rope.platformY - unit.height); return; }
+    if (bottom >= rope.bottom) { this._leaveRope(unit, rope.bottom - unit.height); return; }
+    unit.grounded = false;
+  }
+
+  // 로프 근처면 조작 안내를 띄운다.
+  _ropePrompt() {
+    const u = this.pm.activeUnit;
+    if (!u || u.onRope || !u.grounded || u.downed) return null;
+    const up = this._ropeAt(u);
+    if (up) return { rope: up, text: '↑ 로프', y: u.y - 40 };
+    const down = this._ropeBelow(u);
+    if (down) return { rope: down, text: '↓ 로프', y: u.y - 40 };
+    return null;
+  }
+
+  // ---------- 바닥 전리품 ----------
+  // 몹이 죽으면 전리품이 튀어나와 바닥에 떨어진다. 파티원이 가까이 가면 빨려와 주워진다.
+  _rollDrops(enemy) {
+    const cx = enemy.x + enemy.width / 2;
+    const cy = enemy.y + enemy.height / 2;
+    (DROP_TABLE[enemy.name] || []).forEach((d) => {
+      if (Math.random() <= d.chance) this._spawnDrop({ kind: 'item', itemId: d.id }, cx, cy);
+    });
     const equipId = rollEquipmentDrop(tierFromLevel(this.zm.def.level));
-    if (equipId) {
-      const gear = this.pm.addGear(equipId);
-      this.effects.loot(enemy.x + enemy.width / 2, enemy.y - 48, gear.item.name, TIER_COLOR[gear.tier], gear.itemId);
-      this.audio.pickup();
-      this.ui.logChat(`[장비 드랍] ${gear.displayName} 획득!`, 'system');
+    if (equipId) this._spawnDrop({ kind: 'gear', itemId: equipId }, cx, cy);
+    if (Math.random() < MESO_DROP_CHANCE) this._spawnDrop({ kind: 'meso', amount: mesoAmount(enemy) }, cx, cy);
+    if (enemy.boss && Math.random() < 0.4) this._spawnDrop({ kind: 'item', itemId: 'craftsman_cube' }, cx, cy);
+  }
+
+  _spawnDrop(payload, x, y) {
+    if (this.drops.length >= MAX_GROUND_DROPS) this.drops.shift();
+    this.drops.push({
+      ...payload, x, y,
+      vx: randRange(-90, 90), vy: randRange(-380, -260),
+      age: 0, grounded: false, collected: false, bob: Math.random() * 1000,
+    });
+  }
+
+  _updateDrops(dt) {
+    if (this.drops.length === 0) return;
+    const sec = dt / 1000;
+    const pickers = this.pm.partyUnits.filter((u) => !u.downed);
+    this.drops.forEach((d) => {
+      d.age += dt;
+      if (d.age > DROP_PICKUP_DELAY_MS) {
+        let best = null;
+        let bestDist = DROP_MAGNET_RANGE;
+        pickers.forEach((u) => {
+          const dist = Math.hypot(u.x + u.width / 2 - d.x, u.y + u.height / 2 - d.y);
+          if (dist < bestDist) { bestDist = dist; best = u; }
+        });
+        if (best) {
+          const k = Math.min(1, sec * 9);
+          d.x += (best.x + best.width / 2 - d.x) * k;
+          d.y += (best.y + best.height / 2 - d.y) * k;
+          d.grounded = false;
+          if (bestDist < 24) this._collectDrop(d, best);
+          return;
+        }
+      }
+      if (d.grounded) return;
+      const prevY = d.y;
+      d.vy += GRAVITY * sec;
+      d.x = clamp(d.x + d.vx * sec, 10, this.zm.width - 10);
+      d.y += d.vy * sec;
+      if (d.vy > 0) {
+        const p = this.zm.platforms.find((pl) => d.x > pl.x && d.x < pl.x + pl.width && prevY <= pl.y && d.y >= pl.y);
+        if (p) { d.y = p.y; d.grounded = true; }
+      }
+      if (d.y >= GROUND_Y) { d.y = GROUND_Y; d.grounded = true; }
+      if (d.grounded) { d.vx = 0; d.vy = 0; }
+    });
+    this.drops = this.drops.filter((d) => !d.collected && d.age < DROP_LIFETIME_MS);
+  }
+
+  _collectDrop(d, unit) {
+    d.collected = true;
+    const ux = unit.x + unit.width / 2;
+    const uy = unit.y - 14;
+    this.audio.pickup();
+    if (d.kind === 'meso') {
+      this.pm.addGold(d.amount);
+      this.effects.loot(ux, uy, `+${d.amount.toLocaleString()} G`, '#f7dc6f');
+      return;
+    }
+    if (d.kind === 'gear') {
+      const gear = this.pm.addGear(d.itemId);
+      this.effects.loot(ux, uy - 16, gear.item.name, TIER_COLOR[gear.tier], gear.itemId);
+      this.ui.logChat(`[장비 획득] ${gear.displayName}`, 'system');
+    } else {
+      this.pm.addItem(d.itemId, 1);
+      this.effects.loot(ux, uy, ITEM_DATA[d.itemId].name, '#ecf0f1', d.itemId);
+      this.ui.logChat(`${ITEM_DATA[d.itemId].name} 획득`, 'system');
     }
     this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.sm.checkItemSteps();
+    if (this.ui.isWindowOpen('inventory-window')) this.ui.refreshInventory();
   }
 
   _enemiesNear(center, radius) {
@@ -818,6 +1011,7 @@ class Game {
     enemy.rewarded = true;
     this.stats.kills += 1;
     if (enemy.boss) this.stats.bossKills += 1;
+    if (this.collection.onKill(enemy)) this.pm.units.forEach((u) => u.invalidateStats());
     this.qm.onKill(this.zm.def.id, enemy.name);
     this.gq.onKill(this.zm.def.id, enemy.name);
     this.sm.onKill(this.zm.def.id, enemy.name);
@@ -944,6 +1138,7 @@ class Game {
   }
 
   _applyPhysics(unit, dt) {
+    if (unit.onRope) return;
     const prevBottom = unit.y + unit.height;
     unit.dropTimer = Math.max(0, unit.dropTimer - dt);
     unit.vy += GRAVITY * dt / 1000;
@@ -967,6 +1162,7 @@ class Game {
     const floorY = GROUND_Y - unit.height;
     if (!landed && unit.y >= floorY) { unit.y = floorY; unit.vy = 0; landed = true; }
     unit.grounded = landed;
+    if (landed) unit.usedFlashJump = false;
   }
 
   _handleWorldClick(wx, wy) {
@@ -1012,6 +1208,9 @@ class Game {
       warps: this.zm.warps,
       warpPrompt: this.warpPrompt,
       platforms: this.zm.platforms,
+      ropes: this.zm.ropes,
+      ropePrompt: this._ropePrompt(),
+      drops: this.drops,
       partyUnits: this.pm.partyUnits,
       partyLevel: Math.max(1, ...this.pm.partyUnits.map((u) => u.level)),
       recruitStatus: this._recruitStatusMap(),

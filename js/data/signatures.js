@@ -82,6 +82,26 @@ const SIGNATURE_DATA = {
   clera: { traitId: 'executioner', skill: { id: 'sig_clera', name: '작열 탄환', kind: 'nuke', dmgMult: 4.5, manaCost: 34, cooldownMs: 11000, element: 'fire' } },
 };
 
+// ===== 링크 스킬 (메이플스토리) =====
+// 보유한 캐릭터(병영 포함)가 일정 레벨에 오르면 그 캐릭터의 고유 특성이 약하게 파티 전체에 나눠진다.
+// 같은 특성은 겹치지 않고 가장 높은 링크 레벨 하나만 적용한다.
+const LINK_LEVELS = [
+  { level: 30, rate: 0.25 },
+  { level: 70, rate: 0.4 },
+  { level: 101, rate: 0.6 },
+];
+
+function linkLevelOf(charLevel) { return LINK_LEVELS.filter((l) => charLevel >= l.level).length; }
+
+function linkBonusOf(traitId, linkLevel) {
+  const trait = TRAIT_DATA[traitId];
+  if (!trait || !linkLevel) return null;
+  const rate = LINK_LEVELS[linkLevel - 1].rate;
+  const out = {};
+  Object.entries(trait.bonus).forEach(([k, v]) => { out[k] = v * rate; });
+  return out;
+}
+
 function traitOf(defId) {
   const entry = SIGNATURE_DATA[defId];
   return entry ? TRAIT_DATA[entry.traitId] : null;

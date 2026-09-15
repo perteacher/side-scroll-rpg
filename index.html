@@ -19,6 +19,7 @@
       <button data-open="teleport" title="텔레포트 (T)">🌀</button>
       <button data-open="family" title="가문 특성 (F)">🏰</button>
       <button data-open="tower" title="심연의 탑 (G)">🗼</button>
+      <button data-open="collection" title="컬렉션 (K)">📕</button>
       <button data-open="settings" title="설정 (O)">⚙️</button>
       <button id="sound-btn" title="소리">🔊</button>
       <button id="chat-toggle-btn" title="채팅창 열기">💬</button>
@@ -58,7 +59,7 @@
     <div id="chat-log"></div>
   </div>
 
-  <div id="hint-bar">방향키 이동 · ↑ 점프/포탈 · ↓ 내려가기 · Space 공격 · QWE/ASD/ZXC 스킬 · R 전용기 · 1/2/3 무기세트 · Tab 리더전환 — 전체 조작은 <b>O</b>(설정)</div>
+  <div id="hint-bar">방향키 이동 · ↑ 점프(공중 ↑ 플래시 점프)/포탈 · 로프 ↑↓ · ↓ 내려가기 · Space 공격 · QWE/ASD/ZXC 스킬 · R 전용기 · 1/2/3 무기세트 · Tab 리더전환 — 전체 조작은 <b>O</b>(설정)</div>
 
   <!-- 캐릭터 생성 화면 -->
   <div id="create-screen">
@@ -117,7 +118,7 @@
       <button class="tab-btn active" data-shoptab="sell">판매</button>
       <button class="tab-btn" data-shoptab="buy">구매</button>
       <button class="tab-btn" data-shoptab="craft">제작</button>
-      <button class="tab-btn" data-shoptab="enhance">강화·인챈트</button>
+      <button class="tab-btn" data-shoptab="enhance">스타포스·잠재능력</button>
     </div>
     <div id="shop-gold"></div>
     <div id="shop-body"></div>
@@ -127,6 +128,16 @@
   <div id="board-window" class="game-window hidden">
     <div class="window-title-bar"><span id="board-title">의뢰 게시판</span><button class="close-btn" data-close="board-window">✕</button></div>
     <div id="board-body"></div>
+  </div>
+
+  <!-- 컬렉션 창 -->
+  <div id="collection-window" class="game-window hidden">
+    <div class="window-title-bar"><span>컬렉션</span><button class="close-btn" data-close="collection-window">✕</button></div>
+    <div class="window-tabs">
+      <button class="tab-btn active" data-coltab="monster">몬스터 컬렉션</button>
+      <button class="tab-btn" data-coltab="link">링크 스킬</button>
+    </div>
+    <div id="collection-body"></div>
   </div>
 
   <!-- 설정 창 -->
@@ -179,6 +190,7 @@
 <script src="js/data/synergy.js"></script>
 <script src="js/data/family.js"></script>
 <script src="js/data/tower.js"></script>
+<script src="js/data/collection.js"></script>
 <script src="js/data/signatures.js"></script>
 <script src="js/data/generalquests.js"></script>
 <script src="js/engine/utils.js"></script>
@@ -191,6 +203,7 @@
 <script src="js/engine/party.js"></script>
 <script src="js/engine/zone.js"></script>
 <script src="js/engine/tower.js"></script>
+<script src="js/engine/collection.js"></script>
 <script src="js/engine/quest.js"></script>
 <script src="js/engine/save.js"></script>
 <script src="js/engine/scenario.js"></script>

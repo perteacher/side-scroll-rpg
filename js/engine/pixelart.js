@@ -52,6 +52,10 @@ function itemIconHtml(itemId, size = 24) {
   return `<img class="item-icon" src="${itemIconURL(itemId)}" width="${size}" height="${size}" alt="">`;
 }
 
+function mesoSprite() {
+  return cachedSprite('meso', ITEM_SHAPES.meso, { y: '#f1c40f', w: '#fff3b0', d: '#b7950b' });
+}
+
 // ---------- 캐릭터 합성 ----------
 function hashStr(s) {
   let h = 2166136261;

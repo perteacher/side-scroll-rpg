@@ -434,3 +434,56 @@ html, body {
   background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.25); color: #abebc6;
 }
 .class-upper { font-size: 10px; opacity: 0.65; margin-top: 3px; }
+
+/* ---- 스타포스 · 잠재능력 ---- */
+.enh-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; max-height: 120px; overflow-y: auto; }
+.enh-pick {
+  position: relative; width: 48px; height: 52px; padding: 2px; border-radius: 4px; cursor: pointer;
+  background: rgba(255,255,255,0.04); border: 2px solid #333; color: #fff;
+}
+.enh-pick.on { background: rgba(93,173,226,0.18); box-shadow: 0 0 0 1px #5dade2 inset; }
+.enh-pick .item-icon { margin: 0; background: none; }
+.enh-pick-star { position: absolute; top: 1px; right: 2px; font-size: 9px; color: #f7dc6f; text-shadow: 1px 1px 0 #000; }
+.enh-pick-where { display: block; font-size: 8px; opacity: 0.6; white-space: nowrap; overflow: hidden; }
+.enh-head { display: flex; gap: 8px; align-items: center; }
+.enh-stars { font-size: 11px; letter-spacing: -1px; color: #444; }
+.enh-stars span.on { color: #f7dc6f; }
+.enh-result { font-size: 12px; font-weight: bold; margin: 6px 0; }
+.sf-rates { font-size: 11px; margin-bottom: 3px; }
+.sf-max { font-size: 11px; color: #f7dc6f; }
+.sf-protect { display: block; font-size: 10px; margin: 4px 0; }
+.sf-protect.disabled { opacity: 0.4; }
+.starcatch { position: relative; height: 18px; margin: 6px 0; border-radius: 9px; background: #1b1b2a; border: 1px solid #444; opacity: 0.45; }
+.starcatch.on { opacity: 1; }
+.starcatch .sc-zone { position: absolute; left: 38%; width: 24%; top: 0; bottom: 0; background: rgba(247,220,111,0.25); border-left: 1px solid #f7dc6f; border-right: 1px solid #f7dc6f; }
+.starcatch .sc-star { position: absolute; top: -2px; transform: translateX(-50%); color: #f7dc6f; font-size: 16px; text-shadow: 0 0 4px #f1c40f; }
+.sf-btns { display: flex; gap: 8px; align-items: center; }
+.sf-btns button, .cube-btns button { font-size: 11px; padding: 4px 10px; background: #2c2c44; border: 1px solid #555; color: #fff; border-radius: 3px; cursor: pointer; }
+.sf-btns button.primary { background: #b9770e; border-color: #f7dc6f; }
+.sf-btns button:disabled, .cube-btns button:disabled { opacity: 0.35; cursor: default; }
+.pot-grade { font-size: 10px; border: 1px solid; border-radius: 3px; padding: 0 5px; margin-left: 4px; }
+.pot-box { border: 1px solid #333; border-radius: 4px; padding: 5px 8px; margin-bottom: 6px; background: rgba(0,0,0,0.25); }
+.pot-line { font-size: 11px; line-height: 1.6; }
+.cube-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+.cube-btns .item-icon { margin-right: 3px; background: none; }
+
+/* ---- 컬렉션 ---- */
+#collection-window { width: 440px; }
+#collection-body { overflow-y: auto; padding: 8px 10px 12px; font-size: 12px; }
+.ms-row { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 6px; opacity: 0.55; }
+.ms-row.done { opacity: 1; color: #abebc6; }
+.col-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.col-card { text-align: center; padding: 4px 2px; border-radius: 4px; background: rgba(255,255,255,0.04); border: 1px solid #2c2c3c; }
+.col-card.boss { border-color: #922b21; }
+.col-card img { image-rendering: pixelated; display: block; margin: 0 auto; }
+.col-card.unknown img { filter: brightness(0); opacity: 0.45; }
+.col-name { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.col-pips { display: flex; justify-content: center; gap: 2px; margin: 2px 0; }
+.col-pips i { width: 6px; height: 6px; border-radius: 50%; background: #333; display: inline-block; }
+.col-pips i.on { background: #f7dc6f; }
+.col-kills { font-size: 8px; opacity: 0.7; }
+.link-row { padding: 4px 6px; border-radius: 3px; margin-bottom: 3px; background: rgba(255,255,255,0.03); opacity: 0.6; }
+.link-row.on { opacity: 1; background: rgba(46,204,113,0.07); }
+.link-name { font-size: 11px; }
+.link-lv { font-size: 10px; color: #f7dc6f; }
+.link-eff { font-size: 10px; opacity: 0.85; }

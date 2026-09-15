@@ -63,12 +63,14 @@ class Renderer {
     b.save();
     b.translate(-this.cam, 0);
     state.platforms.forEach((p) => this._drawPlatform(p, theme));
+    state.ropes.forEach((r) => this._drawRopeArt(r));
     state.warps.forEach((w) => this._drawWarpArt(w, state.time));
     if (state.questBoard) this._drawQuestBoardArt(state.questBoard);
     state.storyNpcs.forEach((npc) => this._drawNpcArt(npc, this._villagerLook(npc.id, '#2e86c1'), state.time, 820));
     if (state.shopNpc) this._drawNpcArt(state.shopNpc, this._villagerLook(`shop:${state.shopNpc.name}`, '#1e8449'), state.time, 900);
     state.recruitNpcs.forEach((npc) => this._drawNpcArt(npc, this._recruitLook(npc.charDef), state.time, 760));
     state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemyArt(e, state.time));
+    state.drops.forEach((d) => this._drawDropArt(d, state.time));
     state.partyUnits.forEach((u) => this._drawUnitArt(u, state.time));
     state.projectiles.forEach((p) => this._drawProjectile(p));
     state.effects.drawShapes(b);
@@ -86,6 +88,7 @@ class Renderer {
     m.save();
     m.translate(-this.cam, 0);
     state.warps.forEach((w) => this._drawWarpLabel(w, w === state.warpPrompt));
+    if (state.ropePrompt) this._text(state.ropePrompt.text, state.ropePrompt.rope.x, state.ropePrompt.y, '#f7dc6f', 'bold 11px sans-serif');
     if (state.questBoard) this._drawQuestBoardLabel(state.questBoard, state.time, state.boardHasQuest);
     state.storyNpcs.forEach((npc) => this._drawStoryNpcLabel(npc, state.activeStoryNpcId, state.time));
     if (state.shopNpc) this._drawShopNpcLabel(state.shopNpc, state.time);
@@ -288,6 +291,36 @@ class Renderer {
     [p.x + 16, p.x + p.width - 24].forEach((cx) => ctx.fillRect(cx, p.y + 16, 8, GROUND_Y - p.y - 16));
   }
 
+  // 로프: 굵은 줄 + 매듭 + 꼭대기 고리
+  _drawRopeArt(r) {
+    const { ctx } = this;
+    const h = r.bottom - r.top;
+    ctx.fillStyle = '#4a3419';
+    ctx.fillRect(r.x - 4, r.top, 8, h);
+    ctx.fillStyle = '#a07a44';
+    ctx.fillRect(r.x - 2, r.top, 2, h);
+    ctx.fillStyle = '#3a2812';
+    for (let y = r.top + 14; y < r.bottom - 4; y += 18) ctx.fillRect(r.x - 6, y, 12, 4);
+    ctx.fillStyle = '#6b4f2a';
+    ctx.fillRect(r.x - 10, r.top - 2, 20, 6);
+  }
+
+  // 바닥 전리품: 아이템 아이콘(장비는 티어 색 빛기둥) 또는 메소. 바닥에 닿으면 살짝 통통 튄다.
+  _drawDropArt(d, time) {
+    const { ctx } = this;
+    const S = PIXEL_SCALE;
+    const spr = d.kind === 'meso' ? mesoSprite() : itemSprite(d.itemId);
+    const w = spr.width * S;
+    const h = spr.height * S;
+    const bob = d.grounded ? Math.round(Math.sin((time + d.bob) / 260) * 2) * 2 : 0;
+    if (d.kind === 'gear' && d.grounded) {
+      const tier = ITEM_DATA[d.itemId].tier;
+      ctx.fillStyle = `${TIER_COLOR[tier]}44`;
+      ctx.fillRect(snapPx(d.x - 6), snapPx(d.y - h - 40), 12, 40 + h);
+    }
+    drawSprite(ctx, spr, snapPx(d.x - w / 2), snapPx(d.y - h + bob), S);
+  }
+
   _shadow(cx, bottomY, w) {
     const { ctx } = this;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -299,6 +332,7 @@ class Renderer {
   // ---------- 캐릭터 ----------
   _unitFrame(u, time) {
     if (u.downed) return 'idle0';
+    if (u.onRope) return u.climbing && Math.floor(time / 160) % 2 ? 'walk0' : 'idle0';
     if (Math.abs(u.vx) > 5 || !u.grounded) return Math.floor(time / 130) % 2 ? 'walk0' : 'walk1';
     return Math.floor(time / 480) % 2 ? 'idle1' : 'idle0';
   }
@@ -334,7 +368,7 @@ class Renderer {
     const sx = snapPx(cx - w / 2);
     const sy = snapPx(bottom - h);
     drawSprite(ctx, spr, sx, sy, S, flip);
-    this._drawHeldWeapon(u, sx, sy, flip, frame);
+    if (!u.onRope) this._drawHeldWeapon(u, sx, sy, flip, frame); // 로프에 매달리면 무기를 등에 멘다
     ctx.restore();
   }
 

@@ -37,6 +37,13 @@ class ZoneManager {
     this.shopNpc = this.def.shopNpc ? new ShopNpc(this.def.shopNpc, this.platforms) : null;
     this.questBoard = this.def.questBoard ? new QuestBoard(this.def.questBoard, this.platforms) : null;
     this.warps = this._buildWarps();
+    // 2층 발판마다 로프를 하나씩 내린다(메이플처럼 ↑로 매달려 오르내린다). x는 2px 격자에 맞춘다.
+    this.ropes = this.platforms.map((p) => ({
+      x: Math.round((p.x + p.width * 0.3) / 2) * 2,
+      top: p.y - 10,
+      platformY: p.y,
+      bottom: GROUND_Y,
+    }));
     if (announce) this.log(`${this.def.name} 도착. (권장 Lv.${this.def.level})`, 'system');
   }
 

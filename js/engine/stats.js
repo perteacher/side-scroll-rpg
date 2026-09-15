@@ -131,7 +131,8 @@ function rollDamage(attackerUnit, targetUnit, dmgMult) {
 
   const atkPower = sheet.attack.attackPower * dmgMult + elementalAtkBonus(attackerUnit);
   const isCrit = Math.random() * 100 < sheet.attack.critChance;
-  const raw = isCrit ? atkPower * (sheet.attack.critDamage / 100) : atkPower;
+  const critRaw = isCrit ? atkPower * (sheet.attack.critDamage / 100) : atkPower;
+  const raw = targetUnit.boss ? critRaw * (1 + bon.bossDmg) : critRaw;
   const targetDef = targetUnit.stats ? computeFullSheet(targetUnit).defense.defense : (targetUnit.defense || 0);
   // 관통 숙련만큼 상대 방어력을 무시한다.
   const effectiveDef = targetDef * (1 - clamp(bon.pierce, 0, 0.9));

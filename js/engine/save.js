@@ -3,13 +3,18 @@ const SAVE_KEY = 'maple_granado_save_v1';
 const AUTOSAVE_MS = 10000;
 
 function serializeGear(gear) {
-  return { itemId: gear.itemId, plus: gear.plus, enchant: gear.enchant ? gear.enchant.id : null };
+  return { itemId: gear.itemId, star: gear.star, failStreak: gear.failStreak, potential: gear.potential };
 }
+
+// 구버전 세이브: 강화 수치(plus)는 별로 옮기고(티어 상한까지), 인챈트는 잠재능력으로 바꿔 준다.
+const LEGACY_STRONG_ENCHANTS = ['brutal', 'immortal', 'deadly'];
 
 function reviveGear(data) {
   const gear = new Gear(data.itemId);
-  gear.plus = data.plus || 0;
-  gear.enchant = data.enchant ? ENCHANT_DATA.find((e) => e.id === data.enchant) || null : null;
+  gear.star = clamp(data.star ?? data.plus ?? 0, 0, gear.maxStar);
+  gear.failStreak = data.failStreak || 0;
+  if (data.potential) gear.potential = data.potential;
+  else if (data.enchant) gear.potential = rollPotential(gear, LEGACY_STRONG_ENCHANTS.includes(data.enchant) ? 2 : 1);
   return gear;
 }
 
@@ -68,6 +73,7 @@ const SaveManager = {
       seenLevels: [...(game._seenLevels || new Map())],
       tower: { bestFloor: game.tower.bestFloor },
       stats: game.stats.serialize(),
+      collection: game.collection.serialize(),
       scenario: {
         chapterIndex: sm.chapterIndex, stepIndex: sm.stepIndex,
         huntCount: sm.huntCount, finished: sm.finished,
@@ -166,6 +172,8 @@ const SaveManager = {
 
     if (data.tower) game.tower.bestFloor = data.tower.bestFloor || 0;
     game.stats.restore(data.stats);
+    game.collection.restore(data.collection);
+    pm.units.forEach((u) => u.invalidateStats());
 
     // 탑 도전은 저장되지 않는다. 탑에서 저장된 게임은 가까운 마을에서 다시 시작한다.
     let zoneIndex = clamp(data.zoneIndex || 0, 0, ZONE_DATA.length - 1);

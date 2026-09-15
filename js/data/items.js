@@ -61,6 +61,11 @@ const ITEM_DATA = {
   stance_card_basic: { name: '스탠스 수련서', price: 350, tier: 1, consumable: 'stanceExp', amount: 600 },
   stance_card_high: { name: '고급 스탠스 수련서', price: 3000, tier: 4, consumable: 'stanceExp', amount: 6000 },
 
+  // --- 큐브 (잠재능력 재설정) ---
+  suspicious_cube: { name: '수상한 큐브', price: 800, buyPrice: 3000, tier: 2, cube: true },
+  craftsman_cube: { name: '장인의 큐브', price: 3000, tier: 3, cube: true },
+  master_cube: { name: '명장의 큐브', price: 12000, tier: 5, cube: true },
+
   // --- 소모품 ---
   hp_potion: { name: 'HP 물약', price: 60, buyPrice: 120, tier: 1, consumable: 'hp', power: 0.5 },
   mp_potion: { name: 'MP 물약', price: 60, buyPrice: 120, tier: 1, consumable: 'mp', power: 0.5 },
@@ -108,7 +113,7 @@ const RECIPE_DATA = [
     materials: [{ id: 'grave_moss', count: 1 }] },
 ];
 
-const SHOP_STOCK = ['hp_potion', 'mp_potion'];
+const SHOP_STOCK = ['hp_potion', 'mp_potion', 'suspicious_cube'];
 
 // ===== 2~5티어 장비 생성 =====
 // 1티어는 생성 시 기본 지급품이고, 상위 티어는 몹 드랍과 제작으로만 얻는다.
@@ -220,46 +225,104 @@ function tierFromLevel(level) {
   });
 });
 
-// ===== 강화 / 인챈트 =====
-const MAX_ENHANCE = 10;
-const ENHANCE_STEP = 0.12; // 강화 1단계당 기본 성능 +12%
+// ===== 스타포스 (메이플스토리식 장비 강화) =====
+// 별을 하나씩 올린다. 높을수록 성공률이 떨어지고, 12성부터는 파괴될 수 있다.
+// 15성 이상에서 실패하면 한 단계 떨어지고(15·20성은 보호), 두 번 연속 떨어지면 다음 강화는 반드시 성공한다(찬스 타임).
+// 확률은 시도 전체 기준으로 성공 / 파괴 / 실패를 나눈다.
+const STARFORCE_MAX_BY_TIER = { 1: 5, 2: 10, 3: 15, 4: 20, 5: 25 };
+const STARFORCE_SUCCESS = [0.95, 0.9, 0.85, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55,
+  0.5, 0.45, 0.4, 0.35, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.1, 0.08, 0.05];
+const STARFORCE_DESTROY = {
+  12: 0.006, 13: 0.013, 14: 0.014, 15: 0.021, 16: 0.021, 17: 0.021,
+  18: 0.028, 19: 0.028, 20: 0.07, 21: 0.07, 22: 0.15, 23: 0.2, 24: 0.25,
+};
+const STARCATCH_BONUS = 1.05;       // 스타캐치(가운데서 멈추기) 성공 시 성공률 배율
+const STAR_PROTECT_RANGE = [12, 16]; // 파괴 방지를 걸 수 있는 구간(비용 2배)
 
-// 단계별 성공률. 실패하면 파괴되지 않고 한 단계 떨어진다(+4 미만으로는 하락 없음).
-function enhanceChance(plus) {
-  if (plus < 3) return 1;
-  if (plus < 6) return 0.7;
-  if (plus < 8) return 0.5;
-  return 0.3;
+function starforceSuccessRate(star) { return STARFORCE_SUCCESS[star] ?? 0; }
+function starforceDestroyRate(star) { return STARFORCE_DESTROY[star] || 0; }
+function canProtectStar(star) { return star >= STAR_PROTECT_RANGE[0] && star <= STAR_PROTECT_RANGE[1]; }
+function starDropsOnFail(star) { return star >= 15 && star !== 15 && star !== 20; }
+
+// 별 1~15개는 기본 성능 +5%씩, 16개부터는 +8%씩
+function starforceStatMult(star) {
+  return 1 + Math.min(star, 15) * 0.05 + Math.max(0, star - 15) * 0.08;
 }
 
-function enhanceCost(item, plus) {
+function starforceCost(item, star, protect) {
   const mats = TIER_MATERIALS[item.tier] || TIER_MATERIALS[1];
-  return {
-    gold: Math.round(item.price * 0.6 * (plus + 1)),
-    materials: [{ id: mats[0], count: 2 + plus }],
-  };
+  const gold = Math.round(item.price * (0.5 + star * star * 0.12)) * (protect ? 2 : 1);
+  return { gold, materials: [{ id: mats[0], count: 1 + Math.floor(star / 3) }] };
 }
 
-const ENCHANT_DATA = [
-  { id: 'sharp', name: '날카로운', stat: 'atk', pct: 0.10 },
-  { id: 'brutal', name: '흉폭한', stat: 'atk', pct: 0.18 },
-  { id: 'solid', name: '견고한', stat: 'def', pct: 0.10 },
-  { id: 'immortal', name: '불멸의', stat: 'def', pct: 0.18 },
-  { id: 'precise', name: '정밀한', stat: 'crit', value: 5 },
-  { id: 'deadly', name: '치명적인', stat: 'crit', value: 9 },
-  { id: 'vital', name: '활력의', stat: 'hp', pct: 0.08 },
+// ===== 잠재능력 (메이플스토리식) =====
+// 등급 4단계. 큐브를 쓰면 옵션을 새로 굴리고, 일정 확률로 등급이 오른다.
+const POTENTIAL_GRADES = [
+  null,
+  { id: 'rare', name: '레어', color: '#5dade2' },
+  { id: 'epic', name: '에픽', color: '#a569bd' },
+  { id: 'unique', name: '유니크', color: '#f5b041' },
+  { id: 'legendary', name: '레전드리', color: '#58d68d' },
 ];
 
-function enchantCost(item) {
-  const mats = TIER_MATERIALS[item.tier] || TIER_MATERIALS[1];
-  return {
-    gold: Math.round(item.price * 1.2),
-    materials: [{ id: mats[1], count: 3 }, { id: mats[2], count: 2 }],
-  };
+// value[등급] — 0이면 그 등급에서 안 나온다. flat 옵션은 장비 티어가 높을수록 커진다.
+// 수치 단위는 unit.bonus와 같다(비율은 0.03, 크리티컬은 퍼센트포인트).
+const POTENTIAL_OPTIONS = {
+  weapon: [
+    { stat: 'atkPct', value: [0, 0.03, 0.06, 0.09, 0.12] },
+    { stat: 'bossDmg', value: [0, 0, 0.1, 0.2, 0.3] },
+    { stat: 'pierce', value: [0, 0, 0.05, 0.1, 0.15] },
+    { stat: 'critDmg', value: [0, 0, 0, 5, 8] },
+    { stat: 'crit', value: [0, 2, 4, 6, 8] },
+    { stat: 'str', flat: true, value: [0, 2, 4, 6, 9] },
+    { stat: 'agi', flat: true, value: [0, 2, 4, 6, 9] },
+    { stat: 'int', flat: true, value: [0, 2, 4, 6, 9] },
+    { stat: 'skl', flat: true, value: [0, 2, 4, 6, 9] },
+  ],
+  armor: [
+    { stat: 'hpPct', value: [0, 0.03, 0.06, 0.09, 0.12] },
+    { stat: 'defPct', value: [0, 0.03, 0.06, 0.09, 0.12] },
+    { stat: 'crit', value: [0, 1, 2, 3, 4] },
+    { stat: 'vit', flat: true, value: [0, 2, 4, 6, 9] },
+    { stat: 'str', flat: true, value: [0, 2, 4, 6, 9] },
+    { stat: 'agi', flat: true, value: [0, 2, 4, 6, 9] },
+    { stat: 'int', flat: true, value: [0, 2, 4, 6, 9] },
+    { stat: 'sen', flat: true, value: [0, 2, 4, 6, 9] },
+  ],
+};
+
+// 큐브: maxGrade까지 올릴 수 있고, upChance[현재 등급] 확률로 한 등급 오른다.
+const CUBES = {
+  suspicious_cube: { name: '수상한 큐브', maxGrade: 2, upChance: [0, 0.06, 0, 0, 0] },
+  craftsman_cube: { name: '장인의 큐브', maxGrade: 3, upChance: [0, 0.08, 0.03, 0, 0] },
+  master_cube: { name: '명장의 큐브', maxGrade: 4, upChance: [0, 0.1, 0.04, 0.015, 0] },
+};
+
+function rollPotential(gear, grade) {
+  const pool = POTENTIAL_OPTIONS[gear.slot === 'weapon' ? 'weapon' : 'armor'];
+  const tierMult = 1 + ((gear.tier || 1) - 1) * 0.5;
+  const count = grade >= 2 ? 3 : 2;
+  const lines = [];
+  for (let i = 0; i < count; i++) {
+    // 첫 줄은 해당 등급 수치, 둘째 줄부터는 20% 확률로만 같은 등급이고 나머지는 한 등급 아래(윗줄이 가장 좋다).
+    const lineGrade = i === 0 || Math.random() < 0.2 ? grade : Math.max(1, grade - 1);
+    const options = pool.filter((o) => o.value[lineGrade] > 0);
+    const opt = options[Math.floor(Math.random() * options.length)];
+    const raw = opt.value[lineGrade];
+    lines.push({ stat: opt.stat, value: opt.flat ? Math.round(raw * tierMult) : raw, grade: lineGrade });
+  }
+  return { grade, lines };
 }
 
-function rollEnchant() {
-  return ENCHANT_DATA[Math.floor(Math.random() * ENCHANT_DATA.length)];
+function potentialLineText(line) {
+  if (STAT_LABEL[line.stat]) return `${STAT_LABEL[line.stat]} +${line.value}`;
+  return bonusText({ [line.stat]: line.value });
+}
+
+// ===== 메소(골드) 드랍 — 바닥에 떨어진 것을 줍는다 =====
+const MESO_DROP_CHANCE = 0.7;
+function mesoAmount(enemy) {
+  return Math.max(1, Math.round(enemy.xpReward * randRange(0.25, 0.45) * (enemy.boss ? 3 : 1)));
 }
 
 // 장비 슬롯과 방어구 등급

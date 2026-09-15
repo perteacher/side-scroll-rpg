@@ -79,6 +79,7 @@ function towerFloorReward(floor) {
   const xp = towerStat(40, TOWER_XP_GROWTH, floor);
   const items = [];
   if (isTowerBossFloor(floor)) {
+    items.push(floor >= 10 ? 'master_cube' : 'craftsman_cube');
     if (floor < 15) items.push('exp_card_basic');
     else if (floor < 30) items.push('exp_card_veteran');
     else if (floor < 45) items.push('exp_card_expert');

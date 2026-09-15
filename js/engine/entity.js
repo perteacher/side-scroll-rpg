@@ -64,6 +64,10 @@ class PartyUnit {
     this.skillCooldowns = {};
     this.dropTimer = 0; // >0이면 발판을 통과해 아래층으로 내려간다
     this.downed = false; // HP 0 — 전투 불능. 마을에 들어가면 회복된다.
+    this.onRope = null;         // 매달린 로프
+    this.climbing = false;
+    this.usedFlashJump = false; // 공중에서 플래시 점프를 이미 썼는지(착지하면 초기화)
+    this.flashTimer = 0;
   }
 
   _calcMaxHp() {
@@ -116,6 +120,7 @@ class PartyUnit {
     this.currentStanceIndex = 0;
     this.setSwapCooldown = WEAPON_SWAP_COOLDOWN_MS;
     this.basicAtkCooldown = Math.max(this.basicAtkCooldown, WEAPON_SWAP_LOCK_MS);
+    this.invalidateStats();
     return true;
   }
 
@@ -126,6 +131,7 @@ class PartyUnit {
     const previous = this.weaponSets[setIndex][slotIdx];
     this.weaponSets[setIndex][slotIdx] = gear;
     if (setIndex === this.activeSet) this.currentStanceIndex = 0;
+    this.invalidateStats();
     return { ok: true, previous };
   }
 
@@ -134,6 +140,7 @@ class PartyUnit {
     if (!gear) return null;
     this.weaponSets[setIndex][slotIdx] = null;
     if (setIndex === this.activeSet) this.currentStanceIndex = 0;
+    this.invalidateStats();
     return gear;
   }
 
@@ -144,12 +151,19 @@ class PartyUnit {
   }
 
   // ---------- 스탯 ----------
+  // 스탯 = 기본치 + 스탠스 성장 + 장비 잠재능력 + 계정 공용(몬스터 컬렉션)
+  // 계정 스탯은 버전이 바뀌면 알아서 다시 계산한다.
   get stats() {
-    if (!this._statsCache) {
+    if (!this._statsCache || this._statsVersion !== ACCOUNT_STAT_VERSION) {
       const out = { ...this.baseStats };
-      const bonus = this.stanceGrowthBonus();
-      Object.keys(bonus).forEach((k) => { out[k] = (out[k] || 0) + Math.floor(bonus[k]); });
+      const add = (src, floor) => Object.keys(STAT_LABEL).forEach((k) => {
+        if (src[k]) out[k] = (out[k] || 0) + (floor ? Math.floor(src[k]) : src[k]);
+      });
+      add(this.stanceGrowthBonus(), true);
+      add(this.potentialTotals(), false);
+      add(ACCOUNT_FLAT_STATS, false);
       this._statsCache = out;
+      this._statsVersion = ACCOUNT_STAT_VERSION;
     }
     return this._statsCache;
   }
@@ -220,6 +234,7 @@ class PartyUnit {
     const previous = this.equipment[targetSlot];
     this.equipment[targetSlot] = gear;
     this.currentStanceIndex = 0;
+    this.invalidateStats();
     return { ok: true, previous };
   }
 
@@ -228,6 +243,7 @@ class PartyUnit {
     if (!previous) return null;
     this.equipment[slot] = null;
     this.currentStanceIndex = 0;
+    this.invalidateStats();
     return previous;
   }
 
@@ -235,15 +251,20 @@ class PartyUnit {
     return EQUIP_SLOTS.map((slot) => ({ slot, gear: this.equipment[slot] })).filter((e) => e.gear);
   }
 
-  equipmentBonus() {
-    let atk = 0; let def = 0; let crit = 0; let hpPct = 0;
+  // 착용 장비 잠재능력 합계(항목별)
+  potentialTotals() {
+    const out = {};
     this.equippedList().forEach(({ gear }) => {
-      atk += gear.atk;
-      def += gear.def;
-      crit += gear.critBonus;
-      hpPct += gear.hpPct;
+      Object.entries(gear.potentialTotals()).forEach(([k, v]) => { out[k] = (out[k] || 0) + v; });
     });
-    return { atk, def, crit, hpPct };
+    return out;
+  }
+
+  equipmentBonus() {
+    let atk = 0; let def = 0;
+    this.equippedList().forEach(({ gear }) => { atk += gear.atk; def += gear.def; });
+    const p = this.potentialTotals();
+    return { atk, def, crit: p.crit || 0, hpPct: p.hpPct || 0 };
   }
 
   // ---------- 고유 특성 / 전용기 ----------
@@ -264,8 +285,13 @@ class PartyUnit {
   }
 
   // 특성 + 걸려 있는 버프를 합쳐, 가문 보너스와 더할 수 있는 형태로 낸다.
+  // 특성 + 버프 + 잠재능력의 비율 옵션(크리·HP%는 equipmentBonus 쪽에서 이미 센다)
   personalBonus() {
-    return mergeBonuses(this.trait ? this.trait.bonus : null, ...this.buffs.map((b) => b.bonus));
+    const p = this.potentialTotals();
+    const gearPct = {
+      atkPct: p.atkPct || 0, defPct: p.defPct || 0, critDmg: p.critDmg || 0, bossDmg: p.bossDmg || 0, pierce: p.pierce || 0,
+    };
+    return mergeBonuses(this.trait ? this.trait.bonus : null, gearPct, ...this.buffs.map((b) => b.bonus));
   }
 
   get stanceState() { return this.stanceProgress[this.currentStanceId]; }
@@ -434,13 +460,14 @@ class RecruitNpc {
   }
 }
 
-// 장비 한 점. 같은 아이템이라도 강화 수치·인챈트가 달라서 개별 인스턴스로 관리한다.
+// 장비 한 점. 같은 아이템이라도 스타포스·잠재능력이 달라서 개별 인스턴스로 관리한다.
 class Gear {
   constructor(itemId) {
     this.uid = nextUid();
     this.itemId = itemId;
-    this.plus = 0;
-    this.enchant = null;
+    this.star = 0;
+    this.failStreak = 0;   // 15성 이상에서 연속으로 떨어진 횟수(2면 찬스 타임)
+    this.potential = null; // { grade: 1~4, lines: [{ stat, value, grade }] }
   }
 
   get item() { return ITEM_DATA[this.itemId]; }
@@ -448,29 +475,27 @@ class Gear {
   get stanceId() { return this.item.stanceId; }
   get armorClass() { return this.item.armorClass; }
   get tier() { return this.item.tier; }
+  get maxStar() { return STARFORCE_MAX_BY_TIER[this.tier] || 5; }
 
   get displayName() {
-    const ench = this.enchant ? `${this.enchant.name} ` : '';
-    const plus = this.plus > 0 ? ` +${this.plus}` : '';
-    return `${ench}${this.item.name}${plus}`;
+    return `${this.item.name}${this.star > 0 ? ` ★${this.star}` : ''}`;
   }
 
-  _scaled(base) {
-    if (!base) return 0;
-    let value = base * (1 + ENHANCE_STEP * this.plus);
-    if (this.enchant && this.enchant.pct && this.enchant.stat === (this.item.atk ? 'atk' : 'def')) {
-      value *= 1 + this.enchant.pct;
-    }
-    return Math.round(value);
-  }
+  _scaled(base) { return base ? Math.round(base * starforceStatMult(this.star)) : 0; }
 
   get atk() { return this._scaled(this.item.atk); }
   get def() { return this._scaled(this.item.def); }
-  get critBonus() { return this.enchant && this.enchant.stat === 'crit' ? this.enchant.value : 0; }
-  get hpPct() { return this.enchant && this.enchant.stat === 'hp' ? this.enchant.pct : 0; }
+
+  // 잠재능력 줄들을 항목별로 더한다.
+  potentialTotals() {
+    const out = {};
+    (this.potential ? this.potential.lines : []).forEach((l) => { out[l.stat] = (out[l.stat] || 0) + l.value; });
+    return out;
+  }
 
   get sellPrice() {
-    return Math.round(this.item.price * (1 + ENHANCE_STEP * this.plus) * (this.enchant ? 1.4 : 1) * 0.5);
+    const potentialMult = this.potential ? 1 + this.potential.grade * 0.3 : 1;
+    return Math.round(this.item.price * starforceStatMult(this.star) * potentialMult * 0.5);
   }
 }
 

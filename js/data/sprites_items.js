@@ -255,6 +255,15 @@ const ITEM_SHAPES = {
     '..kkkkkkkkkkkpk.', '...kppppppppppk.', '....kkkkkkkkkkk.', '................',
   ],
 
+  cube: [
+    '................', '.......kk.......', '.....kkwwkk.....', '...kkwwwwwwkk...',
+    '..kwwwwwwwwwwk..', '..kmwwwwwwwwdk..', '..kmmmwwwwdddk..', '..kmmmmkkddddk..',
+    '..kmmmmkdddddk..', '..kmmmmkdddddk..', '..kmmmmkdddddk..', '..kmmmmkdddddk..',
+    '...kkmmkddddk...', '.....kkkddkk....', '.......kk.......', '................',
+  ],
+  // 바닥에 떨어지는 메소(8x8)
+  meso: ['..kkkk..', '.kyyyyk.', 'kyywwyyk', 'kywyyyyk', 'kyyyyydk', 'kyyyyddk', '.kddddk.', '..kkkk..'],
+
   // 정의되지 않은 아이템용
   unknown: mirrorRows([
     '........', '........', '..kkkkkk', '..kppppp', '..kppkkk', '..kppppp', '..kppppk', '..kpppkk',
@@ -293,6 +302,9 @@ const SPECIAL_SPRITES = {
   sea_compass: { shape: 'compass', pal: { g: '#c9a227', c: '#f5ecd6', r: '#e74c3c', b: '#2e86c1' } },
   relic_key: { shape: 'key', pal: { g: '#d4a017', w: '#fff0b8' } },
   holy_banner: { shape: 'flag', pal: { w: '#f8f9f9', y: '#d4a017' } },
+  suspicious_cube: { shape: 'cube', pal: { w: '#e8daef', m: '#8e44ad', d: '#5b2c6f' } },
+  craftsman_cube: { shape: 'cube', pal: { w: '#fad7a0', m: '#d68910', d: '#9c640c' } },
+  master_cube: { shape: 'cube', pal: { w: '#f5b7b1', m: '#e74c3c', d: '#922b21' } },
   hp_potion: { shape: 'potion', pal: { l: '#e74c3c', w: '#fde2df', d: '#922b21', b: '#8d6e3a' } },
   mp_potion: { shape: 'potion', pal: { l: '#3498db', w: '#d6eaf8', d: '#1f5f8b', b: '#8d6e3a' } },
   exp_card_basic: { shape: 'card', pal: { z: '#b9770e', c: '#f7dc6f', e: '#ffffff', t: '#7d6608' } },

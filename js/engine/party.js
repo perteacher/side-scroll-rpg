@@ -58,33 +58,96 @@ class PartyManager {
     return this.gold >= cost.gold && cost.materials.every((m) => this.itemCount(m.id) >= m.count);
   }
 
-  // ---------- 강화 ----------
-  enhanceGear(gear) {
-    if (gear.plus >= MAX_ENHANCE) return { ok: false, reason: 'max' };
-    const cost = enhanceCost(gear.item, gear.plus);
+  // ---------- 스타포스 ----------
+  // catchStar: 스타캐치 성공 여부, protect: 파괴 방지(12~16성, 비용 2배)
+  // result: success / keep(실패·유지) / drop(실패·하락) / destroy(파괴)
+  starforceGear(gear, { catchStar = false, protect = false } = {}) {
+    if (gear.star >= gear.maxStar) return { ok: false, reason: 'max' };
+    const from = gear.star;
+    const useProtect = protect && canProtectStar(from);
+    const cost = starforceCost(gear.item, from, useProtect);
     if (!this._payCost(cost)) return { ok: false, reason: 'cost' };
-    if (Math.random() < enhanceChance(gear.plus)) {
-      gear.plus += 1;
-      this.log(`[강화 성공] ${gear.displayName}`, 'system');
-      return { ok: true, success: true };
-    }
-    if (gear.plus > 4) {
-      gear.plus -= 1;
-      this.log(`[강화 실패] 단계 하락 → ${gear.displayName}`, 'system');
+
+    const chanceTime = gear.failStreak >= 2;
+    const success = chanceTime ? 1 : Math.min(1, starforceSuccessRate(from) * (catchStar ? STARCATCH_BONUS : 1));
+    const destroy = chanceTime || useProtect ? 0 : starforceDestroyRate(from);
+    const roll = Math.random();
+    let result;
+    if (roll < success) {
+      gear.star += 1;
+      gear.failStreak = 0;
+      result = 'success';
+      this.log(`[스타포스 성공] ${gear.item.name} ★${from} → ★${gear.star}${chanceTime ? ' (찬스 타임)' : ''}`, 'system');
+    } else if (roll < success + destroy) {
+      result = 'destroy';
+      this.removeGearEverywhere(gear);
+      (TIER_MATERIALS[gear.tier] || []).forEach((id) => this.addItem(id, 2));
+      this.log(`[스타포스 파괴] ${gear.item.name} ★${from} 장비가 파괴되었습니다. 재료 일부를 돌려받았습니다.`, 'system');
+    } else if (starDropsOnFail(from)) {
+      gear.star -= 1;
+      gear.failStreak += 1;
+      result = 'drop';
+      this.log(`[스타포스 실패] ${gear.item.name} ★${from} → ★${gear.star}${gear.failStreak >= 2 ? ' — 다음 강화는 찬스 타임(100% 성공)' : ''}`, 'system');
     } else {
-      this.log(`[강화 실패] ${gear.displayName} (단계 유지)`, 'system');
+      gear.failStreak = 0;
+      result = 'keep';
+      this.log(`[스타포스 실패] ${gear.item.name} ★${from} 유지`, 'system');
     }
-    return { ok: true, success: false };
+    this.units.forEach((u) => u.invalidateStats());
+    return { ok: true, result, from, to: gear.star, caught: catchStar };
   }
 
-  // ---------- 인챈트 ----------
-  enchantGear(gear) {
-    const cost = enchantCost(gear.item);
-    if (!this._payCost(cost)) return { ok: false };
-    const before = gear.enchant;
-    gear.enchant = rollEnchant();
-    this.log(`[인챈트] ${gear.item.name} → ${gear.enchant.name}${before ? ` (이전: ${before.name})` : ''}`, 'system');
-    return { ok: true };
+  // 보관함이든 착용 중이든(무기 세트 포함) 그 장비를 없앤다.
+  removeGearEverywhere(gear) {
+    const idx = this.gear.indexOf(gear);
+    if (idx >= 0) { this.gear.splice(idx, 1); return true; }
+    for (const u of this.units.values()) {
+      for (const slot of EQUIP_SLOTS) {
+        if (!WEAPON_SLOTS.includes(slot) && u.equipment[slot] === gear) { u.unequip(slot); return true; }
+      }
+      for (let s = 0; s < u.weaponSets.length; s++) {
+        const j = u.weaponSets[s].indexOf(gear);
+        if (j >= 0) { u.removeWeapon(s, j); return true; }
+      }
+    }
+    return false;
+  }
+
+  // ---------- 잠재능력(큐브) ----------
+  useCube(gear, cubeId) {
+    const cube = CUBES[cubeId];
+    if (!cube || this.itemCount(cubeId) < 1) return { ok: false, reason: 'none' };
+    // 큐브 한계보다 높은 등급에는 쓸 수 없다(레전드리에 수상한 큐브 등).
+    if (gear.potential && gear.potential.grade > cube.maxGrade) return { ok: false, reason: 'grade' };
+    this.removeItem(cubeId, 1);
+    const before = gear.potential ? gear.potential.grade : 0;
+    let grade = Math.max(1, before);
+    if (before > 0 && grade < cube.maxGrade && Math.random() < (cube.upChance[grade] || 0)) grade += 1;
+    gear.potential = rollPotential(gear, grade);
+    this.units.forEach((u) => u.invalidateStats());
+    const gradeName = POTENTIAL_GRADES[grade].name;
+    if (before === 0) this.log(`[잠재능력] ${gear.item.name} — ${gradeName} 잠재능력이 열렸습니다.`, 'system');
+    else if (grade > before) this.log(`[잠재능력 등급 상승] ${gear.item.name} → ${gradeName}!`, 'system');
+    else this.log(`[잠재능력 재설정] ${gear.item.name} (${gradeName})`, 'system');
+    return { ok: true, before, grade, gradeUp: before > 0 && grade > before };
+  }
+
+  // ---------- 링크 스킬 ----------
+  // 보유 캐릭터마다 특성별로 가장 높은 링크 레벨만 모은다.
+  linkSkills() {
+    const best = new Map();
+    this.units.forEach((u) => {
+      const entry = SIGNATURE_DATA[u.defId];
+      const lv = linkLevelOf(u.level);
+      if (!entry || !lv) return;
+      const cur = best.get(entry.traitId);
+      if (!cur || lv > cur.level) best.set(entry.traitId, { traitId: entry.traitId, level: lv, unit: u });
+    });
+    return [...best.values()];
+  }
+
+  linkBonus() {
+    return mergeBonuses(...this.linkSkills().map((l) => linkBonusOf(l.traitId, l.level)));
   }
 
   // ---------- 인벤토리 ----------
