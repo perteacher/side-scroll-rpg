@@ -765,7 +765,7 @@ class Game {
         if (Math.random() > d.chance) return;
         this.pm.addItem(d.id, 1);
         this.audio.pickup();
-        this.effects.loot(enemy.x + enemy.width / 2, enemy.y - 14 - row * 14, ITEM_DATA[d.id].name, '#ecf0f1');
+        this.effects.loot(enemy.x + enemy.width / 2, enemy.y - 14 - row * 16, ITEM_DATA[d.id].name, '#ecf0f1', d.id);
         row += 1;
         this.ui.logChat(`${ITEM_DATA[d.id].name} 획득`, 'system');
       });
@@ -773,7 +773,7 @@ class Game {
     const equipId = rollEquipmentDrop(tierFromLevel(this.zm.def.level));
     if (equipId) {
       const gear = this.pm.addGear(equipId);
-      this.effects.loot(enemy.x + enemy.width / 2, enemy.y - 44, `[장비] ${gear.item.name}`, TIER_COLOR[gear.tier]);
+      this.effects.loot(enemy.x + enemy.width / 2, enemy.y - 48, gear.item.name, TIER_COLOR[gear.tier], gear.itemId);
       this.audio.pickup();
       this.ui.logChat(`[장비 드랍] ${gear.displayName} 획득!`, 'system');
     }

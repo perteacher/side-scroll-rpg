@@ -590,7 +590,7 @@ class UIManager {
           return `
             <div class="equip-row">
               <span class="equip-slot-name">${SLOT_LABEL[slot]}</span>
-              <span class="equip-item">${gear ? gear.displayName : '<span style="opacity:0.45">비어 있음</span>'}</span>
+              <span class="equip-item">${gear ? `${itemIconHtml(gear.itemId)}${gear.displayName}` : '<span style="opacity:0.45">비어 있음</span>'}</span>
               <span class="equip-stat">${stat}</span>
               ${gear ? `<button data-unequip="${slot}">해제</button>` : ''}
             </div>`;
@@ -656,7 +656,7 @@ class UIManager {
       const sellBtn = opts.sell ? `<button data-sellgear="${gear.uid}" title="${gear.sellPrice}G에 판매">판매</button>` : '';
       return `
         <div class="equip-row">
-          <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
+          <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
           <span class="equip-stat">${gear.item.atk ? `공격 +${gear.atk}` : `방어 +${gear.def}`}</span>
           ${ok ? this._gearDeltaHtml(unit, gear) : ''}
           ${equipBtns}${sellBtn}
@@ -736,7 +736,7 @@ class UIManager {
         return `
           <div class="wset-slot">
             <span class="wset-slot-name">${j === 0 ? '주무기' : '보조무기'}</span>
-            <span class="wset-item">${gear ? gear.displayName : '<span style="opacity:0.4">비어 있음</span>'}</span>
+            <span class="wset-item">${gear ? `${itemIconHtml(gear.itemId, 20)}${gear.displayName}` : '<span style="opacity:0.4">비어 있음</span>'}</span>
             ${gear ? `<button data-wset-clear="${i}:${j}">빼기</button>` : ''}
           </div>`;
       }).join('');
@@ -766,7 +766,7 @@ class UIManager {
           : `<span class="equip-stat" style="color:#e74c3c">${STANCE_DATA[gear.stanceId].name} 스탠스 필요</span>`;
         return `
           <div class="equip-row">
-            <span class="equip-item">${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
+            <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
             <span class="equip-stat">공격 +${gear.atk}</span>
             ${buttons}
           </div>`;
@@ -1102,7 +1102,7 @@ class UIManager {
       const cleared = gq.clearCount(def.id);
       let action; let status;
       if (!quest) {
-        status = `<span class="q-meta">Lv.${def.minLevel}+ · 보상 ${def.reward.gold.toLocaleString()}G, ${def.reward.items.map((i) => `${ITEM_DATA[i.id].name} x${i.count}`).join(', ')}</span>`;
+        status = `<span class="q-meta">Lv.${def.minLevel}+ · 보상 ${def.reward.gold.toLocaleString()}G, ${def.reward.items.map((i) => `${itemIconHtml(i.id, 16)}${ITEM_DATA[i.id].name} x${i.count}`).join(', ')}</span>`;
         action = `<button data-board-accept="${def.id}">수주</button>`;
       } else if (gq.isReady(quest)) {
         status = '<span class="q-done">완료 — 보상 수령 가능</span>';
@@ -1248,7 +1248,7 @@ class UIManager {
       : `<div class="inv-list">${entries.map(([id, c]) => {
           const it = ITEM_DATA[id];
           const useBtn = it.consumable ? `<button data-use="${id}">사용</button>` : '';
-          return `<div class="inv-row"><span style="color:${TIER_COLOR[it.tier] || '#ecf0f1'}">${it.name}</span>`
+          return `<div class="inv-row"><span class="inv-name" style="color:${TIER_COLOR[it.tier] || '#ecf0f1'}">${itemIconHtml(id)}${it.name}</span>`
             + `<span style="opacity:0.7">x${c}</span><span style="color:#f1c40f">${it.price * c}G</span>${useBtn}</div>`;
         }).join('')}</div>`;
 
@@ -1293,7 +1293,7 @@ class UIManager {
       return `
         <div class="shop-row">
           <span class="shop-name">
-            <span style="color:${TIER_COLOR[gear.tier]}">${gear.displayName}</span> <span class="tier-badge">T${gear.tier}</span> <span style="opacity:0.55">${where}</span>
+            <span style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName}</span> <span class="tier-badge">T${gear.tier}</span> <span style="opacity:0.55">${where}</span>
             <div class="shop-meta">${gear.item.atk ? `공격 +${gear.atk}` : `방어 +${gear.def}`}${gear.critBonus ? ` · 크리 +${gear.critBonus}` : ''}${gear.hpPct ? ` · HP +${Math.round(gear.hpPct * 100)}%` : ''}</div>
             <div class="shop-meta">강화 ${maxed ? 'MAX' : `성공 ${rate}% · ${eCost.gold}G · ${matText(eCost)}`}</div>
             <div class="shop-meta">인챈트 ${cCost.gold}G · ${matText(cCost)}</div>
@@ -1332,7 +1332,7 @@ class UIManager {
         const it = ITEM_DATA[id];
         return `
           <div class="shop-row">
-            <span class="shop-name">${it.name} <span style="opacity:0.6">x${c}</span></span>
+            <span class="shop-name">${itemIconHtml(id)}${it.name} <span style="opacity:0.6">x${c}</span></span>
             <span style="color:#f1c40f">${it.price}G</span>
             <button data-sell="${id}" data-count="1">1개</button>
             <button data-sell="${id}" data-count="${c}">전부</button>
@@ -1340,7 +1340,7 @@ class UIManager {
       }).join('');
       const gearRows = this.pm.gear.map((g) => `
           <div class="shop-row">
-            <span class="shop-name">${g.displayName} <span class="tier-badge">T${g.tier}</span></span>
+            <span class="shop-name" style="color:${TIER_COLOR[g.tier]}">${itemIconHtml(g.itemId)}${g.displayName} <span class="tier-badge">T${g.tier}</span></span>
             <span style="color:#f1c40f">${g.sellPrice}G</span>
             <button data-sellgear="${g.uid}">판매</button>
           </div>`).join('');
@@ -1359,7 +1359,7 @@ class UIManager {
         const cost = it.buyPrice || it.price;
         return `
           <div class="shop-row">
-            <span class="shop-name">${it.name}</span>
+            <span class="shop-name">${itemIconHtml(id)}${it.name}</span>
             <span style="color:#f1c40f">${cost}G</span>
             <button data-buy="${id}" ${this.pm.gold < cost ? 'disabled' : ''}>구매</button>
           </div>`;
@@ -1387,12 +1387,12 @@ class UIManager {
         const mats = r.materials.map((m) => {
           const have = this.pm.itemCount(m.id);
           const ok = have >= m.count;
-          return `<span style="color:${ok ? '#2ecc71' : '#e74c3c'}">${ITEM_DATA[m.id].name} ${have}/${m.count}</span>`;
+          return `<span style="color:${ok ? '#2ecc71' : '#e74c3c'}">${itemIconHtml(m.id, 16)}${ITEM_DATA[m.id].name} ${have}/${m.count}</span>`;
         }).join(', ');
         const power = out.atk ? `공격 +${out.atk}` : (out.def ? `방어 +${out.def}` : '');
         return `
           <div class="shop-row">
-            <span class="shop-name">${out.name} ${r.equipment ? `<span class="tier-badge">T${r.tier}</span>` : ''}
+            <span class="shop-name">${itemIconHtml(r.result)}${out.name} ${r.equipment ? `<span class="tier-badge">T${r.tier}</span>` : ''}
               <div class="shop-meta">${power ? `${power} · ` : ''}${mats} · ${r.gold}G</div></span>
             <button data-craft="${r.id}" ${this.pm.canCraft(r) ? '' : 'disabled'}>제작</button>
           </div>`;

@@ -1,4 +1,7 @@
-// 배경(패럴랙스) + 캐릭터/몬스터 스프라이트 + 애니메이션을 Canvas 2D로 직접 그린다.
+// 화면 그리기. 두 겹으로 나눠 그린다.
+//  1) 월드 그림(배경·발판·캐릭터·몬스터·이펙트)은 반해상도 버퍼(480x270)에 그린 뒤 픽셀 그대로 두 배로 키운다.
+//     도트 한 칸 = 월드 2px로 모든 그림의 픽셀 크기가 같아진다.
+//  2) 글자와 체력바는 원래 해상도에 따로 그린다. 버퍼에 그리면 뭉개져서 못 읽는다.
 const THEME_DATA = {
   town_forest: { sky: ['#7ec8e3', '#cfe9c8'], far: '#4e7a54', mid: '#3c6144', decor: 'houses', accent: '#c0713f' },
   town_border: { sky: ['#9bb6c9', '#d8cfae'], far: '#6d6a52', mid: '#565340', decor: 'houses', accent: '#a9784a' },
@@ -19,10 +22,24 @@ const THEME_DATA = {
 
 const DEFAULT_THEME = THEME_DATA.forest;
 
+const PIXEL_SCALE = 2;      // 도트 한 칸의 월드 크기(px)
+const BOSS_PIXEL_SCALE = 4; // 보스는 같은 틀을 두 배로 키워 덩치를 낸다
+
+// 도트 격자에 맞춰 좌표를 반올림한다. 안 맞추면 움직일 때 픽셀이 반 칸씩 흔들린다.
+function snapPx(v) { return Math.round(v / PIXEL_SCALE) * PIXEL_SCALE; }
+
 class Renderer {
   constructor(ctx, width, height) {
-    this.ctx = ctx; this.width = width; this.height = height;
+    this.mainCtx = ctx;
+    this.ctx = ctx;
+    this.width = width; this.height = height;
     this.camX = 0;
+    this.cam = 0;
+    this.buffer = document.createElement('canvas');
+    this.buffer.width = width / PIXEL_SCALE;
+    this.buffer.height = height / PIXEL_SCALE;
+    this.bctx = this.buffer.getContext('2d');
+    this._npcLooks = new Map();
   }
 
   updateCamera(activeUnit, worldWidth) {
@@ -31,27 +48,52 @@ class Renderer {
   }
 
   draw(state) {
-    const { ctx } = this;
     const theme = THEME_DATA[state.theme] || DEFAULT_THEME;
-    ctx.clearRect(0, 0, this.width, this.height);
+    this.cam = snapPx(this.camX);
+
+    // ---- 1) 월드 그림: 반해상도 버퍼 ----
+    const b = this.bctx;
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    b.clearRect(0, 0, this.buffer.width, this.buffer.height);
+    b.imageSmoothingEnabled = false;
+    b.setTransform(1 / PIXEL_SCALE, 0, 0, 1 / PIXEL_SCALE, 0, 0);
+    this.ctx = b;
 
     this._drawBackground(theme, state);
-
-    ctx.save();
-    ctx.translate(-this.camX, 0);
-
+    b.save();
+    b.translate(-this.cam, 0);
     state.platforms.forEach((p) => this._drawPlatform(p, theme));
-    state.warps.forEach((w) => this._drawWarp(w, state.time, w === state.warpPrompt));
-    state.storyNpcs.forEach((npc) => this._drawStoryNpc(npc, state.activeStoryNpcId, state.time));
-    if (state.shopNpc) this._drawShopNpc(state.shopNpc, state.time);
-    if (state.questBoard) this._drawQuestBoard(state.questBoard, state.time, state.boardHasQuest);
-    state.recruitNpcs.forEach((npc) => this._drawRecruitNpc(npc, state.time, state.recruitStatus[npc.charId]));
-    state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemy(e, state.time, e === state.target, state.partyLevel));
-    state.partyUnits.forEach((u, i) => this._drawUnit(u, i === state.activeIndex, state.time));
-    state.projectiles.forEach((p) => this._drawProjectile(p, state.time));
-    state.effects.draw(ctx);
+    state.warps.forEach((w) => this._drawWarpArt(w, state.time));
+    if (state.questBoard) this._drawQuestBoardArt(state.questBoard);
+    state.storyNpcs.forEach((npc) => this._drawNpcArt(npc, this._villagerLook(npc.id, '#2e86c1'), state.time, 820));
+    if (state.shopNpc) this._drawNpcArt(state.shopNpc, this._villagerLook(`shop:${state.shopNpc.name}`, '#1e8449'), state.time, 900);
+    state.recruitNpcs.forEach((npc) => this._drawNpcArt(npc, this._recruitLook(npc.charDef), state.time, 760));
+    state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemyArt(e, state.time));
+    state.partyUnits.forEach((u) => this._drawUnitArt(u, state.time));
+    state.projectiles.forEach((p) => this._drawProjectile(p));
+    state.effects.drawShapes(b);
+    b.restore();
 
-    ctx.restore();
+    // ---- 2) 원래 해상도로 키워 붙이기 ----
+    const m = this.mainCtx;
+    this.ctx = m;
+    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.clearRect(0, 0, this.width, this.height);
+    m.imageSmoothingEnabled = false;
+    m.drawImage(this.buffer, 0, 0, this.width, this.height);
+
+    // ---- 3) 글자·체력바: 원래 해상도 ----
+    m.save();
+    m.translate(-this.cam, 0);
+    state.warps.forEach((w) => this._drawWarpLabel(w, w === state.warpPrompt));
+    if (state.questBoard) this._drawQuestBoardLabel(state.questBoard, state.time, state.boardHasQuest);
+    state.storyNpcs.forEach((npc) => this._drawStoryNpcLabel(npc, state.activeStoryNpcId, state.time));
+    if (state.shopNpc) this._drawShopNpcLabel(state.shopNpc, state.time);
+    state.recruitNpcs.forEach((npc) => this._drawRecruitNpcLabel(npc, state.time, state.recruitStatus[npc.charId]));
+    state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemyLabel(e, state.time, e === state.target, state.partyLevel));
+    state.partyUnits.forEach((u, i) => this._drawUnitLabel(u, i === state.activeIndex));
+    state.effects.drawTexts(m);
+    m.restore();
   }
 
   // ---------- 배경 ----------
@@ -74,9 +116,9 @@ class Renderer {
 
     // 지면 결
     ctx.strokeStyle = 'rgba(0,0,0,0.16)';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 2;
     const step = 46;
-    const offset = -(this.camX * 0.9) % step;
+    const offset = -(this.cam * 0.9) % step;
     for (let x = offset; x < this.width; x += step) {
       ctx.beginPath();
       ctx.moveTo(x, GROUND_Y + 12);
@@ -87,7 +129,7 @@ class Renderer {
 
   _drawFarLayer(theme) {
     const { ctx } = this;
-    const off = -(this.camX * 0.18) % 420;
+    const off = -(this.cam * 0.18) % 420;
     ctx.fillStyle = theme.far;
     for (let i = -1; i < this.width / 420 + 2; i++) {
       const bx = off + i * 420;
@@ -107,11 +149,9 @@ class Renderer {
   }
 
   _drawMidLayer(theme) {
-    const { ctx } = this;
-    const off = -(this.camX * 0.45) % 260;
+    const off = -(this.cam * 0.45) % 260;
     for (let i = -1; i < this.width / 260 + 2; i++) {
-      const bx = off + i * 260;
-      this._drawDecor(theme, bx);
+      this._drawDecor(theme, off + i * 260);
     }
   }
 
@@ -133,9 +173,9 @@ class Renderer {
         break;
       case 'deadtrees':
         ctx.fillRect(bx + 40, base - 70, 8, 70);
-        ctx.fillRect(bx + 44, base - 56, 34, 5);
-        ctx.fillRect(bx + 14, base - 44, 30, 5);
-        ctx.fillRect(bx + 170, base - 52, 7, 52);
+        ctx.fillRect(bx + 44, base - 56, 34, 6);
+        ctx.fillRect(bx + 14, base - 44, 30, 6);
+        ctx.fillRect(bx + 170, base - 52, 8, 52);
         ctx.fillRect(bx + 150, base - 40, 24, 4);
         break;
       case 'rocks':
@@ -207,12 +247,10 @@ class Renderer {
         ctx.fillRect(bx, base - 96, 220, 96);
         ctx.fillStyle = theme.accent;
         for (let i = 0; i < 6; i++) ctx.fillRect(bx + 8 + i * 36, base - 110, 22, 16);
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        ctx.lineWidth = 2;
         for (let r = 0; r < 4; r++) {
-          for (let c = 0; c < 6; c++) {
-            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-            ctx.strokeRect(bx + c * 37, base - 96 + r * 24, 37, 24);
-          }
+          for (let c = 0; c < 6; c++) ctx.strokeRect(bx + c * 37, base - 96 + r * 24, 37, 24);
         }
         break;
       case 'spikes':
@@ -238,16 +276,18 @@ class Renderer {
   _drawPlatform(p, theme) {
     const { ctx } = this;
     ctx.fillStyle = theme.accent;
-    ctx.fillRect(p.x, p.y, p.width, 9);
+    ctx.fillRect(p.x, p.y, p.width, 10);
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(p.x, p.y + 9, p.width, 6);
+    ctx.fillRect(p.x, p.y + 10, p.width, 6);
     ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.fillRect(p.x, p.y, p.width, 2);
+    // 나무 판자 이음새
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    for (let x = p.x + 40; x < p.x + p.width; x += 40) ctx.fillRect(x, p.y + 2, 2, 8);
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    [p.x + 16, p.x + p.width - 24].forEach((cx) => ctx.fillRect(cx, p.y + 15, 8, GROUND_Y - p.y - 15));
+    [p.x + 16, p.x + p.width - 24].forEach((cx) => ctx.fillRect(cx, p.y + 16, 8, GROUND_Y - p.y - 16));
   }
 
-  // ---------- 캐릭터 ----------
   _shadow(cx, bottomY, w) {
     const { ctx } = this;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -256,228 +296,115 @@ class Renderer {
     ctx.fill();
   }
 
-  _drawUnit(u, isActive, time) {
-    const { ctx } = this;
-    const cx = u.x + u.width / 2;
-    const bottom = u.y + u.height;
-    const moving = Math.abs(u.vx) > 5;
-    const phase = moving ? Math.sin(time / 90) : Math.sin(time / 420) * 0.3;
-    const atk = (u.attackAnim || 0) / 320;
-
-    this._shadow(cx, bottom, u.width);
-
-    ctx.save();
-    ctx.translate(cx, bottom);
-    // 쓰러진 캐릭터는 옆으로 눕고 회색으로 표시된다.
-    if (u.downed) {
-      ctx.rotate(-Math.PI / 2);
-      ctx.translate(-u.height * 0.35, u.width * 0.2);
-      ctx.globalAlpha = 0.45;
-    }
-    ctx.scale(u.facing >= 0 ? 1 : -1, 1);
-
-    if (u.hitFlash > 0) { ctx.globalAlpha = 0.55 + Math.sin(time / 40) * 0.2; }
-
-    const bodyH = u.height * 0.46;
-    const legH = u.height * 0.3;
-    const headR = u.height * 0.17;
-    const skin = '#f0c9a0';
-
-    // 다리
-    ctx.fillStyle = '#2f3542';
-    ctx.fillRect(-9, -legH, 7, legH + phase * 3);
-    ctx.fillRect(3, -legH, 7, legH - phase * 3);
-    // 몸통
-    ctx.fillStyle = u.color;
-    this._roundRect(-11, -legH - bodyH, 22, bodyH, 5);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 1.5;
-    this._roundRect(-11, -legH - bodyH, 22, bodyH, 5);
-    ctx.stroke();
-    // 갑옷 라인
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.fillRect(-11, -legH - bodyH * 0.55, 22, 3);
-    // 머리
-    const headY = -legH - bodyH - headR + 2;
-    ctx.fillStyle = skin;
-    ctx.beginPath();
-    ctx.arc(0, headY, headR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.beginPath();
-    ctx.arc(0, headY - headR * 0.25, headR, Math.PI, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#222';
-    ctx.fillRect(headR * 0.25, headY - 1, 2.5, 2.5);
-
-    // 무기 (스탠스별)
-    ctx.save();
-    ctx.translate(9, -legH - bodyH * 0.65);
-    ctx.rotate(-0.5 + atk * 1.9);
-    this._drawWeapon(u);
-    ctx.restore();
-
-    ctx.restore();
-
-    if (isActive) {
-      ctx.strokeStyle = '#f1c40f';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(cx - 6, u.y - 16);
-      ctx.lineTo(cx, u.y - 9);
-      ctx.lineTo(cx + 6, u.y - 16);
-      ctx.closePath();
-      ctx.fillStyle = '#f1c40f';
-      ctx.fill();
-    }
-
-    ctx.fillStyle = '#fff';
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(u.name, cx, u.y - 22);
-    this._drawBar(u.x, u.y - 18, u.width, 4, u.hp / u.maxHp, '#e74c3c');
+  // ---------- 캐릭터 ----------
+  _unitFrame(u, time) {
+    if (u.downed) return 'idle0';
+    if (Math.abs(u.vx) > 5 || !u.grounded) return Math.floor(time / 130) % 2 ? 'walk0' : 'walk1';
+    return Math.floor(time / 480) % 2 ? 'idle1' : 'idle0';
   }
 
-  _drawWeapon(u) {
+  // 스프라이트 윗변(모자 여유 포함). 이름·체력바를 이 위에 얹는다.
+  _unitTop(u) {
+    return u.y + u.height - (UNIT_H + UNIT_HEADROOM) * PIXEL_SCALE;
+  }
+
+  _drawUnitArt(u, time) {
     const { ctx } = this;
-    const type = u.stance ? u.stance.attackType : 'melee';
-    const id = u.stance ? u.stance.id : 'bare';
-    if (id === 'bare') {
-      ctx.fillStyle = '#f0c9a0';
-      ctx.beginPath(); ctx.arc(2, 2, 4, 0, Math.PI * 2); ctx.fill();
+    const S = PIXEL_SCALE;
+    const frame = this._unitFrame(u, time);
+    const spr = unitSprite(u, frame);
+    const w = spr.width * S;
+    const h = spr.height * S;
+    const cx = u.x + u.width / 2;
+    const bottom = u.y + u.height;
+    const flip = u.facing < 0;
+
+    this._shadow(cx, bottom, u.width);
+    ctx.save();
+    if (u.downed) {
+      // 쓰러지면 옆으로 눕고 흐려진다.
+      ctx.globalAlpha = 0.5;
+      ctx.translate(snapPx(cx), snapPx(bottom - w / 2));
+      ctx.rotate(-Math.PI / 2);
+      drawSprite(ctx, spr, -w / 2, -h, S, flip);
+      ctx.restore();
       return;
     }
-    if (type === 'melee') {
-      if (id === 'spear') {
-        ctx.fillStyle = '#8d6e3a'; ctx.fillRect(-2, -30, 4, 46);
-        ctx.fillStyle = '#dfe6ec';
-        ctx.beginPath(); ctx.moveTo(-5, -30); ctx.lineTo(0, -46); ctx.lineTo(5, -30); ctx.closePath(); ctx.fill();
-      } else if (id === 'dualblade') {
-        ctx.fillStyle = '#dfe6ec'; ctx.fillRect(-2, -26, 4, 28); ctx.fillRect(6, -20, 4, 22);
-        ctx.fillStyle = '#6b4f2a'; ctx.fillRect(-4, 0, 8, 6); ctx.fillRect(4, -2, 8, 6);
-      } else if (id === 'fist') {
-        ctx.fillStyle = '#b0b7bd'; this._roundRect(-6, -6, 13, 12, 3); ctx.fill();
-      } else {
-        ctx.fillStyle = '#dfe6ec'; ctx.fillRect(-2.5, -34, 5, 36);
-        ctx.fillStyle = '#c0a062'; ctx.fillRect(-8, -2, 16, 4);
-        ctx.fillStyle = '#6b4f2a'; ctx.fillRect(-3, 2, 6, 10);
-      }
-      return;
+    if (u.hitFlash > 0) ctx.globalAlpha = 0.55 + Math.sin(time / 40) * 0.2;
+    const sx = snapPx(cx - w / 2);
+    const sy = snapPx(bottom - h);
+    drawSprite(ctx, spr, sx, sy, S, flip);
+    this._drawHeldWeapon(u, sx, sy, flip, frame);
+    ctx.restore();
+  }
+
+  // 현재 스탠스의 무기를 앞손에 쥐여 그린다. 공격 중이면 휘두르거나 반동을 준다.
+  _drawHeldWeapon(u, sx, sy, flip, frame) {
+    const gear = heldWeaponGear(u);
+    if (!gear) return;
+    const { ctx } = this;
+    const S = PIXEL_SCALE;
+    const grip = WEAPON_GRIP[STANCE_SHAPE[gear.stanceId]] || WEAPON_GRIP.sword;
+    const bob = frame === 'idle1' || frame === 'walk1' ? 1 : 0;
+    const handCol = 12.5;
+    const handRow = UNIT_HEADROOM + 16.5 + bob;
+    const hx = flip ? sx + (UNIT_W - handCol) * S : sx + handCol * S;
+    const hy = sy + handRow * S;
+
+    const t = clamp((u.attackAnim || 0) / 320, 0, 1);
+    // t가 1→0으로 줄어드는 동안 뒤로 젖혔다가 앞으로 내리친다.
+    const angle = grip.angle + (t > 0 ? grip.swing * ((1 - t) * 1.8 - 0.9) : 0);
+    const recoil = grip.swing === 0 ? -t * 4 : 0;
+
+    ctx.save();
+    ctx.translate(hx, hy);
+    if (flip) ctx.scale(-1, 1);
+    ctx.rotate(angle);
+    drawSprite(ctx, itemSprite(gear.itemId), -grip.gx * S + recoil, -grip.gy * S, S);
+    ctx.restore();
+  }
+
+  _drawUnitLabel(u, isActive) {
+    const { ctx } = this;
+    const cx = u.x + u.width / 2;
+    const top = u.downed ? u.y + u.height - 34 : this._unitTop(u);
+
+    if (isActive) {
+      ctx.fillStyle = '#f1c40f';
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 6, top - 33);
+      ctx.lineTo(cx, top - 25);
+      ctx.lineTo(cx + 6, top - 33);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
     }
-    if (type === 'ranged') {
-      if (id === 'musket') {
-        ctx.fillStyle = '#5d4632'; ctx.fillRect(-4, -4, 30, 6);
-        ctx.fillStyle = '#9aa3a8'; ctx.fillRect(20, -3, 14, 3);
-      } else if (id === 'crossbow') {
-        ctx.fillStyle = '#5d4632'; ctx.fillRect(-2, -2, 26, 5);
-        ctx.strokeStyle = '#9aa3a8'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(14, -12); ctx.lineTo(14, 12); ctx.stroke();
-      } else {
-        ctx.strokeStyle = '#8d6e3a'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(0, 0, 20, -Math.PI / 2.2, Math.PI / 2.2); ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(2, -18); ctx.lineTo(2, 18); ctx.stroke();
-      }
-      return;
-    }
-    // 마법 지팡이
-    const color = elementColor(u.stance.element);
-    ctx.fillStyle = '#6b4f2a'; ctx.fillRect(-2, -34, 4, 48);
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(0, -38, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.beginPath(); ctx.arc(-2, -40, 2, 0, Math.PI * 2); ctx.fill();
+    this._text(u.name, cx, top - 11, '#fff', '11px sans-serif');
+    this._drawBar(u.x, top - 8, u.width, 4, u.hp / u.maxHp, '#e74c3c');
   }
 
   // ---------- 몬스터 ----------
-  _drawEnemy(e, time, isTarget, partyLevel) {
+  _enemyScale(e) { return e.boss ? BOSS_PIXEL_SCALE : PIXEL_SCALE; }
+
+  _enemyTop(e) {
+    return Math.min(e.y, e.y + e.height - UNIT_H * this._enemyScale(e));
+  }
+
+  _drawEnemyArt(e, time) {
     const { ctx } = this;
+    const S = this._enemyScale(e);
+    const moving = Math.abs(e.vx) > 5;
+    const frame = moving && Math.floor(time / 150) % 2 ? 'b' : 'a';
+    const spr = monsterSprite(e, frame);
+    const w = spr.width * S;
+    const h = spr.height * S;
     const cx = e.x + e.width / 2;
     const bottom = e.y + e.height;
-    const hostile = e.aggressive || e.provoked;
-    const moving = Math.abs(e.vx) > 5;
-    const phase = moving ? Math.sin(time / 100) : Math.sin(time / 500) * 0.4;
-    const atk = (e.attackAnim || 0) / 260;
+    const lunge = (e.attackAnim || 0) > 0 ? e.facing * 6 : 0;
 
-    this._shadow(cx, bottom, e.width);
-
-    ctx.save();
-    ctx.translate(cx, bottom);
-    ctx.scale(e.facing >= 0 ? 1 : -1, 1);
-    if (e.hitFlash > 0) ctx.globalAlpha = 0.6;
-
-    const body = hostile ? '#8e2f2f' : '#4a6b46';
-    const dark = hostile ? '#5c1d1d' : '#2f4a2d';
-
-    if (e.race === 'beast') {
-      ctx.fillStyle = body;
-      this._roundRect(-16, -26, 32, 18, 7); ctx.fill();
-      ctx.fillStyle = dark;
-      ctx.fillRect(-13, -9, 5, 9 + phase * 2);
-      ctx.fillRect(8, -9, 5, 9 - phase * 2);
-      ctx.fillStyle = body;
-      ctx.beginPath(); ctx.arc(15, -26, 9, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = dark;
-      ctx.beginPath(); ctx.moveTo(10, -34); ctx.lineTo(14, -42); ctx.lineTo(18, -34); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#ffe08a';
-      ctx.fillRect(17, -28, 3, 2);
-    } else if (e.race === 'undead') {
-      ctx.fillStyle = '#d9d3c0';
-      ctx.fillRect(-8, -30, 16, 22);
-      ctx.fillStyle = dark;
-      for (let i = 0; i < 3; i++) ctx.fillRect(-8, -28 + i * 7, 16, 2);
-      ctx.fillStyle = '#d9d3c0';
-      ctx.fillRect(-7, -8, 5, 8 + phase * 2);
-      ctx.fillRect(3, -8, 5, 8 - phase * 2);
-      ctx.beginPath(); ctx.arc(0, -38, 9, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#7b1e1e';
-      ctx.fillRect(-5, -40, 3.5, 3.5); ctx.fillRect(2, -40, 3.5, 3.5);
-      ctx.fillStyle = '#b0a890';
-      ctx.save(); ctx.rotate(-0.4 + atk * 1.4); ctx.fillRect(10, -34, 3, 30); ctx.restore();
-    } else if (e.race === 'inanimate') {
-      ctx.fillStyle = '#6d6a58';
-      this._roundRect(-16, -40, 32, 32, 4); ctx.fill();
-      ctx.fillStyle = '#565343';
-      ctx.fillRect(-13, -8, 10, 8);
-      ctx.fillRect(4, -8, 10, 8);
-      ctx.fillStyle = '#8a8775';
-      ctx.fillRect(-18, -36, 6, 18); ctx.fillRect(12, -36, 6, 18);
-      ctx.fillStyle = '#f1c40f';
-      ctx.fillRect(-7, -30, 5, 4); ctx.fillRect(3, -30, 5, 4);
-    } else if (e.race === 'demon') {
-      ctx.fillStyle = body;
-      this._roundRect(-12, -34, 24, 26, 5); ctx.fill();
-      ctx.fillStyle = dark;
-      ctx.fillRect(-9, -9, 7, 9 + phase * 2);
-      ctx.fillRect(2, -9, 7, 9 - phase * 2);
-      ctx.fillStyle = body;
-      ctx.beginPath(); ctx.arc(0, -43, 9, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#2c0f14';
-      ctx.beginPath(); ctx.moveTo(-9, -48); ctx.lineTo(-14, -60); ctx.lineTo(-4, -50); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(9, -48); ctx.lineTo(14, -60); ctx.lineTo(4, -50); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#ffdd57';
-      ctx.fillRect(-6, -45, 4, 3); ctx.fillRect(3, -45, 4, 3);
-      ctx.save(); ctx.rotate(-0.5 + atk * 1.8);
-      ctx.fillStyle = '#cfd6dc'; ctx.fillRect(12, -36, 4, 30); ctx.restore();
-    } else { // humanoid
-      ctx.fillStyle = body;
-      this._roundRect(-10, -32, 20, 24, 4); ctx.fill();
-      ctx.fillStyle = dark;
-      ctx.fillRect(-8, -9, 6, 9 + phase * 2);
-      ctx.fillRect(2, -9, 6, 9 - phase * 2);
-      ctx.fillStyle = '#e0b088';
-      ctx.beginPath(); ctx.arc(0, -40, 8, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = dark;
-      ctx.fillRect(-8, -46, 16, 5);
-      ctx.fillStyle = '#222';
-      ctx.fillRect(2, -40, 2.5, 2.5);
-      ctx.save(); ctx.rotate(-0.4 + atk * 1.6);
-      ctx.fillStyle = '#cfd6dc'; ctx.fillRect(10, -32, 3.5, 26); ctx.restore();
-    }
-    ctx.restore();
-
-    // 보스 예고 연출: 머리 위 경고 + 강타 범위 표시
+    // 보스 예고: 강타 범위·돌진 경로를 바닥에 깐다(글자는 라벨 층에서).
     if (e.boss && e.phase === 'telegraph' && e.current) {
       const blink = 0.35 + Math.abs(Math.sin(time / 90)) * 0.5;
       if (e.current.type === 'slam') {
@@ -493,124 +420,118 @@ class Renderer {
         const len = 260;
         ctx.fillRect(e.facing > 0 ? cx : cx - len, e.y, len, e.height);
       }
-      ctx.fillStyle = `rgba(255,80,60,${blink})`;
-      ctx.font = 'bold 13px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`⚠ ${e.current.warn}`, cx, e.y - 26);
     }
 
-    if (isTarget) {
-      ctx.strokeStyle = '#f1c40f';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(e.x - 3, e.y - 3, e.width + 6, e.height + 6);
-    }
-
-    // 레벨 차로 색을 바꿔, 이 사냥터가 지금 내 수준에 맞는지 한눈에 보이게 한다.
-    ctx.fillStyle = dangerColor(e.level, partyLevel);
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(`${hostile ? '▲' : '○'} Lv.${e.level} ${e.name}`, cx, e.y - 8);
-    this._drawBar(e.x, e.y - 5, e.width, 4, e.hp / e.maxHp, hostile ? '#c0392b' : '#7dcea0');
-  }
-
-  // ---------- NPC ----------
-  _npcBody(npc, bodyColor, time, bobSpeed = 700) {
-    const { ctx } = this;
-    const cx = npc.x + npc.width / 2;
-    const bottom = npc.y + npc.height;
-    const bob = Math.sin(time / bobSpeed) * 1.5;
-    this._shadow(cx, bottom, npc.width);
+    this._shadow(cx, bottom, e.boss ? w * 0.8 : e.width);
     ctx.save();
-    ctx.translate(cx, bottom + bob);
-    ctx.fillStyle = '#2f3542';
-    ctx.fillRect(-8, -14, 6, 14);
-    ctx.fillRect(2, -14, 6, 14);
-    ctx.fillStyle = bodyColor;
-    this._roundRect(-11, -38, 22, 24, 5); ctx.fill();
-    ctx.fillStyle = '#f0c9a0';
-    ctx.beginPath(); ctx.arc(0, -46, 8.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.beginPath(); ctx.arc(0, -48, 8.5, Math.PI, Math.PI * 2); ctx.fill();
+    if (e.name.includes('망령')) ctx.globalAlpha = 0.8; // 망령은 반투명
+    if (e.hitFlash > 0) ctx.globalAlpha *= 0.55;
+    drawSprite(ctx, spr, snapPx(cx - w / 2 + lunge), snapPx(bottom - h), S, e.facing < 0);
     ctx.restore();
   }
 
-  // status: 'available'(수락 가능) / 'active'(진행 중) / 'ready'(완료, 돌아오면 영입) / 'done'(영입 완료)
-  _drawRecruitNpc(npc, time, status) {
+  _drawEnemyLabel(e, time, isTarget, partyLevel) {
     const { ctx } = this;
+    const cx = e.x + e.width / 2;
+    const top = this._enemyTop(e);
+    const hostile = e.aggressive || e.provoked;
+
+    if (e.boss && e.phase === 'telegraph' && e.current) {
+      const blink = 0.35 + Math.abs(Math.sin(time / 90)) * 0.5;
+      this._text(`⚠ ${e.current.warn}`, cx, top - 22, `rgba(255,80,60,${blink})`, 'bold 13px sans-serif');
+    }
+    if (isTarget) {
+      ctx.strokeStyle = '#f1c40f';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(e.x - 3, top - 3, e.width + 6, e.y + e.height - top + 6);
+    }
+    // 레벨 차로 색을 바꿔, 이 사냥터가 지금 내 수준에 맞는지 한눈에 보이게 한다.
+    this._text(`${hostile ? '▲' : '○'} Lv.${e.level} ${e.name}`, cx, top - 8, dangerColor(e.level, partyLevel), '10px sans-serif');
+    this._drawBar(e.x, top - 5, e.width, 4, e.hp / e.maxHp, hostile ? '#c0392b' : '#7dcea0');
+  }
+
+  // ---------- NPC ----------
+  // NPC도 캐릭터와 같은 도트 틀을 쓴다. 영입 NPC는 영입 후 모습과 똑같이 보인다.
+  _recruitLook(charDef) {
+    return this._cachedLook(`recruit:${charDef.id}`, () => ({
+      defId: charDef.id, color: charDef.color, armorClass: ARMOR_CLASS_BY_TYPE[charDef.attackType], equipment: null,
+    }));
+  }
+
+  _villagerLook(id, color) {
+    return this._cachedLook(`npc:${id}`, () => ({ defId: `npc:${id}`, color, armorClass: 'light', equipment: null }));
+  }
+
+  _cachedLook(key, make) {
+    let look = this._npcLooks.get(key);
+    if (!look) { look = make(); this._npcLooks.set(key, look); }
+    return look;
+  }
+
+  _npcTop(npc) { return npc.y + npc.height - (UNIT_H + UNIT_HEADROOM) * PIXEL_SCALE; }
+
+  _drawNpcArt(npc, look, time, bobSpeed) {
+    const S = PIXEL_SCALE;
+    const frame = Math.floor(time / bobSpeed) % 2 ? 'idle1' : 'idle0';
+    const spr = unitSprite(look, frame);
     const cx = npc.x + npc.width / 2;
-    this._npcBody(npc, npc.charDef.color, time, 760);
+    const bottom = npc.y + npc.height;
+    this._shadow(cx, bottom, npc.width);
+    // NPC는 왼쪽(마을 입구 쪽)을 바라보게 둔다.
+    drawSprite(this.ctx, spr, snapPx(cx - spr.width * S / 2), snapPx(bottom - spr.height * S), S, true);
+  }
+
+  // status: 'available'(수락 가능) / 'active'(진행 중) / 'ready'(완료, 돌아오면 영입) / 'done'(영입 완료)
+  _drawRecruitNpcLabel(npc, time, status) {
+    const cx = npc.x + npc.width / 2;
+    const top = this._npcTop(npc);
     const mark = { available: '!', active: '…', ready: '?', done: '✓' }[status] || '!';
     const markColor = { available: '#f1c40f', active: '#95a5a6', ready: '#f1c40f', done: '#2ecc71' }[status] || '#f1c40f';
     const bob = status === 'active' || status === 'done' ? 0 : Math.sin(time / 300) * 2;
-    ctx.fillStyle = markColor;
-    ctx.font = 'bold 14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(mark, cx, npc.y - 16 + bob);
-    ctx.fillStyle = status === 'done' ? '#8fbf9f' : '#fff';
-    ctx.font = '11px sans-serif';
-    ctx.fillText(npc.name, cx, npc.y - 3);
+    this._text(mark, cx, top - 17 + bob, markColor, 'bold 14px sans-serif');
+    this._text(npc.name, cx, top - 3, status === 'done' ? '#8fbf9f' : '#fff', '11px sans-serif');
   }
 
-  _drawStoryNpc(npc, activeId, time) {
-    const { ctx } = this;
+  _drawStoryNpcLabel(npc, activeId, time) {
     const cx = npc.x + npc.width / 2;
+    const top = this._npcTop(npc);
     const isActive = npc.id === activeId;
-    this._npcBody(npc, '#2e86c1', time, 820);
-    if (isActive) {
-      ctx.fillStyle = '#f1c40f';
-      ctx.font = 'bold 16px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('!', cx, npc.y - 16 + Math.sin(time / 260) * 3);
-    }
-    ctx.fillStyle = isActive ? '#f9e79f' : '#d6eaf8';
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(npc.name, cx, npc.y - 3);
+    if (isActive) this._text('!', cx, top - 17 + Math.sin(time / 260) * 3, '#f1c40f', 'bold 16px sans-serif');
+    this._text(npc.name, cx, top - 3, isActive ? '#f9e79f' : '#d6eaf8', '11px sans-serif');
   }
 
-  _drawShopNpc(npc, time) {
-    const { ctx } = this;
+  _drawShopNpcLabel(npc, time) {
     const cx = npc.x + npc.width / 2;
-    this._npcBody(npc, '#1e8449', time, 900);
-    ctx.fillStyle = '#f1c40f';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('$', cx, npc.y - 16 + Math.sin(time / 340) * 2);
-    ctx.fillStyle = '#abebc6';
-    ctx.font = '11px sans-serif';
-    ctx.fillText(npc.name, cx, npc.y - 3);
+    const top = this._npcTop(npc);
+    this._text('$', cx, top - 17 + Math.sin(time / 340) * 2, '#f1c40f', 'bold 13px sans-serif');
+    this._text(npc.name, cx, top - 3, '#abebc6', '11px sans-serif');
   }
 
   // 의뢰 게시판: 나무 기둥에 걸린 공고판.
-  _drawQuestBoard(b, time, hasQuest) {
+  _drawQuestBoardArt(b) {
     const { ctx } = this;
-    const cx = b.x + b.width / 2;
-    this._shadow(cx, b.y + b.height, b.width);
+    this._shadow(b.x + b.width / 2, b.y + b.height, b.width);
     ctx.fillStyle = '#6b4f2a';
     ctx.fillRect(b.x + 6, b.y + 28, 6, b.height - 28);
     ctx.fillRect(b.x + b.width - 12, b.y + 28, 6, b.height - 28);
+    ctx.fillStyle = '#5a4020';
+    ctx.fillRect(b.x, b.y, b.width, 34);
     ctx.fillStyle = '#8d6e3a';
-    this._roundRect(b.x, b.y, b.width, 34, 3); ctx.fill();
-    ctx.strokeStyle = '#5a4020'; ctx.lineWidth = 2;
-    this._roundRect(b.x, b.y, b.width, 34, 3); ctx.stroke();
+    ctx.fillRect(b.x + 2, b.y + 2, b.width - 4, 30);
     ctx.fillStyle = '#f2e6c8';
     ctx.fillRect(b.x + 6, b.y + 6, 14, 10);
     ctx.fillRect(b.x + 24, b.y + 8, 14, 12);
     ctx.fillRect(b.x + 8, b.y + 20, 12, 8);
-    if (hasQuest) {
-      ctx.fillStyle = '#f1c40f';
-      ctx.font = 'bold 15px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('!', cx, b.y - 12 + Math.sin(time / 280) * 2);
-    }
-    ctx.fillStyle = '#f9e79f';
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(b.name, cx, b.y - 2);
+  }
+
+  _drawQuestBoardLabel(b, time, hasQuest) {
+    const cx = b.x + b.width / 2;
+    if (hasQuest) this._text('!', cx, b.y - 12 + Math.sin(time / 280) * 2, '#f1c40f', 'bold 15px sans-serif');
+    this._text(b.name, cx, b.y - 2, '#f9e79f', '11px sans-serif');
   }
 
   // ---------- 워프 ----------
-  _drawWarp(w, time, prompt = false) {
+  _drawWarpArt(w, time) {
     const { ctx } = this;
     const cx = w.x + w.width / 2;
     const cy = w.y + w.height / 2;
@@ -626,7 +547,7 @@ class Renderer {
     ctx.fill();
 
     ctx.strokeStyle = `rgba(140, 220, 255, ${pulse})`;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     for (let i = 0; i < 3; i++) {
       const spin = time / (500 + i * 160);
       ctx.save();
@@ -637,52 +558,41 @@ class Renderer {
       ctx.stroke();
       ctx.restore();
     }
-
-    ctx.fillStyle = '#8ad6ff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(`${w.type === 'town' ? '🏠' : '⚔'} ${w.label}`, cx, w.y - 10);
-    if (prompt) {
-      ctx.fillStyle = '#f1c40f';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.fillText('↑ 눌러 이동', cx, w.y - 26);
-    } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.65)';
-      ctx.font = '9px sans-serif';
-      ctx.fillText(`Lv.${w.level}+ · ↑로 이동`, cx, w.y - 24);
-    }
   }
 
-  _drawProjectile(p, time) {
+  _drawWarpLabel(w, prompt) {
+    const cx = w.x + w.width / 2;
+    this._text(`${w.type === 'town' ? '🏠' : '⚔'} ${w.label}`, cx, w.y - 10, '#8ad6ff', 'bold 11px sans-serif');
+    if (prompt) this._text('↑ 눌러 이동', cx, w.y - 26, '#f1c40f', 'bold 11px sans-serif');
+    else this._text(`Lv.${w.level}+ · ↑로 이동`, cx, w.y - 24, 'rgba(255,255,255,0.65)', '9px sans-serif');
+  }
+
+  _drawProjectile(p) {
     const { ctx } = this;
     ctx.save();
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = 0.4;
     ctx.fillStyle = p.color;
     for (let i = 1; i <= 3; i++) {
-      ctx.beginPath();
-      ctx.arc(p.x - Math.sign(p.vx) * i * 7, p.y, 4.5 - i, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(p.x - Math.sign(p.vx) * i * 8 - 3, p.y - 3, 6, 6);
     }
     ctx.restore();
-    const grad = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, 8);
-    grad.addColorStop(0, '#fff');
-    grad.addColorStop(0.5, p.color);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p.x - 4, p.y - 4, 8, 8);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - 6, p.y - 2, 12, 4);
+    ctx.fillRect(p.x - 2, p.y - 6, 4, 12);
   }
 
-  _roundRect(x, y, w, h, r) {
+  // ---------- 공통 ----------
+  _text(str, x, y, color, font) {
     const { ctx } = this;
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+    ctx.strokeText(str, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(str, x, y);
   }
 
   _drawBar(x, y, w, h, ratio, color) {

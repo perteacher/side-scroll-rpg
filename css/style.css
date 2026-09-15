@@ -414,3 +414,12 @@ html, body {
   font-size: 11px; padding: 4px 10px; background: #2c2c44; border: 1px solid #555;
   color: #fff; border-radius: 3px; cursor: pointer;
 }
+
+/* ---- 도트 아이템 아이콘 ---- */
+.item-icon {
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  vertical-align: middle; margin-right: 5px; flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.04); border-radius: 3px;
+}
+.shop-meta .item-icon, .q-meta .item-icon { margin-right: 2px; background: none; }
+.inv-row .inv-name { display: flex; align-items: center; flex: 1; }

@@ -55,10 +55,10 @@ class EffectManager {
   }
 
   // 획득 표시: 데미지 숫자보다 느리게 오래 떠 있어야 사냥 중에도 읽힌다.
-  loot(x, y, text, color) {
+  loot(x, y, text, color, itemId = null) {
     this._add({
       kind: 'text', x, y, vy: -24, life: 1500, maxLife: 1500,
-      text, color: color || '#f1c40f', size: 12, crit: false,
+      text, color: color || '#f1c40f', size: 12, crit: false, itemId,
     });
   }
 
@@ -90,13 +90,14 @@ class EffectManager {
     this.items = this.items.filter((it) => it.life > 0);
   }
 
-  draw(ctx) {
+  // 도형 이펙트는 도트 버퍼(반해상도)에, 글자는 원래 해상도에 그린다. 글자까지 버퍼에 넣으면 뭉개진다.
+  drawShapes(ctx) {
     this.items.forEach((it) => {
+      if (it.kind === 'text') return;
       const t = clamp(it.life / it.maxLife, 0, 1);
       ctx.save();
       ctx.globalAlpha = t;
-      if (it.kind === 'text') this._drawText(ctx, it, t);
-      else if (it.kind === 'slash') this._drawSlash(ctx, it, t);
+      if (it.kind === 'slash') this._drawSlash(ctx, it, t);
       else if (it.kind === 'spark') this._drawSpark(ctx, it);
       else if (it.kind === 'burst') this._drawBurst(ctx, it, t);
       else if (it.kind === 'cast') this._drawCast(ctx, it, t);
@@ -105,9 +106,25 @@ class EffectManager {
     });
   }
 
+  drawTexts(ctx) {
+    this.items.forEach((it) => {
+      if (it.kind !== 'text') return;
+      const t = clamp(it.life / it.maxLife, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = t;
+      this._drawText(ctx, it, t);
+      ctx.restore();
+    });
+  }
+
   _drawText(ctx, it, t) {
     const pop = it.crit ? 1 + (1 - t) * 0.35 : 1;
     ctx.font = `bold ${Math.round(it.size * pop)}px sans-serif`;
+    // 획득 표시는 글자 왼쪽에 도트 아이콘을 붙인다.
+    if (it.itemId) {
+      const half = ctx.measureText(it.text).width / 2;
+      drawSprite(ctx, itemSprite(it.itemId), it.x - half - 20, it.y - 15, 1.25);
+    }
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,0.8)';
