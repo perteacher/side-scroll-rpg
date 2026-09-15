@@ -154,7 +154,9 @@ function updateBossAI(boss, partyUnits, dt, ctx) {
       alive.forEach((u) => {
         if (!aabbIntersect(boss, u) || u.chargeHitBy === boss.uid) return;
         u.chargeHitBy = boss.uid;
-        _bossHit(u, boss.current.damage * (boss.enraged ? 1.35 : 1), ctx);
+        const dmg = boss.current.damage * (boss.enraged ? 1.35 : 1);
+        _bossHit(u, dmg, ctx);
+        bossPatternStatus(u, 'charge', dmg);
       });
     }
     if (boss.phaseTimer <= 0) {
@@ -204,7 +206,9 @@ function _startBossPattern(boss, nearest, ctx) {
     ctx.partyUnits.forEach((u) => {
       if (u.hp <= 0 || u.downed) return;
       const d = Math.abs((u.x + u.width / 2) - cx);
-      if (d <= p.radius) _bossHit(u, p.damage * mult, ctx);
+      if (d > p.radius) return;
+      _bossHit(u, p.damage * mult, ctx);
+      bossPatternStatus(u, 'slam', p.damage * mult);
     });
     boss.phase = 'idle';
     boss.patternTimer = p.cooldown * (boss.enraged ? 0.65 : 1);
@@ -237,6 +241,13 @@ function _startBossPattern(boss, nearest, ctx) {
   boss.phase = 'active';
   boss.phaseTimer = 600;
   ctx.partyUnits.forEach((u) => { u.chargeHitBy = null; });
+}
+
+// 보스 패턴에 맞은 파티원에게 상태이상. 내려찍기 기절은 공중에 있으면 피한다.
+function bossPatternStatus(unit, patternType, damage) {
+  const s = BOSS_PATTERN_STATUS[patternType];
+  if (!s || (s.groundedOnly && !unit.grounded)) return;
+  applyStatus(unit, s.id, { durationMs: s.durationMs, hitDmg: damage });
 }
 
 function _bossHit(unit, damage, ctx) {
@@ -280,12 +291,16 @@ function performBasicAttack(unit, target, spawnProjectile) {
     const dist = Math.abs((target.x + target.width / 2) - (unit.x + unit.width / 2));
     if (dist <= stance.range && sameLevel(unit, target)) {
       applyDamageToEnemy(target, dmg, isCrit, roll.miss);
-      if (!roll.miss) applyLifesteal(unit, dmg);
+      if (!roll.miss) {
+        applyLifesteal(unit, dmg);
+        rollStatuses(target, basicAttackStatuses(stance), { hitDmg: dmg, source: unit });
+      }
     }
   } else if (roll.miss) {
     applyDamageToEnemy(target, 0, false, true);
   } else {
-    spawnProjectile(unit, target, dmg, isCrit, elementColor(stance.element));
+    const p = spawnProjectile(unit, target, dmg, isCrit, elementColor(stance.element));
+    if (p) p.statuses = basicAttackStatuses(stance);
   }
 }
 
@@ -305,18 +320,24 @@ function elementColor(element) {
   return '#ecf0f1';
 }
 
-function applyDamageToEnemy(enemy, dmg, isCrit, miss) {
+// opts.dot: 상태이상 도트 피해(STATUS_DATA 항목) — 타격음·스파크 없이 상태 색 숫자만 띄운다.
+function applyDamageToEnemy(enemy, dmg, isCrit, miss, opts = {}) {
   if (miss) {
     if (EFFECTS) EFFECTS.damage(enemy.x + enemy.width / 2, enemy.y - 4, 0, { text: 'MISS', color: '#bdc3c7' });
     if (SOUND) SOUND.miss();
     enemy.provoked = true;
     return;
   }
-  if (SOUND) SOUND.hit(isCrit);
+  const dot = opts.dot || null;
+  // 감전·빙결은 받는 피해를 늘린다(도트 포함).
+  dmg = Math.max(1, Math.round(dmg * statusDamageTakenMult(enemy)));
+  if (SOUND && !dot) SOUND.hit(isCrit);
   enemy.hp = Math.max(0, enemy.hp - dmg);
   enemy.provoked = true; // 비선공 몹도 맞으면 반격한다
-  enemy.hitFlash = 160;
-  if (EFFECTS) {
+  if (!dot) enemy.hitFlash = 160;
+  if (EFFECTS && dot) {
+    EFFECTS.damage(enemy.x + enemy.width / 2, enemy.y - 4, dmg, { color: dot.color });
+  } else if (EFFECTS) {
     EFFECTS.damage(enemy.x + enemy.width / 2, enemy.y - 4, dmg, { crit: isCrit });
     EFFECTS.spark(enemy.x + enemy.width / 2, enemy.y + enemy.height * 0.5, isCrit ? '#f5b041' : '#ffe08a');
   }

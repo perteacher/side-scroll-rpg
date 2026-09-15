@@ -27,6 +27,7 @@ const KEY_GUIDE = [
   ['K', '컬렉션 (몬스터·링크)'],
   ['O', '설정'],
   ['Esc', '창 닫기'],
+  ['F11', '전체 화면'],
   ['마우스', 'NPC·게시판·몹 클릭'],
 ];
 
@@ -278,19 +279,35 @@ class UIManager {
     el.style.transform = 'none';
   }
 
+  // 화면 배율로 커진 #game-root의 실제 위치와 배율. 창 좌표는 늘 배율을 뺀 960×540 기준으로 다룬다.
+  _rootRect() {
+    const root = document.getElementById('game-root');
+    const r = root.getBoundingClientRect();
+    return { r, k: r.width / root.offsetWidth || 1, width: root.offsetWidth, height: root.offsetHeight };
+  }
+
+  _localRect(el, root = this._rootRect()) {
+    const b = el.getBoundingClientRect();
+    const left = (b.left - root.r.left) / root.k;
+    const top = (b.top - root.r.top) / root.k;
+    const width = b.width / root.k;
+    const height = b.height / root.k;
+    return { left, top, width, height, right: left + width, bottom: top + height };
+  }
+
   _makeDraggable(el, handle) {
     if (!el || !handle) return;
     handle.style.cursor = 'move';
     handle.addEventListener('pointerdown', (e) => {
       if (e.target.tagName === 'BUTTON') return; // 닫기·최소화 버튼은 그대로 동작해야 한다
-      const root = document.getElementById('game-root').getBoundingClientRect();
-      const box = el.getBoundingClientRect();
-      const offX = e.clientX - box.left;
-      const offY = e.clientY - box.top;
+      const root = this._rootRect();
+      const box = this._localRect(el, root);
+      const offX = (e.clientX - root.r.left) / root.k - box.left;
+      const offY = (e.clientY - root.r.top) / root.k - box.top;
       const move = (ev) => {
         // 제목 표시줄이 화면 밖으로 나가면 다시 못 잡으므로 경계를 물린다.
-        const x = clamp(ev.clientX - root.left - offX, 0, root.width - box.width);
-        const y = clamp(ev.clientY - root.top - offY, 0, root.height - 28);
+        const x = clamp((ev.clientX - root.r.left) / root.k - offX, 0, root.width - box.width);
+        const y = clamp((ev.clientY - root.r.top) / root.k - offY, 0, root.height - 28);
         this._setWindowPos(el, x, y);
         el.dataset.userPos = '1';
       };
@@ -306,10 +323,9 @@ class UIManager {
   }
 
   _saveWindowPos(el) {
-    const root = document.getElementById('game-root').getBoundingClientRect();
-    const box = el.getBoundingClientRect();
+    const box = this._localRect(el);
     const all = { ...(SettingsManager.values.windowPos || {}) };
-    all[el.id] = { x: Math.round(box.left - root.left), y: Math.round(box.top - root.top) };
+    all[el.id] = { x: Math.round(box.left), y: Math.round(box.top) };
     SettingsManager.set('windowPos', all);
   }
 
@@ -317,18 +333,18 @@ class UIManager {
   // 셋 이상이면 제목 표시줄이 보이도록 계단식으로 비껴 놓는다.
   _placeWindow(el) {
     const saved = (SettingsManager.values.windowPos || {})[el.id];
-    const root = document.getElementById('game-root').getBoundingClientRect();
-    const box = el.getBoundingClientRect();
+    const root = this._rootRect();
+    const box = this._localRect(el, root);
     if (saved) {
       this._setWindowPos(el, clamp(saved.x, 0, root.width - box.width), clamp(saved.y, 0, root.height - 28));
       return;
     }
     const others = [...document.querySelectorAll('.game-window')]
       .filter((w) => w !== el && !w.classList.contains('hidden'))
-      .map((w) => w.getBoundingClientRect());
+      .map((w) => this._localRect(w, root));
     const overlaps = (x, y) => others.some((o) => !(
-      root.left + x + box.width <= o.left || root.left + x >= o.right
-      || root.top + y + box.height <= o.top || root.top + y >= o.bottom));
+      x + box.width <= o.left || x >= o.right
+      || y + box.height <= o.top || y >= o.bottom));
 
     const top = WINDOW_TOP;
     const free = [[10, top], [root.width - box.width - 10, top]].find(([x, y]) => !overlaps(x, y));
@@ -454,9 +470,11 @@ class UIManager {
           cdText.className = 'cd-text';
           b.appendChild(cdText);
           const tag = skillDef.type === 'aoe' ? '범위기' : '단일기';
+          const sts = skillStatuses(skillId);
+          const stText = sts.length ? ` · ${statusListText(sts.map((s) => ({ ...s, chance: s.chance + STATUS_CHANCE_PER_SKILL_LV * (Math.max(1, lv) - 1) })))}` : '';
           b.title = lv > 0
-            ? `${skillDef.name} Lv.${lv} (${tag})`
-            : `${skillDef.name} — 미습득 (${tag}, 요구 스탠스 Lv.${skillDef.reqLevel})`;
+            ? `${skillDef.name} Lv.${lv} (${tag})${stText}`
+            : `${skillDef.name} — 미습득 (${tag}, 요구 스탠스 Lv.${skillDef.reqLevel})${stText}`;
           b.addEventListener('click', () => this.onSkillPress && this.onSkillPress(slotIndex, i));
         }
         hotbar.appendChild(b);
@@ -475,13 +493,17 @@ class UIManager {
         const cdText = document.createElement('span');
         cdText.className = 'cd-text';
         sb.appendChild(cdText);
+        const sigSts = signatureStatuses(unit.signature);
         sb.title = open
-          ? `전용기 ${unit.signature.name} — ${signatureText(unit.signature)}`
+          ? `전용기 ${unit.signature.name} — ${signatureText(unit.signature)}${sigSts.length ? ` · ${statusListText(sigSts)}` : ''}`
           : `전용기 ${unit.signature.name} — Lv.${SIGNATURE_REQ_LEVEL}에 개방`;
         sb.addEventListener('click', () => this.onSignaturePress && this.onSignaturePress(slotIndex));
         hotbar.appendChild(sb);
       }
 
+      const statusRow = document.createElement('div');
+      statusRow.className = 'slot-status status-row';
+      portrait.appendChild(statusRow);
       slot.appendChild(portrait); slot.appendChild(info); slot.appendChild(modes); slot.appendChild(hotbar);
       wrap.appendChild(slot);
     });
@@ -516,6 +538,7 @@ class UIManager {
         b.classList.toggle('on', b.dataset.mode === unit.autoMode);
       });
       slot.classList.toggle('downed', !!unit.downed);
+      this._setStatusRow(slot.querySelector('.slot-status'), unit);
 
       // 전용기 쿨다운
       const sigBtn = slot.querySelector('.skill-btn[data-sig]');
@@ -724,11 +747,19 @@ class UIManager {
       const locked = st.level < sk.reqLevel;
       const power = lv > 0 ? `${skillDamageMult(sk, lv).toFixed(2)}x` : `${sk.dmgMult}x`;
       const btnLabel = lv === 0 ? '습득' : (lv >= MAX_SKILL_LEVEL ? 'MAX' : '레벨업');
+      const sts = skillStatuses(skid);
+      const lvForChance = Math.max(1, lv);
+      const statusHtml = sts.length === 0 ? '' : `<div class="skill-status">${sts.map((s) => {
+        const d = STATUS_DATA[s.id];
+        const pct = Math.round(Math.min(1, s.chance + STATUS_CHANCE_PER_SKILL_LV * (lvForChance - 1)) * 100);
+        return `<span title="${d.desc}" style="color:${d.color}">${statusIconHtml(s.id, 14)} ${d.name} ${pct}%</span>`;
+      }).join(' ')}</div>`;
       return `
         <div class="skill-row ${locked ? 'locked' : ''}">
           <div class="skill-main">
             <div>${tag} ${sk.name} ${lv > 0 ? `<b>Lv.${lv}</b>` : '<span style="opacity:0.6">미습득</span>'}</div>
             <div class="skill-meta">위력 ${power} · MP ${sk.manaCost} · 쿨 ${(sk.cooldownMs / 1000).toFixed(1)}s · 요구 스탠스 Lv.${sk.reqLevel}</div>
+            ${statusHtml}
           </div>
           <button data-skill="${skid}" ${canUp ? '' : 'disabled'}>${btnLabel}</button>
         </div>`;
@@ -946,6 +977,16 @@ class UIManager {
 
       <div class="section-title">화면</div>
       <div class="set-row">
+        <label>해상도</label>
+        <select id="set-resolution">${RESOLUTION_OPTIONS.map((o) => `<option value="${o.id}" ${o.id === DisplayManager.option.id ? 'selected' : ''}>${o.label}</option>`).join('')}</select>
+        <span style="opacity:0.6;font-size:11px;">지금 ${DisplayManager.sizeText} — 창에 맞춤은 창 크기를 따라 커집니다</span>
+      </div>
+      <div class="set-row">
+        <label>전체 화면</label>
+        <button id="set-fullscreen">${DisplayManager.isFullscreen() ? '창 모드로' : '전체 화면으로'}</button>
+        <span style="opacity:0.6;font-size:11px;">F11로도 바꿀 수 있습니다</span>
+      </div>
+      <div class="set-row">
         <label>목표 표시</label>
         <input type="checkbox" id="set-tracker" ${v.showTracker ? 'checked' : ''}>
         <span style="opacity:0.6;font-size:11px;">우측에 현재 퀘스트 목표를 띄웁니다</span>
@@ -1002,9 +1043,12 @@ class UIManager {
       this.refreshTracker();
     });
     bind('set-damage', 'change', (e) => SettingsManager.set('showDamage', e.target.checked));
+    bind('set-resolution', 'change', (e) => { DisplayManager.setResolution(e.target.value); this.refreshSettings(); });
+    bind('set-fullscreen', 'click', () => DisplayManager.toggleFullscreen());
     bind('set-window-reset', 'click', () => { this.resetWindowLayout(); this.logChat('창 위치를 초기화했습니다.', 'system'); });
     bind('set-reset', 'click', () => {
       SettingsManager.reset();
+      DisplayManager.apply();
       this._trackerKey = null;
       this.resetWindowLayout();
       this.refreshSettings();
@@ -1761,11 +1805,23 @@ class UIManager {
     bar.classList.remove('hidden');
     document.getElementById('target-name').textContent = enemy.name;
   }
+  // 상태이상 아이콘 줄(HTML). 매 프레임 불리므로 목록·중첩·초가 바뀔 때만 다시 쓴다.
+  _setStatusRow(el, target) {
+    if (!el) return;
+    const list = target ? statusList(target) : [];
+    const key = list.map((s) => `${s.id}${s.stacks}:${Math.ceil(s.remaining / 1000)}`).join(',');
+    if (el.dataset.key === key) return;
+    el.dataset.key = key;
+    el.innerHTML = list.map((s) => `<span class="status-chip" title="${s.def.name} — ${s.def.desc}">${statusIconHtml(s.id, 14)}`
+      + `${s.stacks > 1 ? `<b>${s.stacks}</b>` : ''}<i>${Math.ceil(s.remaining / 1000)}</i></span>`).join('');
+  }
+
   refreshTargetBar() {
     if (this.target) {
       if (!this.target.alive) this.setTarget(null);
       else document.getElementById('target-hp-fill').style.width = `${clamp(this.target.hp / this.target.maxHp, 0, 1) * 100}%`;
     }
+    this._setStatusRow(document.getElementById('target-status'), this.target && this.target.alive ? this.target : null);
     // 보스 전용 체력바: 존에 살아있는 보스가 있으면 상단에 크게 표시
     // 보스가 살아 있고 파티가 교전 범위 안에 있으면 표시
     const leader = this.pm.activeUnit;
@@ -1777,6 +1833,7 @@ class UIManager {
     document.getElementById('boss-name').textContent = `${boss.name}${boss.enraged ? ' (광폭화)' : ''}`;
     document.getElementById('boss-hp-fill').style.width = `${clamp(boss.hp / boss.maxHp, 0, 1) * 100}%`;
     document.getElementById('boss-hp-text').textContent = `${Math.ceil(boss.hp)} / ${boss.maxHp}`;
+    this._setStatusRow(document.getElementById('boss-status'), boss);
     document.getElementById('boss-warn').textContent = boss.phase === 'telegraph' && boss.current ? boss.current.warn : '';
   }
 

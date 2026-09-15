@@ -10,7 +10,7 @@ const VOLUME_STEPS = [1, 0.5, 0];
 const VOLUME_ICON = { 1: '🔊', 0.5: '🔉', 0: '🔇' };
 
 // 같은 효과음이 한 프레임에 수십 번 울리면 귀가 아프고 노드도 폭발한다.
-const SFX_MIN_GAP_MS = { hit: 45, hurt: 90, pickup: 120, miss: 120 };
+const SFX_MIN_GAP_MS = { hit: 45, hurt: 90, pickup: 120, miss: 120, status: 110 };
 
 function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
 
@@ -195,6 +195,29 @@ class AudioManager {
       this._tone({ freq: midiToFreq(60 + i * 7), dur: 0.3, wave: 'square', gain: 0.15, delay: d });
     });
     this._noise({ dur: 0.35, gain: 0.2, filterFreq: 900, filterType: 'lowpass', delay: 0.1 });
+  }
+
+  // 상태이상이 새로 걸릴 때. 범위기로 여러 마리에 걸려도 한 번만 울리게 간격을 둔다.
+  status(id) {
+    if (this._throttled('status')) return;
+    if (id === 'stun') {
+      [0, 0.06].forEach((d) => this._tone({ freq: 1320, dur: 0.07, wave: 'triangle', gain: 0.1, delay: d }));
+    } else if (id === 'freeze') {
+      this._tone({ freq: 1800, sweepTo: 2600, dur: 0.18, wave: 'sine', gain: 0.1 });
+      this._noise({ dur: 0.1, gain: 0.08, filterFreq: 5000, filterType: 'highpass' });
+    } else if (id === 'chill') {
+      this._tone({ freq: 900, sweepTo: 500, dur: 0.16, wave: 'sine', gain: 0.08 });
+    } else if (id === 'burn') {
+      this._noise({ dur: 0.22, gain: 0.12, filterFreq: 700, filterType: 'lowpass' });
+    } else if (id === 'shock') {
+      this._tone({ freq: 2200, sweepTo: 600, dur: 0.08, wave: 'square', gain: 0.07 });
+      this._noise({ dur: 0.06, gain: 0.08, filterFreq: 3500 });
+    } else if (id === 'bleed') {
+      this._noise({ dur: 0.08, gain: 0.1, filterFreq: 1500 });
+    } else {
+      this._tone({ freq: 300, sweepTo: 180, dur: 0.12, wave: 'square', gain: 0.09 });
+      this._noise({ dur: 0.08, gain: 0.1, filterFreq: 2500 });
+    }
   }
 
   levelUp() {

@@ -30,6 +30,7 @@
     <div id="target-bar" class="hidden">
       <div id="target-name"></div>
       <div class="bar-bg small"><div id="target-hp-fill" class="bar-fill hp"></div></div>
+      <div id="target-status" class="status-row"></div>
     </div>
     <div id="minimap-wrap"><canvas id="minimap-canvas" width="120" height="120"></canvas></div>
   </div>
@@ -39,6 +40,7 @@
   <div id="boss-bar" class="hidden">
     <div id="boss-name"></div>
     <div class="bar-bg"><div id="boss-hp-fill" class="bar-fill hp"></div><span id="boss-hp-text" class="bar-text"></span></div>
+    <div id="boss-status" class="status-row"></div>
     <div id="boss-warn"></div>
   </div>
 
@@ -192,11 +194,14 @@
 <script src="js/data/tower.js"></script>
 <script src="js/data/collection.js"></script>
 <script src="js/data/signatures.js"></script>
+<script src="js/data/status.js"></script>
 <script src="js/data/generalquests.js"></script>
 <script src="js/engine/utils.js"></script>
 <script src="js/engine/pixelart.js"></script>
 <script src="js/engine/settings.js"></script>
+<script src="js/engine/display.js"></script>
 <script src="js/engine/stats.js"></script>
+<script src="js/engine/status.js"></script>
 <script src="js/engine/input.js"></script>
 <script src="js/engine/entity.js"></script>
 <script src="js/engine/ai.js"></script>

@@ -64,6 +64,8 @@ class PartyUnit {
     this.skillCooldowns = {};
     this.dropTimer = 0; // >0이면 발판을 통과해 아래층으로 내려간다
     this.downed = false; // HP 0 — 전투 불능. 마을에 들어가면 회복된다.
+    this.statuses = {};         // 상태이상(보스 패턴의 기절·화상)
+    this.ccImmuneMs = 0;
     this.onRope = null;         // 매달린 로프
     this.climbing = false;
     this.usedFlashJump = false; // 공중에서 플래시 점프를 이미 썼는지(착지하면 초기화)
@@ -391,6 +393,8 @@ class Enemy {
     this.alive = true;
     this.respawnTimer = 0;
     this.rewarded = false;
+    this.statuses = {};  // 상태이상 id → { remaining, stacks, tickDmg, ... }
+    this.ccImmuneMs = 0; // 보스: 기절·빙결 면역 남은 시간
 
     // 선공(aggressive) 몹은 시야에 들어오면 먼저 덤빈다. 비선공 몹은 맞아야(provoked) 반격한다.
     this.aggressive = def.aggressive !== false;
@@ -425,6 +429,7 @@ class Enemy {
     this.vx = 0; this.attackCooldownMs = 0; this.respawnTimer = 0;
     this.provoked = false;
     this.rewarded = false;
+    clearStatuses(this);
     this.wanderTimer = randRange(500, 2500);
     this.wanderDir = 0;
     if (this.boss) {

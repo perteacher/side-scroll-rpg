@@ -42,6 +42,12 @@ class Game {
     this.ui.stats = this.stats;
     this.ui.collection = this.collection;
     this.renderer = new Renderer(this.ctx, WORLD_WIDTH, WORLD_HEIGHT);
+    // 창 크기에 맞춰 화면을 통째로 키운다(설정 → 해상도). 캔버스 픽셀 수도 같이 늘려 선명하게 그린다.
+    DisplayManager.onScaleChange = (k) => {
+      this.renderer.setOutputScale(k, document.getElementById('minimap-canvas'));
+      if (SOUND && this.ui.isWindowOpen('settings-window')) this.ui.refreshSettings();
+    };
+    DisplayManager.init();
     this.effects = new EffectManager();
     EFFECTS = this.effects;
     this.audio = new AudioManager();
@@ -313,6 +319,7 @@ class Game {
       u.x = clamp(baseX + i * 50, 0, this.zm.width - u.width);
       u.y = GROUND_Y - u.height; u.vx = 0; u.vy = 0;
       u.onRope = null; u.flashTimer = 0;
+      clearStatuses(u);
     });
   }
 
@@ -350,6 +357,7 @@ class Game {
     this._updateCompanions(dt);
     this._updateEnemies(dt);
     this._updateProjectiles(dt);
+    this._tickPartyStatuses(dt);
     this._updateDrops(dt);
     this._checkDowned();
     this._updateSynergies();
@@ -431,6 +439,13 @@ class Game {
     const { input } = this;
     // 워프로 이동한 프레임에는 ↑가 이미 쓰였다.
     const upPressed = !warpedThisFrame && input.wasPressed('arrowup');
+
+    // 기절·빙결: 조작을 받지 않는다(로프에 매달렸으면 매달린 채로 굳는다).
+    if (isHardCc(unit)) {
+      unit.vx = 0; unit.flashTimer = 0;
+      if (!unit.onRope) this._applyPhysics(unit, dt);
+      return;
+    }
 
     // 로프에 매달린 동안은 로프 조작만 받는다.
     if (unit.onRope) { this._updateOnRope(unit, dt); return; }
@@ -615,7 +630,9 @@ class Game {
       unit.flashTimer = 0;
       // 리더와 너무 멀어지면 사냥을 멈추고 따라붙는다(홀드 모드는 제자리 유지가 목적이므로 제외).
       const gap = (leader.x + leader.width / 2) - (unit.x + unit.width / 2);
-      if (unit.autoMode !== 'hold' && Math.abs(gap) > FOLLOW_DISTANCE) {
+      if (isHardCc(unit)) {
+        unit.vx = 0;
+      } else if (unit.autoMode !== 'hold' && Math.abs(gap) > FOLLOW_DISTANCE) {
         const dir = Math.sign(gap);
         unit.vx = FOLLOW_SPEED * dir;
         unit.facing = dir;
@@ -631,6 +648,7 @@ class Game {
   _useHotbarSlot(slotIndex, skillIdx) {
     const unit = this.pm.partyUnits[slotIndex];
     if (!unit) return;
+    if (isHardCc(unit)) { this.ui.logChat(`${unit.name}: 행동 불가 상태입니다.`, 'system'); return; }
     const skillId = unit.stance.skillIds[skillIdx];
     if (!skillId) return;
     const skillDef = ROLE_SKILLS_DATA[unit.attackType][skillId];
@@ -663,6 +681,10 @@ class Game {
   // 전용기. 캐릭터마다 다른 한 방이고, 강화·회복형은 적이 없어도 쓸 수 있다.
   _useSignature(unit, verbose) {
     if (!unit || unit.downed) return false;
+    if (isHardCc(unit)) {
+      if (verbose) this.ui.logChat(`${unit.name}: 행동 불가 상태입니다.`, 'system');
+      return false;
+    }
     const sig = unit.signature;
     if (!sig) return false;
     if (!unit.signatureUnlocked) {
@@ -720,10 +742,14 @@ class Game {
     unit.facing = target.x >= unit.x ? 1 : -1;
     if (unit.attackType === 'melee') this.effects.slash(unit); else this.effects.cast(unit, color);
 
+    const sigStatuses = signatureStatuses(sig);
     const strike = (enemy, mult) => {
       const r = rollDamage(unit, enemy, mult);
       applyDamageToEnemy(enemy, r.dmg, r.isCrit, r.miss);
-      if (!r.miss) applyLifesteal(unit, r.dmg);
+      if (!r.miss) {
+        applyLifesteal(unit, r.dmg);
+        rollStatuses(enemy, sigStatuses, { hitDmg: r.dmg, source: unit });
+      }
       this._checkEnemyDeath(enemy, unit);
       return r.miss ? 0 : r.dmg;
     };
@@ -789,7 +815,10 @@ class Game {
       targets.forEach((t) => {
         const r = rollDamage(unit, t, mult);
         applyDamageToEnemy(t, r.dmg, r.isCrit, r.miss);
-        if (!r.miss) applyLifesteal(unit, r.dmg);
+        if (!r.miss) {
+          applyLifesteal(unit, r.dmg);
+          rollStatuses(t, skillStatuses(skillId), { lv, hitDmg: r.dmg, source: unit });
+        }
         this._checkEnemyDeath(t, unit);
       });
       if (verbose) this.ui.logChat(`${unit.name}의 [${skillDef.name} Lv.${lv}]! (${targets.length}체 타격)`, 'system');
@@ -806,6 +835,8 @@ class Game {
     if (r.miss) { applyDamageToEnemy(target, 0, false, true); return true; }
     const { dmg, isCrit } = r;
     const p = this._spawnProjectile(unit, target, dmg, isCrit, color);
+    p.statuses = skillStatuses(skillId);
+    p.statusLv = lv;
     if (skillDef.type === 'aoe') { p.aoeRadius = skillDef.aoeRadius; p.aoeMult = mult; p.casterRef = unit; }
     if (verbose) this.ui.logChat(`${unit.name}의 [${skillDef.name} Lv.${lv}] 시전!`, 'system');
     return true;
@@ -1029,10 +1060,21 @@ class Game {
   }
 
   _updateEnemies(dt) {
+    // 도트로 죽으면 상태이상을 건 유닛이 막타를 친 것으로 친다.
+    const onDot = (t, dmg, def, source) => {
+      applyDamageToEnemy(t, dmg, false, false, { dot: def });
+      this._checkEnemyDeath(t, source);
+    };
     this.zm.enemies.forEach((enemy) => {
       if (!enemy.alive) return;
-      enemy.attackCooldownMs -= dt;
-      if (enemy.boss) {
+      tickStatuses(enemy, dt, onDot);
+      if (!enemy.alive) return;
+      // 냉기: 이동은 slow만큼, 공격 속도는 그 절반 남짓 느려진다.
+      const slow = statusSlow(enemy);
+      enemy.attackCooldownMs -= dt * (1 - slow * 0.55);
+      if (isHardCc(enemy)) {
+        enemy.vx = 0; // 기절·빙결: AI를 건너뛴다(보스 패턴 타이머도 멈춘다)
+      } else if (enemy.boss) {
         updateBossAI(enemy, this.pm.partyUnits, dt, {
           log: (t, tag) => this.ui.logChat(t, tag),
           partyUnits: this.pm.partyUnits,
@@ -1043,7 +1085,7 @@ class Game {
       } else {
         updateEnemyAI(enemy, this.pm.partyUnits, dt, (t, tag) => this.ui.logChat(t, tag));
       }
-      enemy.x += enemy.vx * dt / 1000;
+      enemy.x += enemy.vx * (1 - slow) * dt / 1000;
       if (enemy.platform) {
         // 2층 몹은 발판 위에 머문다.
         enemy.x = clamp(enemy.x, enemy.platform.x, enemy.platform.x + enemy.platform.width - enemy.width);
@@ -1093,6 +1135,7 @@ class Game {
           hitUnit.hitFlash = 180;
           this.effects.damage(hitUnit.x + hitUnit.width / 2, hitUnit.y - 4, p.dmg, { color: '#ff5a4a' });
           this.effects.spark(hitUnit.x + hitUnit.width / 2, hitUnit.y + hitUnit.height * 0.5, '#ff5a4a');
+          bossPatternStatus(hitUnit, 'volley', p.dmg);
         }
         return;
       }
@@ -1103,19 +1146,33 @@ class Game {
         p.dead = true;
         applyDamageToEnemy(target, p.pendingDamage.dmg, p.pendingDamage.isCrit);
         if (p.ownerRef) applyLifesteal(p.ownerRef, p.pendingDamage.dmg);
+        const statusOpts = { lv: p.statusLv || 1, source: p.ownerRef };
+        rollStatuses(target, p.statuses, { ...statusOpts, hitDmg: p.pendingDamage.dmg });
         this._checkEnemyDeath(target, p.ownerRef);
         if (p.aoeRadius) {
           this.effects.burst(target.x + target.width / 2, target.y + target.height / 2, p.aoeRadius, p.color);
           this._enemiesNear(target, p.aoeRadius).forEach((t) => {
             if (t === target) return;
             const splash = rollDamage(p.casterRef, t, p.aoeMult);
-            applyDamageToEnemy(t, splash.dmg, splash.isCrit);
+            applyDamageToEnemy(t, splash.dmg, splash.isCrit, splash.miss);
+            if (!splash.miss) rollStatuses(t, p.statuses, { ...statusOpts, hitDmg: splash.dmg });
             this._checkEnemyDeath(t, p.ownerRef);
           });
         }
       }
     });
     this.projectiles = this.projectiles.filter((p) => !p.dead && p.life > 0 && p.x > -50 && p.x < this.zm.width + 50);
+  }
+
+  // 파티원 상태이상(보스 패턴의 기절·화상). 쓰러지면 풀린다.
+  _tickPartyStatuses(dt) {
+    this.pm.partyUnits.forEach((unit) => {
+      if (unit.downed) {
+        if (Object.keys(unit.statuses || {}).length > 0) clearStatuses(unit);
+        return;
+      }
+      tickStatuses(unit, dt, (u, dmg, def) => applyDotToUnit(u, dmg, def));
+    });
   }
 
   _tickCooldowns(dt) {

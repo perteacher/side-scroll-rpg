@@ -36,8 +36,10 @@ class InputManager {
   bindCanvasClick(canvas, getWorldFromScreen) {
     canvas.addEventListener('click', (e) => {
       const rect = canvas.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
+      // 화면 배율(CSS transform)로 커진 만큼 되돌려 게임 좌표(960×540)로 바꾼다.
+      const k = rect.width / (canvas.clientWidth || rect.width);
+      const sx = (e.clientX - rect.left) / k;
+      const sy = (e.clientY - rect.top) / k;
       const world = getWorldFromScreen(sx, sy);
       if (this.onMouseClickWorld) this.onMouseClickWorld(world.x, world.y);
     });

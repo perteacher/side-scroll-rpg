@@ -155,6 +155,39 @@ function unitSprite(unit, frame = 'idle0') {
   return c;
 }
 
+// 상태이상 색을 스프라이트 모양 그대로 덧칠한 사본(빙결=얼음색 등). 원본 캔버스별로 캐시.
+const _tintCache = new WeakMap();
+function tintedSprite(sprite, color, alpha) {
+  let byKey = _tintCache.get(sprite);
+  if (!byKey) { byKey = new Map(); _tintCache.set(sprite, byKey); }
+  const key = `${color}|${alpha}`;
+  let c = byKey.get(key);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = sprite.width; c.height = sprite.height;
+    const x = c.getContext('2d');
+    x.drawImage(sprite, 0, 0);
+    x.globalCompositeOperation = 'source-atop';
+    x.globalAlpha = alpha;
+    x.fillStyle = color;
+    x.fillRect(0, 0, c.width, c.height);
+    byKey.set(key, c);
+  }
+  return c;
+}
+
+function statusIconSprite(id) {
+  const def = STATUS_DATA[id];
+  return cachedSprite(`status:${id}`, STATUS_ICONS[id], { c: def.color, l: shadeHex(def.color, 1.4), d: shadeHex(def.color, 0.55) });
+}
+
+function statusIconHtml(id, size = 14) {
+  const key = `status:${id}`;
+  let url = _iconUrlCache.get(key);
+  if (!url) { url = statusIconSprite(id).toDataURL(); _iconUrlCache.set(key, url); }
+  return `<img class="status-icon" src="${url}" width="${size}" height="${size}" alt="">`;
+}
+
 // 캔버스에 스프라이트를 정수 배율로 찍는다. flipX면 좌우 반전.
 function drawSprite(ctx, sprite, x, y, scale = 1, flipX = false) {
   const w = sprite.width * scale;

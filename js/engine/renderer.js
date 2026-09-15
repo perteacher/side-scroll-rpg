@@ -22,6 +22,7 @@ const THEME_DATA = {
 
 const DEFAULT_THEME = THEME_DATA.forest;
 
+const MINIMAP_SIZE = 120;   // 미니맵 CSS 크기(px). 실제 픽셀 수는 화면 배율만큼 늘린다
 const PIXEL_SCALE = 2;      // 도트 한 칸의 월드 크기(px)
 const BOSS_PIXEL_SCALE = 4; // 보스는 같은 틀을 두 배로 키워 덩치를 낸다
 
@@ -40,6 +41,26 @@ class Renderer {
     this.buffer.height = height / PIXEL_SCALE;
     this.bctx = this.buffer.getContext('2d');
     this._npcLooks = new Map();
+    this.outScale = 1; // 캔버스 실제 픽셀 / 논리 픽셀
+  }
+
+  // 화면 배율이 바뀌면 캔버스 픽셀 수만 늘리고, 그리는 좌표는 960×540 그대로 쓴다.
+  setOutputScale(k, minimap = null) {
+    const canvas = this.mainCtx.canvas;
+    const w = Math.round(this.width * k);
+    const h = Math.round(this.height * k);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w; canvas.height = h;
+    }
+    canvas.style.width = `${this.width}px`;
+    canvas.style.height = `${this.height}px`;
+    this.outScale = w / this.width;
+    if (minimap) {
+      const size = Math.round(MINIMAP_SIZE * k);
+      if (minimap.width !== size) { minimap.width = size; minimap.height = size; }
+      minimap.style.width = `${MINIMAP_SIZE}px`;
+      minimap.style.height = `${MINIMAP_SIZE}px`;
+    }
   }
 
   updateCamera(activeUnit, worldWidth) {
@@ -79,7 +100,7 @@ class Renderer {
     // ---- 2) 원래 해상도로 키워 붙이기 ----
     const m = this.mainCtx;
     this.ctx = m;
-    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.setTransform(this.outScale, 0, 0, this.outScale, 0, 0);
     m.clearRect(0, 0, this.width, this.height);
     m.imageSmoothingEnabled = false;
     m.drawImage(this.buffer, 0, 0, this.width, this.height);
@@ -94,7 +115,7 @@ class Renderer {
     if (state.shopNpc) this._drawShopNpcLabel(state.shopNpc, state.time);
     state.recruitNpcs.forEach((npc) => this._drawRecruitNpcLabel(npc, state.time, state.recruitStatus[npc.charId]));
     state.enemies.filter((e) => e.alive).forEach((e) => this._drawEnemyLabel(e, state.time, e === state.target, state.partyLevel));
-    state.partyUnits.forEach((u, i) => this._drawUnitLabel(u, i === state.activeIndex));
+    state.partyUnits.forEach((u, i) => this._drawUnitLabel(u, i === state.activeIndex, state.time));
     state.effects.drawTexts(m);
     m.restore();
   }
@@ -367,9 +388,55 @@ class Renderer {
     if (u.hitFlash > 0) ctx.globalAlpha = 0.55 + Math.sin(time / 40) * 0.2;
     const sx = snapPx(cx - w / 2);
     const sy = snapPx(bottom - h);
-    drawSprite(ctx, spr, sx, sy, S, flip);
+    const tint = this._statusTint(u, time);
+    drawSprite(ctx, tint ? tintedSprite(spr, tint.color, tint.alpha) : spr, sx, sy, S, flip);
     if (!u.onRope) this._drawHeldWeapon(u, sx, sy, flip, frame); // 로프에 매달리면 무기를 등에 멘다
     ctx.restore();
+    if (hasStatus(u, 'stun')) this._drawStunStars(cx, sy + UNIT_HEADROOM * S, time);
+  }
+
+  // 상태이상 덧칠 색: 빙결은 얼음색으로 굳고, 감전·화상·출혈은 깜빡인다. 알파는 고정값만 써서 캐시가 늘지 않게 한다.
+  _statusTint(t, time) {
+    const s = t.statuses;
+    if (!s) return null;
+    if (s.freeze) return { color: '#bfefff', alpha: 0.6 };
+    if (s.shock && Math.floor(time / 90) % 3 === 0) return { color: '#fff7a8', alpha: 0.7 };
+    if (s.burn && Math.sin(time / 70) > 0.2) return { color: '#ff7a1a', alpha: 0.4 };
+    if (s.chill) return { color: '#5dade2', alpha: 0.35 };
+    if (s.bleed && Math.sin(time / 110) > 0.6) return { color: '#c0392b', alpha: 0.4 };
+    return null;
+  }
+
+  // 기절: 머리 위를 도는 별 세 개(도트 버퍼에 2×2칸).
+  _drawStunStars(cx, top, time) {
+    const { ctx } = this;
+    ctx.fillStyle = STATUS_DATA.stun.color;
+    for (let i = 0; i < 3; i++) {
+      const a = time / 200 + i * (Math.PI * 2 / 3);
+      const x = cx + Math.cos(a) * 14;
+      const y = top - 6 + Math.sin(a) * 4;
+      ctx.fillRect(snapPx(x - 2), snapPx(y - 2), 4, 4);
+    }
+  }
+
+  // 머리 위 상태이상 아이콘 줄(원래 해상도). 끝나기 1초 전부터 깜빡이고, 중첩은 숫자로.
+  _drawStatusIcons(target, cx, y, time) {
+    const list = statusList(target);
+    if (list.length === 0) return;
+    const { ctx } = this;
+    const box = 16;
+    const gap = 2;
+    let x = Math.round(cx - (list.length * (box + gap) - gap) / 2);
+    list.forEach((s) => {
+      ctx.save();
+      if (s.remaining < 1000 && Math.floor(time / 120) % 2 === 0) ctx.globalAlpha = 0.35;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(x, y, box, box);
+      drawSprite(ctx, statusIconSprite(s.id), x + 1, y + 1, 2);
+      if (s.stacks > 1) this._text(`${s.stacks}`, x + box - 2, y + box + 1, '#fff', 'bold 9px sans-serif');
+      ctx.restore();
+      x += box + gap;
+    });
   }
 
   // 현재 스탠스의 무기를 앞손에 쥐여 그린다. 공격 중이면 휘두르거나 반동을 준다.
@@ -398,10 +465,11 @@ class Renderer {
     ctx.restore();
   }
 
-  _drawUnitLabel(u, isActive) {
+  _drawUnitLabel(u, isActive, time = 0) {
     const { ctx } = this;
     const cx = u.x + u.width / 2;
     const top = u.downed ? u.y + u.height - 34 : this._unitTop(u);
+    this._drawStatusIcons(u, cx, top - (isActive ? 54 : 38), time);
 
     if (isActive) {
       ctx.fillStyle = '#f1c40f';
@@ -460,8 +528,12 @@ class Renderer {
     ctx.save();
     if (e.name.includes('망령')) ctx.globalAlpha = 0.8; // 망령은 반투명
     if (e.hitFlash > 0) ctx.globalAlpha *= 0.55;
-    drawSprite(ctx, spr, snapPx(cx - w / 2 + lunge), snapPx(bottom - h), S, e.facing < 0);
+    const tint = this._statusTint(e, time);
+    // 기절·빙결 중엔 제자리에서 굳어 공격 동작(돌진 흔들림)도 멈춘다.
+    const shake = isHardCc(e) ? 0 : lunge;
+    drawSprite(ctx, tint ? tintedSprite(spr, tint.color, tint.alpha) : spr, snapPx(cx - w / 2 + shake), snapPx(bottom - h), S, e.facing < 0);
     ctx.restore();
+    if (hasStatus(e, 'stun')) this._drawStunStars(cx, this._enemyTop(e), time);
   }
 
   _drawEnemyLabel(e, time, isTarget, partyLevel) {
@@ -469,10 +541,12 @@ class Renderer {
     const cx = e.x + e.width / 2;
     const top = this._enemyTop(e);
     const hostile = e.aggressive || e.provoked;
+    const hasIcons = e.statuses && Object.keys(e.statuses).length > 0;
+    this._drawStatusIcons(e, cx, top - 36, time);
 
     if (e.boss && e.phase === 'telegraph' && e.current) {
       const blink = 0.35 + Math.abs(Math.sin(time / 90)) * 0.5;
-      this._text(`⚠ ${e.current.warn}`, cx, top - 22, `rgba(255,80,60,${blink})`, 'bold 13px sans-serif');
+      this._text(`⚠ ${e.current.warn}`, cx, top - (hasIcons ? 42 : 22), `rgba(255,80,60,${blink})`, 'bold 13px sans-serif');
     }
     if (isTarget) {
       ctx.strokeStyle = '#f1c40f';
@@ -639,7 +713,9 @@ class Renderer {
 
   drawMinimap(canvas, state) {
     const mctx = canvas.getContext('2d');
-    const w = canvas.width; const h = canvas.height;
+    const w = MINIMAP_SIZE; const h = MINIMAP_SIZE;
+    const k = canvas.width / MINIMAP_SIZE;
+    mctx.setTransform(k, 0, 0, k, 0, 0);
     mctx.clearRect(0, 0, w, h);
     mctx.fillStyle = 'rgba(20,30,40,0.85)';
     mctx.beginPath(); mctx.arc(w / 2, h / 2, w / 2 - 1, 0, Math.PI * 2); mctx.fill();
