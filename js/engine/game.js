@@ -243,7 +243,7 @@ class Game {
       this.pm.addItem(id, 1);
       this.ui.logChat(`[탑 보상] ${ITEM_DATA[id].name} 획득`, 'system');
     });
-    this.ui.logChat(`[심연의 탑] ${cleared}층 보상 — ${reward.gold}G · 경험치 +${reward.xp.toLocaleString()}`, 'system');
+    this.ui.logChat(`[심연의 탑] ${cleared}층 보상 — ${reward.gold}G`, 'system');
     this.tower.buildFloor(cleared + 1);
     this._loadTowerZone();
     this.ui.rebuildPartySlots();
@@ -822,11 +822,15 @@ class Game {
     this.gq.onKill(this.zm.def.id, enemy.name);
     this.sm.onKill(this.zm.def.id, enemy.name);
     this._rollDrops(enemy);
+    // 사냥 경험치는 막타를 친 유닛만이 아니라 파티 전원이 똑같이 받는다(쓰러진 유닛 제외).
+    // 스탠스 경험치는 각자 지금 쓰고 있는 스탠스에 들어간다.
     const stanceXp = Math.max(1, Math.round(enemy.xpReward * 0.6));
-    this.ui.logChat(`${enemy.name} 처치! +${enemy.xpReward} EXP / 스탠스 +${stanceXp}`, 'system');
     const log = (t, tag) => this.ui.logChat(t, tag);
-    killerUnit.gainXp(enemy.xpReward, log);
-    killerUnit.gainStanceXp(stanceXp, log);
+    this.pm.partyUnits.forEach((unit) => {
+      if (unit.downed) return;
+      unit.gainXp(enemy.xpReward, log);
+      unit.gainStanceXp(stanceXp, log);
+    });
     if (this.ui.target === enemy) this.ui.setTarget(null);
   }
 
