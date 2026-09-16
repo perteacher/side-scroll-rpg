@@ -35,6 +35,8 @@ class Game {
     this.stats = new StatsTracker();
     this.collection = new CollectionManager(log);
     this.drops = [];
+    this.claimedLevelRewards = new Set(); // 이미 받은 초반 레벨 보상
+    this.prologue = null;                 // 첫 실행 체험전 진행 상태
     this.pm.stats = this.stats;
     SettingsManager.load();
     this.ui.pm = this.pm; this.ui.zm = this.zm; this.ui.qm = this.qm; this.ui.sm = this.sm; this.ui.fm = this.fm; this.ui.gq = this.gq;
@@ -212,9 +214,11 @@ class Game {
     this.input.onMouseClickWorld = (wx, wy) => this._handleWorldClick(wx, wy);
 
     window.addEventListener('beforeunload', () => {
-      if (this.resetting) return;
+      if (this.resetting || this.prologue) return;
       if (this.pm.partyIds.length > 0) SaveManager.save(this);
     });
+
+    this.ui.onPrologueSkip = () => this.endPrologue();
 
     // 저장된 게임이 있으면 캐릭터 생성을 건너뛰고 이어서 시작한다.
     if (SaveManager.hasSave() && SaveManager.load(this)) {
@@ -222,6 +226,9 @@ class Game {
       this._resetPartyPositions();
       this.ui.rebuildPartySlots();
       this.ui.logChat(`저장된 게임을 불러왔습니다. (${this.zm.name})`, 'system');
+    } else {
+      // 첫 실행: 캐릭터를 만들기 전에 전성기 전투를 먼저 보여준다.
+      this.startPrologue();
     }
   }
 
@@ -327,6 +334,7 @@ class Game {
   _tryUseWarp() {
     if (this.warpCooldown > 0) return false;
     const unit = this.pm.activeUnit;
+    if (!unit) return false;
     const hit = this.zm.warps.find((w) => aabbIntersect(unit, w));
     if (!hit) return false;
     this.warpPrompt = hit;
@@ -349,6 +357,11 @@ class Game {
 
   update(dt) {
     this.elapsed += dt;
+    if (this.prologue) {
+      this._updatePrologue(dt);
+      // 프롤로그가 방금 끝났으면 파티가 비어 있다. 이번 프레임의 나머지는 건너뛴다.
+      if (!this.prologue) return;
+    }
     this.warpCooldown = Math.max(0, this.warpCooldown - dt);
     this._handleGlobalKeys();
     this.warpPrompt = null;
@@ -363,6 +376,7 @@ class Game {
     this._updateSynergies();
     this._syncFamilyProgress();
     this._tickCooldowns(dt);
+    this._checkLevelRewards();
     this._tickAutosave(dt);
     this._updateBgmTheme(dt);
     this.stats.tick(dt);
@@ -376,7 +390,7 @@ class Game {
       e.attackAnim = Math.max(0, (e.attackAnim || 0) - dt);
     });
 
-    this.renderer.updateCamera(this.pm.activeUnit, this.zm.width);
+    if (this.pm.activeUnit) this.renderer.updateCamera(this.pm.activeUnit, this.zm.width);
     this.ui._hudDt = dt;
     this.ui.refreshPartyHUD();
     this.ui.refreshTargetBar();
@@ -385,6 +399,18 @@ class Game {
 
   _handleGlobalKeys() {
     const { input, ui, pm } = this;
+    // 프롤로그 중에는 창을 열지 않고 전투 조작만 받는다.
+    if (this.prologue) {
+      if (input.wasPressed('escape')) { this.endPrologue(); return; }
+      SLOT_SKILL_KEYS.forEach((keys, slotIndex) => {
+        keys.forEach((key, skillIdx) => {
+          if (input.wasPressed(key)) this._useHotbarSlot(slotIndex, skillIdx);
+        });
+      });
+      if (input.wasPressed('r')) this._useSignature(pm.activeUnit, true);
+      if (input.wasPressed('tab')) { pm.cycleActive(); ui.rebuildPartySlots(); }
+      return;
+    }
     if (input.wasPressed('tab')) { pm.cycleActive(); ui.rebuildPartySlots(); ui.refreshOpenWindows(); }
     if (input.wasPressed('v')) {
       pm.activeUnit.cycleStance();
@@ -607,7 +633,144 @@ class Game {
     }
   }
 
+  // 초반 레벨 보상. 파티 최고 레벨 기준으로 계정당 한 번씩만 준다.
+  _checkLevelRewards() {
+    if (this.prologue || this.pm.partyUnits.length === 0) return;
+    const top = this.pm.partyUnits.reduce((m, u) => Math.max(m, u.level), 0);
+    LEVEL_REWARDS.forEach((r) => {
+      if (r.level > top || this.claimedLevelRewards.has(r.level)) return;
+      this.claimedLevelRewards.add(r.level);
+      this.pm.addGold(r.gold);
+      r.items.forEach(([id, n]) => this.pm.addItem(id, n));
+      const names = r.items.map(([id, n]) => `${ITEM_DATA[id].name} x${n}`).join(' · ');
+      this.ui.logChat(`[Lv.${r.level} 보상 · ${r.title}] ${r.gold.toLocaleString()}G · ${names}`, 'party');
+      this.ui.logChat(`↳ ${r.hint}`, 'system');
+      const u = this.pm.activeUnit;
+      if (u) this.effects.loot(u.x + u.width / 2, u.y - 34, `Lv.${r.level} 보상!`, '#f7dc6f');
+      this.audio.levelUp();
+      this.ui.refreshOpenWindows();
+    });
+  }
+
+  // ---------- 프롤로그(첫 실행 체험전) ----------
+  // 가문 전성기의 세 사람으로 마왕과 싸운다. 진행 기록·보상·세이브는 전부 건너뛴다.
+  startPrologue() {
+    document.getElementById('create-screen').classList.add('hidden');
+    this.prologue = { t: 0, lineIndex: -1, outroAt: 0 };
+
+    this.pm.units.clear();
+    this.pm.partyIds.length = 0;
+    PROLOGUE.heroes.forEach((id) => {
+      const unit = this._makePrologueHero(id);
+      if (!unit) return;
+      this.pm.units.set(unit.id, unit);
+      this.pm.partyIds.push(unit.id);
+    });
+    this.pm.activeIndex = 0;
+
+    const zoneIndex = ZONE_DATA.findIndex((z) => z.id === PROLOGUE.zoneId);
+    this.zm.travelTo(zoneIndex >= 0 ? zoneIndex : 0);
+    // 시작하자마자 눈앞에서 붙게 배치한다. 빈 화면을 걸어가는 5초가 첫인상을 다 깎아먹는다.
+    this.zm.enemies = [
+      new Enemy({ ...PROLOGUE.boss, x: 900, level: PROLOGUE.heroLevel }, this.zm.platforms),
+      ...[0, 1, 2, 3].map((i) => new Enemy(
+        { ...PROLOGUE.minion, x: 520 + i * 130, level: PROLOGUE.heroLevel }, this.zm.platforms,
+      )),
+    ];
+    this.projectiles = [];
+    this.drops = [];
+    this._resetPartyPositions(300);
+    this.ui.rebuildPartySlots();
+    this.ui.showPrologue(PROLOGUE.lines[0].text);
+    this.audio.setTheme('boss');
+  }
+
+  // 전성기 영웅: 만렙 근처 + 5티어 만별 장비 + 스탠스·스킬 최대
+  _makePrologueHero(charId) {
+    const def = CHARACTER_DATA.find((c) => c.id === charId);
+    if (!def) return null;
+    const unit = new PartyUnit(def, { nickname: def.name, autoMode: 'keep' });
+    unit.id = `prologue_${charId}`;
+    unit.level = PROLOGUE.heroLevel;
+
+    const find = (fn) => Object.keys(ITEM_DATA).find((id) => fn(ITEM_DATA[id], id));
+    const best = (itemId) => {
+      if (!itemId) return null;
+      const gear = new Gear(itemId);
+      gear.star = gear.maxStar;
+      gear.potential = rollPotential(gear, 4);
+      return gear;
+    };
+    unit.stanceIds.slice(0, 2).forEach((sid, i) => {
+      const wid = find((it) => it.slot === 'weapon' && it.tier === 5 && it.stanceId === sid);
+      const gear = best(wid);
+      if (gear) unit.weaponSets[0][i] = gear;
+    });
+    ['armor', 'helmet', 'boots'].forEach((slot) => {
+      const id = find((it) => it.slot === slot && it.tier === 5 && it.armorClass === unit.armorClass);
+      const gear = best(id);
+      if (gear) unit.equipment[slot] = gear;
+    });
+
+    Object.entries(unit.stanceProgress).forEach(([sid, p]) => {
+      p.level = stanceMaxLevel(sid);
+      p.xp = 0;
+      p.points = 0;
+      const stance = STANCE_DATA[sid];
+      (stance ? stance.skillIds : []).forEach((skid) => { p.skills[skid] = MAX_SKILL_LEVEL; });
+    });
+    unit.invalidateStats();
+    unit.hp = unit.maxHp;
+    unit.mp = unit.maxMp;
+    return unit;
+  }
+
+  _updatePrologue(dt) {
+    const p = this.prologue;
+    p.t += dt;
+
+    // 자막: 시간이 지난 줄 중 가장 마지막 것
+    let idx = -1;
+    PROLOGUE.lines.forEach((l, i) => { if (p.t >= l.at) idx = i; });
+    if (idx !== p.lineIndex && !p.outroAt) {
+      p.lineIndex = idx;
+      this.ui.setPrologueLine(idx >= 0 ? PROLOGUE.lines[idx].text : '');
+    }
+
+    // 영웅은 쓰러지지 않는다(연출 중 전멸하면 흐름이 끊긴다).
+    this.pm.partyUnits.forEach((u) => {
+      if (u.hp < u.maxHp * 0.25) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.4);
+      u.downed = false;
+    });
+
+    const boss = this.zm.enemies.find((e) => e.boss);
+    const bossDown = boss && !boss.alive;
+    if (!p.outroAt && (bossDown || p.t >= PROLOGUE.durationMs)) {
+      p.outroAt = p.t;
+      this.ui.setPrologueLine(PROLOGUE.outro);
+      if (bossDown) this.effects.flash('#ffffff', 900);
+    }
+    if (p.outroAt && p.t - p.outroAt >= PROLOGUE.outroMs) this.endPrologue();
+  }
+
+  endPrologue() {
+    if (!this.prologue) return;
+    this.prologue = null;
+    this.pm.units.clear();
+    this.pm.partyIds.length = 0;
+    this.pm.activeIndex = 0;
+    this.projectiles = [];
+    this.drops = [];
+    this.effects.items = [];
+    this.zm.travelTo(0);
+    this.ui.hidePrologue();
+    this.ui.rebuildPartySlots();
+    this.audio.setTheme('town');
+    document.getElementById('create-screen').classList.remove('hidden');
+  }
+
   _tickAutosave(dt) {
+    if (this.prologue) return; // 프롤로그는 저장하지 않는다
     this.autosaveTimer = (this.autosaveTimer || 0) - dt;
     if (this.autosaveTimer > 0) return;
     this.autosaveTimer = AUTOSAVE_MS;
@@ -976,12 +1139,20 @@ class Game {
 
   // ---------- 바닥 전리품 ----------
   // 몹이 죽으면 전리품이 튀어나와 바닥에 떨어진다. 파티원이 가까이 가면 빨려와 주워진다.
-  _rollDrops(enemy) {
+  _rollDrops(enemy, firstKill = false) {
     const cx = enemy.x + enemy.width / 2;
     const cy = enemy.y + enemy.height / 2;
-    (DROP_TABLE[enemy.name] || []).forEach((d) => {
+    const table = DROP_TABLE[enemy.name] || [];
+    table.forEach((d) => {
       if (Math.random() <= d.chance) this._spawnDrop({ kind: 'item', itemId: d.id }, cx, cy);
     });
+    // 최초 처치는 확정 보상. 새 몬스터를 만날 때마다 반드시 뭔가 떨어진다.
+    if (firstKill) {
+      if (table.length) this._spawnDrop({ kind: 'item', itemId: table[0].id }, cx, cy);
+      this._spawnDrop({ kind: 'meso', amount: Math.max(20, mesoAmount(enemy) * 2) }, cx, cy);
+      this.ui.logChat(`[최초 처치] ${enemy.name} — 첫 처치 보상!`, 'party');
+      this.effects.loot(cx, enemy.y - 24, '최초 처치!', '#f7dc6f');
+    }
     const equipId = rollEquipmentDrop(tierFromLevel(this.zm.def.level));
     if (equipId) this._spawnDrop({ kind: 'gear', itemId: equipId }, cx, cy);
     if (Math.random() < MESO_DROP_CHANCE) this._spawnDrop({ kind: 'meso', amount: mesoAmount(enemy) }, cx, cy);
@@ -1048,6 +1219,12 @@ class Game {
       const gear = this.pm.addGear(d.itemId);
       this.effects.loot(ux, uy - 16, gear.item.name, TIER_COLOR[gear.tier], gear.itemId);
       this.ui.logChat(`[장비 획득] ${gear.displayName}`, 'system');
+      // 티어 3 이상은 화면을 한 번 번쩍여 "지금 좋은 게 떴다"를 놓치지 않게 한다.
+      if (gear.tier >= 3) {
+        this.effects.flash(TIER_COLOR[gear.tier]);
+        this.audio.rare();
+        this.ui.logChat(`✦ 희귀 장비! ${gear.displayName} (T${gear.tier})`, 'party');
+      }
     } else {
       this.pm.addItem(d.itemId, 1);
       this.effects.loot(ux, uy, ITEM_DATA[d.itemId].name, '#ecf0f1', d.itemId);
@@ -1093,13 +1270,16 @@ class Game {
   _checkEnemyDeath(enemy, killerUnit) {
     if (enemy.alive || enemy.rewarded) return;
     enemy.rewarded = true;
+    if (this.prologue) return; // 프롤로그 전투는 기록·보상에 남기지 않는다
     this.stats.kills += 1;
     if (enemy.boss) this.stats.bossKills += 1;
+    // 처음 잡아보는 몬스터인지 컬렉션 기록으로 판단한다(onKill이 세기 전에 확인해야 한다).
+    const firstKill = (this.collection.kills[enemy.name] || 0) === 0;
     if (this.collection.onKill(enemy)) this.pm.units.forEach((u) => u.invalidateStats());
     this.qm.onKill(this.zm.def.id, enemy.name);
     this.gq.onKill(this.zm.def.id, enemy.name);
     this.sm.onKill(this.zm.def.id, enemy.name);
-    this._rollDrops(enemy);
+    this._rollDrops(enemy, firstKill);
     // 사냥 경험치는 막타를 친 유닛만이 아니라 파티 전원이 똑같이 받는다(쓰러진 유닛 제외).
     // 스탠스 경험치는 각자 지금 쓰고 있는 스탠스에 들어간다.
     const stanceXp = Math.max(1, Math.round(enemy.xpReward * 0.6));

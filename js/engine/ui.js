@@ -32,6 +32,8 @@ const KEY_GUIDE = [
 ];
 
 // 실제로 쓰는 태그만 남긴다(빈 탭이 여섯 개 있으면 눌러볼 이유가 없다).
+const ATTACK_TYPE_LABEL = { melee: '근접', ranged: '원거리', magic: '마법' };
+
 const CHAT_TABS = [
   { id: 'all', label: '전체' }, { id: 'system', label: '시스템' },
   { id: 'party', label: '파티' }, { id: 'npc', label: 'NPC' },
@@ -79,6 +81,8 @@ class UIManager {
     });
     this._initMenuButton();
     this._initItemTooltip();
+    const skip = document.getElementById('prologue-skip');
+    if (skip) skip.addEventListener('click', () => this.onPrologueSkip && this.onPrologueSkip());
     document.querySelectorAll('[data-close]').forEach((btn) => {
       btn.addEventListener('click', () => this.closeWindow(btn.dataset.close));
     });
@@ -207,6 +211,30 @@ class UIManager {
 
     const color = TIER_COLOR[it.tier] || '#ecf0f1';
     return `<div class="tip-name" style="color:${color}">${itemIconHtml(itemId, 20)}${gear ? gear.displayName : it.name}</div>${rows.join('')}`;
+  }
+
+  // 프롤로그 자막 오버레이
+  showPrologue(text) {
+    const el = document.getElementById('prologue-overlay');
+    if (el) el.classList.remove('hidden');
+    // 연출 중에는 채팅·조작 안내를 치운다(자막에 집중되게).
+    document.getElementById('chat-window').classList.add('hidden-chat');
+    const hint = document.getElementById('hint-bar');
+    if (hint) hint.style.display = 'none';
+    this.setPrologueLine(text || '');
+  }
+
+  hidePrologue() {
+    const el = document.getElementById('prologue-overlay');
+    if (el) el.classList.add('hidden');
+    document.getElementById('chat-window').classList.remove('hidden-chat');
+    const hint = document.getElementById('hint-bar');
+    if (hint) hint.style.display = '';
+  }
+
+  setPrologueLine(text) {
+    const el = document.getElementById('prologue-line');
+    if (el) el.textContent = text;
   }
 
   closeMenu() {
@@ -1627,6 +1655,8 @@ class UIManager {
       return;
     }
 
+    if (tab === 'chars') { this._renderCharDex(body); return; }
+
     const links = this.pm.linkSkills();
     const total = bonusText(this.pm.linkBonus()) || '아직 없음';
     const rows = [...this.pm.units.values()].sort((a, b) => b.level - a.level).map((u) => {
@@ -1650,6 +1680,53 @@ class UIManager {
       <div class="growth-box">${total}</div>
       <div class="section-title">보유 캐릭터</div>
       ${rows}`;
+  }
+
+  // 캐릭터 도감. 영입 전에는 실루엣만 보여줘 "저 사람도 데려갈 수 있구나"를 먼저 알린다.
+  _renderCharDex(body) {
+    const owned = new Set([...this.pm.units.values()].map((u) => u.defId));
+    const where = {};
+    ZONE_DATA.forEach((z) => (z.recruits || []).forEach((r) => { where[r.charId] = { zone: z.name, tier: r.tier }; }));
+    if (!this._charIcons) this._charIcons = new Map();
+    const icon = (c, dim) => {
+      const key = `${c.id}:${dim ? 'd' : 'n'}`;
+      let url = this._charIcons.get(key);
+      if (!url) {
+        const spr = unitSprite({ defId: c.id, color: c.color, armorClass: ARMOR_CLASS_BY_TYPE[c.attackType], equipment: null }, 'idle0');
+        url = (dim ? tintedSprite(spr, '#0b0b12', 0.88) : spr).toDataURL();
+        this._charIcons.set(key, url);
+      }
+      return url;
+    };
+
+    const got = CHARACTER_DATA.filter((c) => owned.has(c.id)).length;
+    const waiting = CHARACTER_DATA.filter((c) => this.qm.isCompleted(c.id) && !owned.has(c.id)).length;
+    const cards = CHARACTER_DATA.map((c) => {
+      const has = owned.has(c.id);
+      const ready = this.qm.isCompleted(c.id);
+      const doing = this.qm.isActive(c.id);
+      const loc = where[c.id] || {};
+      const known = has || ready || doing;
+      const state = has ? '보유 중' : (ready ? '영입 가능' : (doing ? '퀘스트 진행 중' : (loc.zone || '미발견')));
+      const sig = SIGNATURE_DATA[c.id];
+      const trait = sig ? TRAIT_DATA[sig.traitId] : null;
+      const tip = known
+        ? `${c.name} · ${ATTACK_TYPE_LABEL[c.attackType] || c.attackType}${trait ? ` · 특성 ${trait.name}` : ''}${sig ? ` · 전용기 ${sig.skill.name}` : ''}`
+        : `${loc.zone || '어딘가'}에서 영입할 수 있습니다`;
+      return `<div class="col-card ${has ? '' : 'unknown'}" title="${tip}">
+        <img src="${icon(c, !has)}" width="32" height="56" alt="">
+        <div class="col-name">${known ? c.name : '???'}</div>
+        <div class="col-kills">${state}</div>
+      </div>`;
+    }).join('');
+
+    body.innerHTML = `
+      <p class="hint-text">마을마다 영입할 수 있는 동료가 있습니다. 머리 위에 ! 가 뜬 사람을 클릭해 퀘스트를 받고, 조건을 채운 뒤 다시 찾아가면 합류합니다. 병영(B)에서 파티를 바꿔 낄 수 있습니다.</p>
+      <div class="tower-stat">
+        <div><span>보유</span><b>${got} / ${CHARACTER_DATA.length}</b></div>
+        <div><span>영입 대기</span><b>${waiting}명</b></div>
+      </div>
+      <div class="col-grid">${cards}</div>`;
   }
 
   // ---------- 상점 ----------

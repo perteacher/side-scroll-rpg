@@ -2,10 +2,10 @@
 // step.type: hunt(지정 사냥터 몹 처치) / collect(재료 수집) / talk(NPC 대화) / deliver(제작품 납품)
 const RECRUIT_QUEST_TIERS = {
   1: (charName) => [
-    { type: 'hunt', zoneId: 'field1a', enemyName: '숲도적', count: 5,
-      text: '초심자의 숲에서 숲도적 5마리 처치' },
+    { type: 'hunt', zoneId: 'field1a', enemyName: '숲도적', count: 3,
+      text: '초심자의 숲에서 숲도적 3마리 처치' },
     { type: 'talk', npcId: 'delgado', text: '경비대장 델가도에게 실력을 인정받기' },
-    { type: 'collect', itemId: 'beast_hide', count: 3, text: '짐승 가죽 3개 수집' },
+    { type: 'collect', itemId: 'beast_hide', count: 2, text: '짐승 가죽 2개 수집' },
   ],
   2: (charName) => [
     { type: 'hunt', zoneId: 'field2a', enemyName: '해골병사', count: 8,

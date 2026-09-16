@@ -104,6 +104,7 @@ class Renderer {
     m.clearRect(0, 0, this.width, this.height);
     m.imageSmoothingEnabled = false;
     m.drawImage(this.buffer, 0, 0, this.width, this.height);
+    state.effects.drawOverlay(m, this.width, this.height);
 
     // ---- 3) 글자·체력바: 원래 해상도 ----
     m.save();

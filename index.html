@@ -140,6 +140,7 @@
     <div class="window-title-bar"><span>컬렉션</span><button class="close-btn" data-close="collection-window">✕</button></div>
     <div class="window-tabs">
       <button class="tab-btn active" data-coltab="monster">몬스터 컬렉션</button>
+      <button class="tab-btn" data-coltab="chars">캐릭터 도감</button>
       <button class="tab-btn" data-coltab="link">링크 스킬</button>
     </div>
     <div id="collection-body"></div>
@@ -170,6 +171,14 @@
     <div id="barracks-party"></div>
     <div id="barracks-create"></div>
     <div id="barracks-list"></div>
+  </div>
+
+  <!-- 프롤로그(첫 실행 체험전) 자막 -->
+  <div id="prologue-overlay" class="hidden">
+    <div class="pro-bar top"></div>
+    <div class="pro-bar bottom"></div>
+    <div id="prologue-line"></div>
+    <button id="prologue-skip">건너뛰기 (Esc)</button>
   </div>
 
   <!-- 아이템 설명 풍선 (목록 위에 마우스를 올리면 뜬다) -->
@@ -203,6 +212,8 @@
 <script src="js/data/signatures.js"></script>
 <script src="js/data/status.js"></script>
 <script src="js/data/generalquests.js"></script>
+<script src="js/data/levelrewards.js"></script>
+<script src="js/data/prologue.js"></script>
 <script src="js/engine/utils.js"></script>
 <script src="js/engine/pixelart.js"></script>
 <script src="js/engine/settings.js"></script>

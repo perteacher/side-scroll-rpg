@@ -70,6 +70,11 @@ class EffectManager {
     });
   }
 
+  // 희귀 드랍처럼 "지금 봐야 하는" 순간에 화면 전체를 한 번 번쩍인다.
+  flash(color, life = 420) {
+    this._add({ kind: 'flash', x: 0, y: 0, life, maxLife: life, color: color || '#ffffff' });
+  }
+
   levelUp(unit) {
     this._add({
       kind: 'text', x: unit.x + unit.width / 2, y: unit.y - 6, vy: -30, life: 1200, maxLife: 1200,
@@ -102,6 +107,19 @@ class EffectManager {
       else if (it.kind === 'burst') this._drawBurst(ctx, it, t);
       else if (it.kind === 'cast') this._drawCast(ctx, it, t);
       else if (it.kind === 'swap') this._drawSwap(ctx, it, t);
+      ctx.restore();
+    });
+  }
+
+  // 화면 전체 연출. 카메라 이동과 무관하므로 버퍼를 키워 붙인 직후에 따로 그린다.
+  drawOverlay(ctx, width, height) {
+    this.items.forEach((it) => {
+      if (it.kind !== 'flash') return;
+      const t = clamp(it.life / it.maxLife, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = t * 0.45;
+      ctx.fillStyle = it.color;
+      ctx.fillRect(0, 0, width, height);
       ctx.restore();
     });
   }

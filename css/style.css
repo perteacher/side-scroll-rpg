@@ -94,7 +94,7 @@ html, body {
 
 /* ---------- 하단 바 ---------- */
 #bottom-bar {
-  position: absolute; bottom: 0; left: 0; right: 0;
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 45;
   display: flex; align-items: flex-end; gap: 8px; padding: 6px 8px;
   background: linear-gradient(to top, rgba(10,10,15,0.92), rgba(10,10,15,0.4));
 }
@@ -465,6 +465,24 @@ html, body {
   background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.25); color: #abebc6;
 }
 .class-upper { font-size: 10px; opacity: 0.65; margin-top: 3px; }
+
+/* ---- 프롤로그 체험전 ---- */
+#prologue-overlay { position: absolute; inset: 0; z-index: 40; pointer-events: none; }
+#prologue-overlay.hidden { display: none; }
+#prologue-overlay .pro-bar { position: absolute; left: 0; right: 0; height: 44px; background: #000; }
+#prologue-overlay .pro-bar.top { top: 0; }
+#prologue-overlay .pro-bar.bottom { bottom: 0; }
+#prologue-line {
+  position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%);
+  max-width: 660px; text-align: center; font-size: 15px; line-height: 1.6; color: #f6f1e4;
+  text-shadow: 0 2px 6px #000; background: rgba(0,0,0,0.5); padding: 8px 18px; border-radius: 4px;
+}
+#prologue-skip {
+  position: absolute; right: 14px; top: 62px; pointer-events: auto;
+  font-size: 11px; padding: 4px 12px; background: rgba(20,20,30,0.9);
+  border: 1px solid #777; color: #fff; border-radius: 3px; cursor: pointer;
+}
+#prologue-skip:hover { background: rgba(60,60,80,0.95); }
 
 /* ---- 아이템 설명 풍선 ---- */
 #item-tip {

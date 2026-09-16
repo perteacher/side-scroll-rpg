@@ -220,6 +220,11 @@ class AudioManager {
     }
   }
 
+  // 희귀 드랍: 짧게 올라가는 아르페지오
+  rare() {
+    [72, 76, 79, 84].forEach((n, i) => this._tone({ freq: midiToFreq(n), dur: 0.18, wave: 'triangle', gain: 0.14, delay: i * 0.06 }));
+  }
+
   levelUp() {
     [60, 64, 67, 72].forEach((n, i) => {
       this._tone({ freq: midiToFreq(n), dur: 0.22, wave: 'triangle', gain: 0.18, delay: i * 0.09 });
