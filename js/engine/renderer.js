@@ -455,7 +455,7 @@ class Renderer {
       ctx.lineWidth = 1.5;
       ctx.strokeRect(cx - e.width, top - 3, e.width * 2, spr.height * S + 6);
     }
-    this._text(`${hostile ? '▲' : '○'} Lv.${e.level} ${e.name}`, cx, top - 8, dangerColor(e.level, partyLevel), '10px sans-serif');
+    this._text(`${hostile ? '▲' : '○'} ${rankLabel(e.level)} ${e.name}`, cx, top - 8, dangerColor(e.level, partyLevel), '10px sans-serif');
     this._drawBar(cx - e.width, top - 5, e.width * 2, 4, e.hp / e.maxHp, hostile ? '#c0392b' : '#7dcea0');
   }
 

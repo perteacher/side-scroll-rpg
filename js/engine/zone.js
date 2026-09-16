@@ -57,7 +57,7 @@ class ZoneManager {
     this.recruitNpcs = (this.def.recruits || []).map((r) => new RecruitNpc(at(r, spots.houses), this.map));
     this.warps = this._buildWarps();
     this.ropes = [];
-    if (announce) this.log(`${this.def.name} 도착. (권장 Lv.${this.def.level})`, 'system');
+    if (announce) this.log(`${this.def.name} 도착. (권장 ${rankLabel(this.def.level)})`, 'system');
   }
 
   _buildWarps() {

@@ -887,10 +887,16 @@ class Game {
       this.ui.logChat(`[최초 처치] ${enemy.name} — 첫 처치 보상!`, 'party');
       this.effects.loot(cx, enemy.y - 24, '최초 처치!', '#f7dc6f');
     }
-    const equipId = rollEquipmentDrop(tierFromLevel(this.zm.def.level));
+    // 장비는 존 권장 레벨의 레벨대에서 등급을 굴린다. 보스는 반드시 한 점 떨어뜨린다.
+    const zoneLevel = enemy.level || this.zm.def.level;
+    const equipId = rollEquipmentDrop(zoneLevel, { boss: enemy.boss });
     if (equipId) this._spawnDrop({ kind: 'gear', itemId: equipId }, cx, cy);
     if (Math.random() < MESO_DROP_CHANCE) this._spawnDrop({ kind: 'meso', amount: mesoAmount(enemy) }, cx, cy);
-    if (enemy.boss && Math.random() < 0.4) this._spawnDrop({ kind: 'item', itemId: 'craftsman_cube' }, cx, cy);
+    if (enemy.boss) {
+      if (Math.random() < 0.4) this._spawnDrop({ kind: 'item', itemId: 'craftsman_cube' }, cx, cy);
+      // 승급 인장. 낮은 존 보스도 베테랑 인장을 준다.
+      rollSealDrops(zoneLevel).forEach((id) => this._spawnDrop({ kind: 'item', itemId: id }, cx, cy));
+    }
   }
 
   _spawnDrop(payload, x, y) {
@@ -1085,11 +1091,12 @@ class Game {
         const hitUnit = this.pm.partyUnits.find((u) => !u.downed && u.hp > 0 && aabbIntersect(box, u));
         if (hitUnit) {
           p.dead = true;
-          hitUnit.hp = Math.max(0, hitUnit.hp - p.dmg);
+          const hit = incomingDamage(hitUnit, p.dmg);
+          hitUnit.hp = Math.max(0, hitUnit.hp - hit);
           hitUnit.hitFlash = 180;
-          this.effects.damage(hitUnit.x + hitUnit.width / 2, hitUnit.y - 4, p.dmg, { color: '#ff5a4a' });
+          this.effects.damage(hitUnit.x + hitUnit.width / 2, hitUnit.y - 4, hit, { color: '#ff5a4a' });
           this.effects.spark(hitUnit.x + hitUnit.width / 2, hitUnit.y + hitUnit.height * 0.5, '#ff5a4a');
-          bossPatternStatus(hitUnit, 'volley', p.dmg);
+          bossPatternStatus(hitUnit, 'volley', hit);
         }
         return;
       }

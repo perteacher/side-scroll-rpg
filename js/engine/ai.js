@@ -127,6 +127,18 @@ function findNearestEnemy(unit, enemies, filterFn = null) {
 // 높이가 두 단 이상 차이나면(절벽 위/아래) 서로 못 때린다. 예전 사이드뷰의 층 판정 자리.
 function sameLevel(a, b) { return (a && b) ? sameHeight(a, b) : true; }
 
+// 몹이 파티원을 때릴 때 실제로 들어가는 피해.
+// 예전에는 몹 공격력이 방어력을 완전히 무시하고 그대로 들어갔다. 그래서 방어구를 아무리 맞춰도
+// 상위 존에서 파티가 순식간에 녹았다. 파티가 몹을 때릴 때와 같은 규칙으로 맞춘다:
+// 방어력의 절반을 빼되, 원 피해의 15%는 반드시 들어간다.
+function incomingDamage(unit, rawAtk) {
+  const def = unit.stats ? computeFullSheet(unit).defense.defense : 0;
+  // 방어력은 비율로 깎는다(빼기로 하면 초반에는 1이 되고 후반에는 무의미해진다).
+  // 같은 방어력이라도 레벨이 오르면 값어치가 줄어서, 늘 그 레벨대 방어구를 맞춰야 한다. 최대 75%까지 감쇄.
+  const soak = Math.min(0.75, def / (def + 60 * Math.max(1, unit.level || 1)));
+  return Math.max(1, Math.round(rawAtk * (1 - soak)));
+}
+
 // 몹 AI: 선공 몹은 어그로 범위 안의 파티원을 쫓고, 비선공 몹은 맞기 전까지 배회만 한다.
 function updateEnemyAI(enemy, partyUnits, dt, logFn) {
   if (!enemy.alive) return;
@@ -154,17 +166,18 @@ function updateEnemyAI(enemy, partyUnits, dt, logFn) {
   } else {
     enemy.vx = 0; enemy.vy = 0;
     if (enemy.attackCooldownMs <= 0) {
-      nearest.hp = Math.max(0, nearest.hp - enemy.atk);
+      const hit = incomingDamage(nearest, enemy.atk);
+      nearest.hp = Math.max(0, nearest.hp - hit);
       enemy.attackCooldownMs = 1000;
       enemy.attackAnim = 260;
       nearest.hitFlash = 160;
       if (SOUND) SOUND.hurt();
       if (EFFECTS) {
         const c = entityCenter(nearest);
-        EFFECTS.damage(c.x, c.y, enemy.atk, { color: '#ff7b6b' });
+        EFFECTS.damage(c.x, c.y, hit, { color: '#ff7b6b' });
         EFFECTS.spark(c.x, c.y, '#ff7b6b');
       }
-      if (logFn) logFn(`${enemy.name} → ${nearest.name} ${enemy.atk} 피해`, 'system');
+      if (logFn) logFn(`${enemy.name} → ${nearest.name} ${hit} 피해`, 'system');
     }
   }
 }
@@ -310,7 +323,7 @@ function bossPatternStatus(unit, patternType, damage) {
 }
 
 function _bossHit(unit, damage, ctx) {
-  const dmg = Math.max(1, Math.round(damage));
+  const dmg = incomingDamage(unit, damage);
   unit.hp = Math.max(0, unit.hp - dmg);
   unit.hitFlash = 200;
   if (SOUND) SOUND.hurt();

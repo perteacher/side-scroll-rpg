@@ -177,7 +177,9 @@ class UIManager {
     const kind = it.slot
       ? (it.slot === 'weapon' ? '무기' : `방어구 · ${SLOT_LABEL[it.slot] || ''}`)
       : (it.consumable ? '소모품' : '재료');
-    rows.push(`<div class="tip-kind">${kind}${it.tier ? ` · T${it.tier}` : ''}</div>`);
+    const gradeTag = it.slot ? gearGradeLabel(it) : (it.tier ? `T${it.tier}` : '');
+    rows.push(`<div class="tip-kind">${kind}${gradeTag ? ` · ${gradeTag}` : ''}</div>`);
+    if (it.reqLevel > 1) rows.push(`<div class="tip-dim">착용 제한 ${rankLabel(it.reqLevel)}</div>`);
 
     if (gear) {
       const bonus = gear.star ? ` <span class="tip-dim">(기본 ${gear.item.atk || gear.item.def} · 강화 +${Math.round((starforceStatMult(gear.star) - 1) * 100)}%)</span>` : '';
@@ -661,7 +663,7 @@ class UIManager {
     document.getElementById('gold-amount').textContent = this.pm.gold;
     document.getElementById('zone-label').textContent = this.tower && this.tower.active
       ? `${this.zm.name} ${this.tower.floor}층 (최고 ${this.tower.bestFloor}층)`
-      : `${this.zm.name} (권장 Lv.${this.zm.def.level})`;
+      : `${this.zm.name} (권장 ${rankLabel(this.zm.def.level)})`;
   }
 
   // ---------- 캐릭터 정보 ----------
@@ -766,6 +768,15 @@ class UIManager {
     return rows.concat(buffs).join('');
   }
 
+  // 왜 못 끼는지 한 줄로. 레벨 제한 → 부위 조건 순으로 본다.
+  _equipFailReason(unit, gear) {
+    const it = gear.item || ITEM_DATA[gear.itemId];
+    if ((it.reqLevel || 1) > unit.level) return `${rankLabel(it.reqLevel)} 이상 필요`;
+    if (it.slot === 'weapon') return `${STANCE_DATA[it.stanceId].name} 스탠스 필요`;
+    if (it.slot === 'accessory') return '';
+    return `${ARMOR_CLASS_LABEL[it.armorClass] || ''} 전용`;
+  }
+
   // 지금 낀 것과 비교해 얼마나 오르내리는지. 무기는 현재 세트의 주무기가 기준이다.
   _gearDeltaHtml(unit, gear) {
     const slot = gear.slot === 'weapon' ? 'weapon1' : gear.slot;
@@ -782,9 +793,7 @@ class UIManager {
     if (owned.length === 0) return '<p style="opacity:0.6;font-size:11px;">보관 중인 장비가 없습니다.</p>';
     return owned.map((gear) => {
       const ok = unit.canEquip(gear.itemId);
-      const why = gear.slot === 'weapon'
-        ? `${STANCE_DATA[gear.stanceId].name} 스탠스 필요`
-        : `${ARMOR_CLASS_LABEL[gear.armorClass]} 전용`;
+      const why = this._equipFailReason(unit, gear);
       const equipBtns = !ok ? `<span class="equip-stat" style="color:#e74c3c">${why}</span>`
         : (gear.slot === 'weapon'
           ? `<button data-equip="${gear.uid}" data-slot="weapon1">주무기</button><button data-equip="${gear.uid}" data-slot="weapon2">보조</button>`
@@ -792,7 +801,7 @@ class UIManager {
       const sellBtn = opts.sell ? `<button data-sellgear="${gear.uid}" title="${gear.sellPrice}G에 판매">판매</button>` : '';
       return `
         <div class="equip-row" data-tip-gear="${gear.uid}">
-          <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
+          <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName} <span class="tier-badge">${gearGradeLabel(gear.item) || `T${gear.tier}`}</span></span>
           <span class="equip-stat">${gear.item.atk ? `공격 +${gear.atk}` : `방어 +${gear.def}`}</span>
           ${ok ? this._gearDeltaHtml(unit, gear) : ''}
           ${equipBtns}${sellBtn}
@@ -930,10 +939,10 @@ class UIManager {
         const buttons = ok
           ? `<button data-wset-assign="${gear.uid}" data-slotidx="0">주무기로</button>
              <button data-wset-assign="${gear.uid}" data-slotidx="1">보조로</button>`
-          : `<span class="equip-stat" style="color:#e74c3c">${STANCE_DATA[gear.stanceId].name} 스탠스 필요</span>`;
+          : `<span class="equip-stat" style="color:#e74c3c">${this._equipFailReason(unit, gear)}</span>`;
         return `
           <div class="equip-row">
-            <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName} <span class="tier-badge">T${gear.tier}</span></span>
+            <span class="equip-item" style="color:${TIER_COLOR[gear.tier]}">${itemIconHtml(gear.itemId)}${gear.displayName} <span class="tier-badge">${gearGradeLabel(gear.item) || `T${gear.tier}`}</span></span>
             <span class="equip-stat">공격 +${gear.atk}</span>
             ${buttons}
           </div>`;
@@ -1165,7 +1174,7 @@ class UIManager {
           <div class="tp-row ${isCurrent ? 'current' : ''}">
             <span class="tp-type ${z.type}">${z.type === 'town' ? '마을' : '사냥터'}</span>
             <span class="tp-name">${z.name}</span>
-            <span class="tp-lv">Lv.${z.level}+</span>
+            <span class="tp-lv">${rankLabel(z.level)}+</span>
             <button data-zone="${i}" ${isCurrent ? 'disabled' : ''}>${isCurrent ? '현재' : '이동'}</button>
           </div>`;
       }).join('');
@@ -1174,6 +1183,46 @@ class UIManager {
       btn.addEventListener('click', () => {
         if (this.onTeleport) this.onTeleport(parseInt(btn.dataset.zone, 10));
         this.refreshTeleport();
+      });
+    });
+  }
+
+  // 승급 패널. 승급 대상(구간 끝에 닿았거나 곧 닿는 캐릭터)만 보여준다.
+  _renderPromotion() {
+    const el = document.getElementById('barracks-promote');
+    if (!el) return;
+    const units = [...this.pm.units.values()].filter((u) => {
+      const cap = levelCapForRank(u.rank || 0);
+      return this.pm.partyIds.includes(u.id) || u.level >= cap - 10;
+    });
+    const rows = units.map((u) => {
+      const st = this.pm.promotionState(u);
+      if (!st.promo) {
+        return `<div class="promo-row"><span class="promo-name">${u.name} <b>${rankLabel(u.level)}</b></span>
+          <span class="promo-note">마스터 — 더 오를 등급이 없습니다.</span></div>`;
+      }
+      const mats = st.promo.materials.map((m) => {
+        const have = this.pm.itemCount(m.id);
+        const ok = have >= m.count;
+        return `<span style="color:${ok ? '#2ecc71' : '#e74c3c'}">${itemIconHtml(m.id, 16)}${ITEM_DATA[m.id].name} ${have}/${m.count}</span>`;
+      }).join(' · ');
+      const goldOk = this.pm.gold >= st.promo.gold;
+      return `
+        <div class="promo-row">
+          <span class="promo-name">${u.name} <b>${rankLabel(u.level)}</b>
+            <div class="promo-note">다음 승급: <b>${st.promo.name}</b> (${rankLabel(st.promo.atLevel)} 도달 시) — ${st.promo.desc}</div>
+            <div class="promo-mats">${mats} · <span style="color:${goldOk ? '#2ecc71' : '#e74c3c'}">${st.promo.gold.toLocaleString()}G</span></div>
+          </span>
+          <button data-promote="${u.id}" ${st.ok ? '' : 'disabled'}>${st.ok ? '승급' : st.reason}</button>
+        </div>`;
+    }).join('');
+    el.innerHTML = `<div class="section-title">승급</div>
+      <p class="hint-text">기본 100 → 베테랑 10 → 익스퍼트 10 → 마스터 10. 구간 끝에서는 경험치가 멈추고, 재료와 인장을 모아야 다음 구간이 열립니다. 인장은 보스가 떨어뜨립니다.</p>
+      ${rows || '<p style="opacity:0.6;font-size:11px;">승급 대상 캐릭터가 없습니다.</p>'}`;
+    el.querySelectorAll('button[data-promote]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const unit = this.pm.units.get(b.dataset.promote);
+        if (unit && this.pm.promote(unit)) this.refreshBarracks();
       });
     });
   }
@@ -1197,6 +1246,7 @@ class UIManager {
     }
     partyEl.innerHTML = slots.join('');
 
+    this._renderPromotion();
     this._renderBarracksCreate();
 
     const listEl = document.getElementById('barracks-list');
@@ -1520,7 +1570,7 @@ class UIManager {
       <div class="enh-detail">
         <div class="enh-head">${itemIconHtml(gear.itemId, 40)}
           <div>
-            <div style="color:${TIER_COLOR[gear.tier]};font-weight:bold">${gear.displayName} <span class="tier-badge">T${gear.tier}</span></div>
+            <div style="color:${TIER_COLOR[gear.tier]};font-weight:bold">${gear.displayName} <span class="tier-badge">${gearGradeLabel(gear.item) || `T${gear.tier}`}</span></div>
             <div class="enh-stars">${stars}</div>
             <div class="shop-meta">${stat} (강화 +${Math.round((starforceStatMult(gear.star) - 1) * 100)}%)</div>
           </div>
@@ -1764,7 +1814,7 @@ class UIManager {
         if (!r.equipment) return false;
         if (this.craftFilter === 'weapon') return out.slot === 'weapon' && unit.canEquip(r.result);
         return out.slot !== 'weapon' && unit.canEquip(r.result);
-      }).sort((a, b) => a.tier - b.tier);
+      }).sort((a, b) => (ITEM_DATA[b.result].reqLevel || 1) - (ITEM_DATA[a.result].reqLevel || 1) || b.tier - a.tier);
 
       const filters = [['weapon', '무기'], ['armor', '방어구'], ['etc', '기타']]
         .map(([id, label]) => `<button class="craft-filter ${this.craftFilter === id ? 'on' : ''}" data-filter="${id}">${label}</button>`).join('');
@@ -1779,7 +1829,7 @@ class UIManager {
         const power = out.atk ? `공격 +${out.atk}` : (out.def ? `방어 +${out.def}` : '');
         return `
           <div class="shop-row">
-            <span class="shop-name">${itemIconHtml(r.result)}${out.name} ${r.equipment ? `<span class="tier-badge">T${r.tier}</span>` : ''}
+            <span class="shop-name">${itemIconHtml(r.result)}${out.name} ${r.equipment ? `<span class="tier-badge">${gearGradeLabel(out) || `T${r.tier}`}</span>` : ''}
               <div class="shop-meta">${power ? `${power} · ` : ''}${mats} · ${r.gold}G</div></span>
             <button data-craft="${r.id}" ${this.pm.canCraft(r) ? '' : 'disabled'}>제작</button>
           </div>`;

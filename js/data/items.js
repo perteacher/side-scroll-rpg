@@ -124,18 +124,15 @@ const RECIPE_DATA = [
 
 const SHOP_STOCK = ['hp_potion', 'mp_potion', 'hp_potion_large', 'mp_potion_large', 'antidote', 'suspicious_cube'];
 
-// ===== 2~5티어 장비 생성 =====
-// 1티어는 생성 시 기본 지급품이고, 상위 티어는 몹 드랍과 제작으로만 얻는다.
-// 티어별 표시 색. 드랍 연출과 목록에서 등급을 한눈에 구분한다.
+// ===== 장비 기본형 =====
+// 실제 장비 목록(레벨대 x 등급)은 js/data/gear.js에서 이 기본형을 불려 만든다.
+// 등급(1~5) 표시 색. 드랍 연출과 목록에서 한눈에 구분한다.
 const TIER_COLOR = { 1: '#bdc3c7', 2: '#5dade2', 3: '#58d68d', 4: '#bb8fce', 5: '#f5b041' };
-
-const EQUIP_TIER_PREFIX = { 2: '강철', 3: '정예', 4: '고대', 5: '마력' };
 
 function weaponNoun(stanceId) {
   const b = WEAPON_BASES.find((w) => w.stanceId === stanceId);
   return b ? b.noun : '무기';
 }
-const EQUIP_TIER_SCALE = { 2: 2.5, 3: 5.5, 4: 10, 5: 17 };
 
 const WEAPON_BASES = [
   { stanceId: 'sword', key: 'w_sword', noun: '장검' },
@@ -171,69 +168,6 @@ const TIER_MATERIALS = {
   5: ['demon_horn', 'dark_crystal', 'war_banner_scrap'],
 };
 
-[2, 3, 4, 5].forEach((tier) => {
-  const scale = EQUIP_TIER_SCALE[tier];
-  const prefix = EQUIP_TIER_PREFIX[tier];
-  WEAPON_BASES.forEach((base) => {
-    const t1 = ITEM_DATA[base.key];
-    ITEM_DATA[`${base.key}_t${tier}`] = {
-      name: `${prefix} ${base.noun}`, slot: 'weapon', stanceId: base.stanceId,
-      atk: Math.round(t1.atk * scale), price: Math.round(t1.price * scale * 1.6), tier,
-    };
-  });
-  ARMOR_BASES.forEach((base) => {
-    const t1 = ITEM_DATA[base.key];
-    ITEM_DATA[`${base.key}_t${tier}`] = {
-      name: `${prefix} ${base.noun}`, slot: base.slot, armorClass: base.armorClass,
-      def: Math.round(t1.def * scale), price: Math.round(t1.price * scale * 1.6), tier,
-    };
-  });
-});
-
-// 티어별 장비 풀 (드랍 추첨용)
-const EQUIP_POOL_BY_TIER = {};
-[1, 2, 3, 4, 5].forEach((tier) => {
-  EQUIP_POOL_BY_TIER[tier] = Object.keys(ITEM_DATA)
-    .filter((id) => ITEM_DATA[id].slot && ITEM_DATA[id].tier === tier);
-});
-
-const EQUIP_DROP_CHANCE = 0.07;
-
-function rollEquipmentDrop(tier) {
-  if (Math.random() > EQUIP_DROP_CHANCE) return null;
-  const pool = EQUIP_POOL_BY_TIER[tier] || [];
-  if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-// 존 권장 레벨 → 티어
-function tierFromLevel(level) {
-  if (level < 10) return 1;
-  if (level < 20) return 2;
-  if (level < 30) return 3;
-  if (level < 40) return 4;
-  return 5;
-}
-
-// 모든 장비에 제작법 추가 (재료는 해당 티어 재료 2종)
-[1, 2, 3, 4, 5].forEach((tier) => {
-  const mats = TIER_MATERIALS[tier];
-  EQUIP_POOL_BY_TIER[tier].forEach((itemId) => {
-    const item = ITEM_DATA[itemId];
-    const isWeapon = item.slot === 'weapon';
-    RECIPE_DATA.push({
-      id: `craft_${itemId}`,
-      result: itemId,
-      gold: Math.round(item.price * 1.5),
-      tier,
-      equipment: true,
-      materials: isWeapon
-        ? [{ id: mats[0], count: 6 }, { id: mats[2], count: 3 }]
-        : [{ id: mats[1], count: 5 }, { id: mats[0], count: 3 }],
-    });
-  });
-});
-
 // ===== 강화 (별 하나가 한 단계) =====
 // 별을 하나씩 올린다. 높을수록 성공률이 떨어지고, 12성부터는 파괴될 수 있다.
 // 15성 이상에서 실패하면 한 단계 떨어지고(15·20성은 보호), 두 번 연속 떨어지면 다음 강화는 반드시 성공한다(찬스 타임).
@@ -258,7 +192,7 @@ function starforceStatMult(star) {
 }
 
 function starforceCost(item, star, protect) {
-  const mats = TIER_MATERIALS[item.tier] || TIER_MATERIALS[1];
+  const mats = TIER_MATERIALS[item.matTier || item.tier] || TIER_MATERIALS[1];
   const gold = Math.round(item.price * (0.5 + star * star * 0.12)) * (protect ? 2 : 1);
   return { gold, materials: [{ id: mats[0], count: 1 + Math.floor(star / 3) }] };
 }
@@ -334,7 +268,7 @@ function mesoAmount(enemy) {
 }
 
 // 장비 슬롯과 방어구 등급
-const EQUIP_SLOTS = ['weapon1', 'weapon2', 'armor', 'helmet', 'boots'];
+const EQUIP_SLOTS = ['weapon1', 'weapon2', 'armor', 'helmet', 'boots', 'accessory'];
 const WEAPON_SLOTS = ['weapon1', 'weapon2'];
 
 // 무기 세트(장비교체등록): 무기 조합을 3벌까지 등록해두고 전투 중 1/2/3 키로 갈아낀다.
@@ -342,7 +276,7 @@ const WEAPON_SLOTS = ['weapon1', 'weapon2'];
 const WEAPON_SET_COUNT = 3;
 const WEAPON_SWAP_COOLDOWN_MS = 2500; // 세트 교체 재사용 대기
 const WEAPON_SWAP_LOCK_MS = 350;      // 교체 직후 공격 경직
-const SLOT_LABEL = { weapon1: '주무기', weapon2: '보조무기', armor: '갑옷', helmet: '투구', boots: '신발' };
+const SLOT_LABEL = { weapon1: '주무기', weapon2: '보조무기', armor: '갑옷', helmet: '투구', boots: '신발', accessory: '장신구' };
 const ARMOR_CLASS_LABEL = { heavy: '중갑', light: '경갑', cloth: '연갑' };
 
 // 공격 타입별 방어구 등급: 근접=중갑 / 원거리=경갑 / 마법=연갑

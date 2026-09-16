@@ -10,6 +10,8 @@ function serializeGear(gear) {
 const LEGACY_STRONG_ENCHANTS = ['brutal', 'immortal', 'deadly'];
 
 function reviveGear(data) {
+  // 개편으로 사라진 아이템 id가 세이브에 남아 있을 수 있다. 모르는 장비는 버린다.
+  if (!ITEM_DATA[data.itemId]) return null;
   const gear = new Gear(data.itemId);
   gear.star = clamp(data.star ?? data.plus ?? 0, 0, gear.maxStar);
   gear.failStreak = data.failStreak || 0;
@@ -47,6 +49,7 @@ const SaveManager = {
           : CHARACTER_DATA.find((c) => c.name === u.name).id,
         nickname: u.isPlayerCreated ? u.name : null,
         level: u.level,
+        rank: u.rank || 0,
         xp: u.xp,
         hp: u.hp,
         mp: u.mp,
@@ -115,6 +118,8 @@ const SaveManager = {
       const unit = new PartyUnit(def, { nickname: ud.nickname, autoMode: ud.autoMode });
       unit.id = ud.id;
       unit.level = ud.level;
+      // 승급 등급. 예전 세이브에는 없으니 레벨에서 되짚는다.
+      unit.rank = ud.rank !== undefined ? ud.rank : rankFromLevel(ud.level);
       unit.xp = ud.xp;
       unit.currentStanceIndex = ud.currentStanceIndex || 0;
       unit.downed = !!ud.downed;
@@ -144,8 +149,8 @@ const SaveManager = {
 
     pm.partyIds = (data.partyIds || []).filter((id) => pm.units.has(id));
     pm.activeIndex = clamp(data.activeIndex || 0, 0, Math.max(0, pm.partyIds.length - 1));
-    (data.gear || []).forEach((g) => pm.gear.push(reviveGear(g)));
-    (data.items || []).forEach(([id, count]) => pm.items.set(id, count));
+    (data.gear || []).forEach((g) => { const gear = reviveGear(g); if (gear) pm.gear.push(gear); });
+    (data.items || []).forEach(([id, count]) => { if (ITEM_DATA[id]) pm.items.set(id, count); });
 
     qm.totalKills = data.quests.totalKills || 0;
     qm.completed = new Set(data.quests.completed || []);

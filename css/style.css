@@ -526,3 +526,14 @@ html, body {
 .link-name { font-size: 11px; }
 .link-lv { font-size: 10px; color: #f7dc6f; }
 .link-eff { font-size: 10px; opacity: 0.85; }
+
+/* 병영 승급 패널 */
+.promo-row {
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  padding: 6px 8px; margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid #2f3b46; border-radius: 4px;
+}
+.promo-name { font-size: 12px; }
+.promo-note { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+.promo-mats { font-size: 11px; margin-top: 3px; line-height: 1.6; }
+.promo-row button { min-width: 88px; }

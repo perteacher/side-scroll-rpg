@@ -215,6 +215,20 @@ const ITEM_SHAPES = {
     '..kvvvxx', '..kvvxxx', '...kvxxx', '....kxxx', '.....kxx', '......kx', '.......k', '........',
   ]),
 
+  // ===== 장신구 =====
+  ring: [
+    '................', '................', '.....kkkkkk.....', '....kgwwwwgk....',
+    '...kgwkkkkwgk...', '...kgwk..kwgk...', '..kgwk....kwgk..', '..kgwk.jj.kwgk..',
+    '..kgwk.jj.kwgk..', '..kgwk....kwgk..', '...kgwk..kwgk...', '...kgwkkkkwgk...',
+    '....kgwwwwgk....', '.....kkkkkk.....', '................', '................',
+  ],
+  amulet: [
+    '................', '..kk........kk..', '...kk......kk...', '....kk....kk....',
+    '.....kk..kk.....', '......kkkk......', '.......kk.......', '......kggk......',
+    '.....kgjjgk.....', '....kgjjjjgk....', '....kgjjjjgk....', '.....kgjjgk.....',
+    '......kggk......', '.......kk.......', '................', '................',
+  ],
+
   // ===== 제작품(퀘스트 납품) =====
   charm: mirrorRows([
     '........', '....kkkk', '....kppp', '....kprr', '....kppr', '....kprr', '....kppr', '....kprp',
@@ -344,6 +358,15 @@ function itemSpriteSpec(itemId) {
     const shape = STANCE_SHAPE[item.stanceId] || 'sword';
     const pal = shape === 'staff' ? { ...TIER_METAL[tier], ...ELEMENT_ORB[item.stanceId] } : TIER_METAL[tier];
     return { shape, pal, key: `w:${item.stanceId}:${tier}` };
+  }
+  if (item.slot === 'accessory') {
+    // 장신구는 금속 틀에 등급 색 보석을 박는다.
+    const metal = TIER_METAL[tier];
+    return {
+      shape: item.accShape || 'ring',
+      pal: { g: metal.m || '#b9bec4', w: metal.w || '#f2f3f4', j: TIER_COLOR[tier] || '#bdc3c7' },
+      key: `acc:${item.accShape}:${tier}`,
+    };
   }
   if (item.slot) {
     const slotShape = { armor: 'body', helmet: 'helm', boots: 'boots' }[item.slot];

@@ -38,7 +38,10 @@ function makeTowerFloor(floor, zoneWidth) {
   const defense = towerStat(8, TOWER_DEF_GROWTH, floor);
   const xpReward = towerStat(600, TOWER_XP_GROWTH, floor);
   const kind = TOWER_MONSTERS[(floor - 1) % TOWER_MONSTERS.length];
-  const template = { ...kind, hp, atk, defense, xpReward, aggressive: true, noScale: true };
+  // 층에서 몹 레벨을 만든다. 전투 수치는 noScale이라 쓰지 않지만, 떨어지는 장비의 레벨대와 표시에 쓴다.
+  // 사냥터가 45에서 끊기고 100에서 다시 시작하므로 그 사이 레벨대(51~90) 장비는 탑에서 나온다.
+  const level = clamp(20 + floor * 2, 20, 130);
+  const template = { ...kind, hp, atk, defense, xpReward, level, aggressive: true, noScale: true };
 
   if (!isTowerBossFloor(floor)) {
     const count = 5 + Math.min(7, Math.floor(floor / 4));
@@ -59,7 +62,7 @@ function makeTowerFloor(floor, zoneWidth) {
       name: `${bossName} (${floor}층)`,
       x: Math.round(zoneWidth * 0.72),
       hp: hp * 14, atk: bossAtk, defense: Math.round(defense * 1.6),
-      xpReward: xpReward * 18, race: 'demon', aggressive: true, boss: true, floor: 1, noScale: true,
+      xpReward: xpReward * 18, race: 'demon', aggressive: true, boss: true, floor: 1, noScale: true, level,
       // 층마다 피해량이 달라야 해서 패턴을 인스턴스에 직접 붙인다.
       bossData: {
         enrageAt: 0.5,

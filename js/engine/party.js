@@ -236,6 +236,36 @@ class PartyManager {
     return true;
   }
 
+  // ---------- 승급 ----------
+  // 왜 못 하는지도 같이 돌려준다(UI에서 그대로 보여준다).
+  promotionState(unit) {
+    const promo = promotionFor(unit.rank || 0);
+    if (!promo) return { promo: null, ok: false, reason: '더 오를 등급이 없습니다.' };
+    const missing = promo.materials.filter((m) => this.itemCount(m.id) < m.count);
+    if (unit.level < promo.atLevel) {
+      return { promo, ok: false, missing, reason: `${rankLabel(promo.atLevel)} 도달 필요` };
+    }
+    if (this.gold < promo.gold) return { promo, ok: false, missing, reason: '골드 부족' };
+    if (missing.length) return { promo, ok: false, missing, reason: '재료 부족' };
+    return { promo, ok: true, missing: [], reason: '' };
+  }
+
+  promote(unit) {
+    const st = this.promotionState(unit);
+    if (!st.ok) {
+      this.log(`${unit.name} 승급 불가 — ${st.reason}`, 'system');
+      return false;
+    }
+    st.promo.materials.forEach((m) => this.removeItem(m.id, m.count));
+    this.gold -= st.promo.gold;
+    unit.rank = st.promo.rank;
+    unit.invalidateStats();
+    this.log(`[승급] ${unit.name} → ${st.promo.name}! 레벨 상한이 ${levelCapForRank(unit.rank)}까지 열렸습니다.`, 'party');
+    if (EFFECTS) EFFECTS.levelUp(unit);
+    if (SOUND) SOUND.levelUp();
+    return true;
+  }
+
   canCraft(recipe) {
     if (this.gold < recipe.gold) return false;
     return recipe.materials.every((m) => this.itemCount(m.id) >= m.count);

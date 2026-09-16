@@ -31,6 +31,7 @@ class PartyUnit {
     this.buffs = []; // 전용기로 걸린 일시 강화
 
     this.level = runtime.level || 1;
+    this.rank = runtime.rank || 0; // 0 기본 / 1 베테랑 / 2 익스퍼트 / 3 마스터
     this.xp = runtime.xp || 0;
     // 스탯은 기본치에 모든 스탠스의 레벨 성장분을 더한 값이다(get stats). 스탠스 레벨이 바뀌면 캐시를 비운다.
     this.baseStats = { ...def.baseStats };
@@ -81,7 +82,10 @@ class PartyUnit {
   }
 
   _calcMaxHp() {
-    const base = 60 + this.stats.vit * 8 + this.level * 10;
+    // 방어구도 체력에 보탠다. 레벨대 장비가 커질수록 방어구 수치가 커지므로,
+    // 이게 없으면 상위 존에서 몹 공격력만 오르고 파티 체력은 제자리라 순식간에 녹는다.
+    const gearDef = this.equipment ? this.equipmentBonus().def : 0;
+    const base = 60 + this.stats.vit * 8 + this.level * 10 + gearDef * 0.5;
     const gearBonus = this.equipment ? this.equipmentBonus().hpPct : 0;
     const synergyBonus = (this.synergy || EMPTY_SYNERGY).hpPct;
     const familyBonus = (this.bonus || EMPTY_FAMILY_BONUS).hpPct;
@@ -231,7 +235,9 @@ class PartyUnit {
   canEquip(itemId) {
     const item = ITEM_DATA[itemId];
     if (!item || !item.slot) return false;
+    if ((item.reqLevel || 1) > this.level) return false; // 레벨대 장비는 착용 제한이 있다
     if (item.slot === 'weapon') return this.stanceIds.includes(item.stanceId);
+    if (item.slot === 'accessory') return true;          // 장신구는 누구나 낀다
     return item.armorClass === this.armorClass;
   }
 
@@ -348,12 +354,26 @@ class PartyUnit {
     }
   }
 
+  // 승급하지 않으면 그 구간의 끝 레벨에서 경험치가 멈춘다.
+  get levelCap() { return levelCapForRank(this.rank || 0); }
+
   gainXp(amount, logFn) {
-    if (this.level >= MAX_LEVEL) { this.xp = 0; return; }
+    const cap = this.levelCap;
+    if (this.level >= cap) {
+      this.xp = 0;
+      // 승급이 필요하다는 안내는 너무 자주 띄우지 않는다.
+      this._capNoticeMs = (this._capNoticeMs || 0) - 1;
+      if (logFn && this._capNoticeMs <= 0) {
+        this._capNoticeMs = 60;
+        const promo = promotionFor(this.rank || 0);
+        if (promo) logFn(`${this.name}: ${rankLabel(this.level)} 한계입니다. 병영에서 [${promo.name} 승급]을 하면 더 성장합니다.`, 'system');
+      }
+      return;
+    }
     const levelBefore = this.level;
     this.xp += amount;
     let leveled = false;
-    while (this.level < MAX_LEVEL && this.xp >= xpToNextLevel(this.level)) {
+    while (this.level < cap && this.xp >= xpToNextLevel(this.level)) {
       this.xp -= xpToNextLevel(this.level);
       this.level += 1;
       this.maxHp = this._calcMaxHp();
