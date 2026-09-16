@@ -109,3 +109,10 @@ function planeDist(a, b) {
 }
 
 function worldToScreen(x, y) { return { x: isoSX(x, y), y: isoSY(x, y) }; }
+
+// 이동 방향으로 스프라이트 방향을 정한다. 화면 오른쪽인지(facing)와 등을 보이는지(facingBack).
+function setFacing(e, dx, dy) {
+  if (!dx && !dy) return;
+  e.facing = isoSX(dx, dy) >= 0 ? 1 : -1;
+  e.facingBack = (dx + dy) < 0;
+}

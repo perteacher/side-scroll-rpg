@@ -456,7 +456,7 @@ class Game {
       const speed = MOVE_SPEED * unit.stance.moveSpeedMult * (1 + (unit.bonus || EMPTY_FAMILY_BONUS).moveSpeed);
       unit.vx = (dx / len) * speed;
       unit.vy = (dy / len) * speed;
-      unit.facing = isoSX(dx, dy) >= 0 ? 1 : -1;
+      setFacing(unit, dx, dy);
     } else {
       this._runAutoMode(unit, dt);
     }
@@ -643,7 +643,7 @@ class Game {
         const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
         unit.vx = ((b.x - a.x) / len) * FOLLOW_SPEED;
         unit.vy = ((b.y - a.y) / len) * FOLLOW_SPEED;
-        unit.facing = isoSX(unit.vx, unit.vy) >= 0 ? 1 : -1;
+        setFacing(unit, unit.vx, unit.vy);
       } else {
         this._runAutoMode(unit, dt);
       }

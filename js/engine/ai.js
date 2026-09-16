@@ -18,7 +18,7 @@ function updateKeepAI(unit, enemies, dt, spawnProjectile, map = null, tryCastSki
   const target = findNearestEnemy(unit, enemies);
   if (!target) { unit.vx = 0; unit.vy = 0; return; }
   const d = dirTo(unit, target);
-  unit.facing = facingFor(d.x, d.y);
+  setFacing(unit, d.x, d.y);
   if (d.dist > unit.stance.range * 0.8) {
     unit.vx = d.x * 90;
     unit.vy = d.y * 90;
@@ -35,7 +35,7 @@ function updateHoldAI(unit, enemies, dt, spawnProjectile, tryCastSkill = null) {
   if (!nearest) return;
   const d = dirTo(unit, nearest);
   if (d.dist > unit.stance.range) return;
-  unit.facing = facingFor(d.x, d.y);
+  setFacing(unit, d.x, d.y);
   tryAutoAttack(unit, nearest, spawnProjectile, tryCastSkill);
 }
 
@@ -82,7 +82,7 @@ function updateEnemyAI(enemy, partyUnits, dt, logFn) {
   if (nearestDist > chaseRange) { updateWander(enemy, dt); return; }
 
   const d = dirTo(enemy, nearest);
-  enemy.facing = facingFor(d.x, d.y);
+  setFacing(enemy, d.x, d.y);
   if (nearestDist > enemy.attackRange) {
     enemy.vx = d.x * 70;
     enemy.vy = d.y * 70;
@@ -116,7 +116,7 @@ function updateBossAI(boss, partyUnits, dt, ctx) {
     if (d < nearestDist) { nearestDist = d; nearest = u; }
   });
   const dir = dirTo(boss, nearest);
-  boss.facing = facingFor(dir.x, dir.y);
+  setFacing(boss, dir.x, dir.y);
 
   if (data && !boss.enraged && boss.hp / boss.maxHp <= data.enrageAt) {
     boss.enraged = true;
@@ -277,7 +277,7 @@ function updateWander(enemy, dt) {
   }
   enemy.vx = 28 * (enemy.wanderDX || 0);
   enemy.vy = 28 * (enemy.wanderDY || 0);
-  if (enemy.vx || enemy.vy) enemy.facing = facingFor(enemy.vx, enemy.vy);
+  if (enemy.vx || enemy.vy) setFacing(enemy, enemy.vx, enemy.vy);
 }
 
 function performBasicAttack(unit, target, spawnProjectile) {
@@ -286,7 +286,7 @@ function performBasicAttack(unit, target, spawnProjectile) {
   const { dmg, isCrit } = roll;
   const d = dirTo(unit, target);
   unit.attackAnim = 260;
-  unit.facing = facingFor(d.x, d.y);
+  setFacing(unit, d.x, d.y);
   if (stance.attackType === 'melee') {
     if (EFFECTS) EFFECTS.slash(unit);
     if (d.dist <= stance.range) {

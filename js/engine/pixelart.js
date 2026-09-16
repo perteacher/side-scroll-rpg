@@ -113,13 +113,13 @@ function monsterSprite(enemy, frame = 'a') {
 }
 
 // frame: idle0 / idle1(숨쉬기로 윗몸 1px 내려감) / walk0(다리 벌림) / walk1
-function unitSprite(unit, frame = 'idle0') {
+function unitSprite(unit, frame = 'idle0', dir = 'front') {
   const armorClass = unit.armorClass || 'light';
   const body = unit.equipment && unit.equipment.armor;
   const helm = unit.equipment && unit.equipment.helmet;
   const bodyTier = body ? body.tier : 1;
   const helmTier = helm ? helm.tier : 0;
-  const key = `unit:${unit.defId}:${unit.color}:${armorClass}:${bodyTier}:${helmTier}:${frame}`;
+  const key = `unit:${unit.defId}:${unit.color}:${armorClass}:${bodyTier}:${helmTier}:${frame}:${dir}`;
   let c = _spriteCache.get(key);
   if (c) return c;
 
@@ -144,12 +144,14 @@ function unitSprite(unit, frame = 'idle0') {
   const put = (rows, pal, dy) => x.drawImage(compileSprite(rows, pal), 0, dy);
   const top = UNIT_HEADROOM;
 
-  put(frame === 'walk0' ? UNIT_LAYERS.legs_walk : UNIT_LAYERS.legs_idle, base, top);
-  put(UNIT_LAYERS[`outfit_${armorClass}`], outfitPal, top + bob);
-  put(UNIT_LAYERS.head, base, top + bob);
-  if (!helm) put(UNIT_LAYERS[`hair_${look.style}`], base, top + bob);
-  else if (armorClass === 'cloth') put(UNIT_LAYERS.helm_cloth, helmPal, bob);
-  else put(UNIT_LAYERS[`helm_${armorClass}`], helmPal, top + bob);
+  // 뒷모습은 전용 레이어를 쓰고, 없는 부위는 앞모습을 그대로 쓴다.
+  const L = (name) => (dir === 'back' && UNIT_BACK_LAYERS[name]) || UNIT_LAYERS[name];
+  put(frame === 'walk0' ? L('legs_walk') : L('legs_idle'), base, top);
+  put(L(`outfit_${armorClass}`), outfitPal, top + bob);
+  put(L('head'), base, top + bob);
+  if (!helm) put(L(`hair_${look.style}`), base, top + bob);
+  else if (armorClass === 'cloth') put(L('helm_cloth'), helmPal, bob);
+  else put(L(`helm_${armorClass}`), helmPal, top + bob);
 
   _spriteCache.set(key, c);
   return c;

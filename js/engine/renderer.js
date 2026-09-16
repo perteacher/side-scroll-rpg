@@ -258,7 +258,7 @@ class Renderer {
     const { ctx } = this;
     const S = PIXEL_SCALE;
     const frame = this._unitFrame(u, time);
-    const spr = unitSprite(u, frame);
+    const spr = unitSprite(u, frame, u.facingBack ? 'back' : 'front');
     const pos = this._spriteTop(u, spr, S);
     const flip = u.facing < 0;
 
