@@ -81,8 +81,6 @@ class UIManager {
     });
     this._initMenuButton();
     this._initItemTooltip();
-    const skip = document.getElementById('prologue-skip');
-    if (skip) skip.addEventListener('click', () => this.onPrologueSkip && this.onPrologueSkip());
     document.querySelectorAll('[data-close]').forEach((btn) => {
       btn.addEventListener('click', () => this.closeWindow(btn.dataset.close));
     });
@@ -211,30 +209,6 @@ class UIManager {
 
     const color = TIER_COLOR[it.tier] || '#ecf0f1';
     return `<div class="tip-name" style="color:${color}">${itemIconHtml(itemId, 20)}${gear ? gear.displayName : it.name}</div>${rows.join('')}`;
-  }
-
-  // 프롤로그 자막 오버레이
-  showPrologue(text) {
-    const el = document.getElementById('prologue-overlay');
-    if (el) el.classList.remove('hidden');
-    // 연출 중에는 채팅·조작 안내를 치운다(자막에 집중되게).
-    document.getElementById('chat-window').classList.add('hidden-chat');
-    const hint = document.getElementById('hint-bar');
-    if (hint) hint.style.display = 'none';
-    this.setPrologueLine(text || '');
-  }
-
-  hidePrologue() {
-    const el = document.getElementById('prologue-overlay');
-    if (el) el.classList.add('hidden');
-    document.getElementById('chat-window').classList.remove('hidden-chat');
-    const hint = document.getElementById('hint-bar');
-    if (hint) hint.style.display = '';
-  }
-
-  setPrologueLine(text) {
-    const el = document.getElementById('prologue-line');
-    if (el) el.textContent = text;
   }
 
   closeMenu() {

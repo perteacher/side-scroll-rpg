@@ -28,8 +28,8 @@ const SaveManager = {
   },
 
   save(game) {
-    // 프롤로그 중이거나 파티가 없으면 저장하지 않는다(빈 세이브가 남으면 첫 실행 판정이 흐려진다).
-    if (game.prologue || game.pm.partyIds.length === 0) return false;
+    // 파티가 없으면 저장하지 않는다(빈 세이브가 남으면 첫 실행 판정이 흐려진다).
+    if (game.pm.partyIds.length === 0) return false;
     // 초기화 직후에는 어떤 경로로도 다시 쓰지 않는다(리로드 전 자동저장 방지).
     if (game.resetting) return false;
     const { pm, zm, qm, sm } = game;

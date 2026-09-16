@@ -345,12 +345,9 @@ class PartyUnit {
     const levelBefore = this.level;
     this.xp += amount;
     let leveled = false;
-    let burned = 0;
     while (this.level < MAX_LEVEL && this.xp >= xpToNextLevel(this.level)) {
       this.xp -= xpToNextLevel(this.level);
       this.level += 1;
-      // 버닝 구간: 초반에는 한 번 오를 때마다 한 단계를 더 준다(첫 10분에 성장이 손에 잡히도록).
-      if (this.level < BURNING_UNTIL_LEVEL) { this.level += 1; burned += 1; }
       this.maxHp = this._calcMaxHp();
       this.maxMp = this._calcMaxMp();
       this.hp = this.maxHp; this.mp = this.maxMp;
@@ -359,7 +356,7 @@ class PartyUnit {
     if (leveled) {
       if (EFFECTS) EFFECTS.levelUp(this);
       if (SOUND) SOUND.levelUp();
-      if (logFn) logFn(`${this.name} 레벨업! (${rankLabel(this.level)})${burned ? ` — 버닝 +${burned}` : ''}`, 'system');
+      if (logFn) logFn(`${this.name} 레벨업! (${rankLabel(this.level)})`, 'system');
       // 베테랑·익스퍼트·마스터에 막 도달했으면 새 스탠스를 알린다.
       this.tierStances.forEach((t) => {
         const start = tierStartLevel(t.tier);
