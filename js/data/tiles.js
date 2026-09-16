@@ -64,3 +64,27 @@ const ISO_PROPS = {
   walls: [{ shape: 'wall', scale: 2 }, { shape: 'rock_big', scale: 2 }],
   spikes: [{ shape: 'spike', scale: 3 }, { shape: 'rock_small', scale: 2 }],
 };
+
+// 마을 테마별 건물·바깥 장식. 같은 배치 설계에 겉모습만 갈아 끼운다.
+const TOWN_STYLE = {
+  town_forest: { house: 'house', extra: 'tree_round' },
+  town_border: { house: 'house', extra: 'rock_big' },
+  town_port: { house: 'house', extra: 'ship' },
+  town_desert: { house: 'tent', extra: 'rock_small' },
+  town_castle: { house: 'house', extra: 'wall' },
+};
+
+// 마을 가구는 테마 색(풀·흙)이 아니라 돌·나무 색으로 칠한다. 안 그러면 바닥에 묻혀 안 보인다.
+const PROP_PALETTE_KIND = {
+  well: 'stone', lamp: 'stone', pillar: 'stone',
+  stall: 'wood', fence: 'wood', barrel: 'wood', crate: 'wood', signpost: 'wood',
+};
+
+function propPalette(theme, shape) {
+  const kind = PROP_PALETTE_KIND[shape];
+  if (!kind) return sceneryPalette(theme, 'mid');
+  const base = kind === 'stone'
+    ? { a: '#c8c2b4', b: '#968f82', c: '#6b655b', d: '#413c35' }
+    : { a: '#c39a68', b: '#9a7247', c: '#6d4f30', d: '#43301d' };
+  return { ...base, x: theme.accent, y: shadeHex(theme.accent, 1.35), w: '#fff6d8', v: '#d7e3ee' };
+}

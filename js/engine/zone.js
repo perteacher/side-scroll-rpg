@@ -28,10 +28,13 @@ class ZoneManager {
     this.platforms = [];
     // 몹 레벨은 존 권장 레벨을 따른다(몹 정의가 직접 들고 있으면 그쪽이 우선).
     this.enemies = (this.def.enemies || []).map((e) => new Enemy({ level: this.def.level, ...e }, this.map));
-    this.recruitNpcs = (this.def.recruits || []).map((r) => new RecruitNpc(r, this.map));
-    this.storyNpcs = (this.def.storyNpcs || []).map((n) => new StoryNpc(n, this.map));
-    this.shopNpc = this.def.shopNpc ? new ShopNpc(this.def.shopNpc, this.map) : null;
-    this.questBoard = this.def.questBoard ? new QuestBoard(this.def.questBoard, this.map) : null;
+    // 마을은 배치 설계에서 정한 자리(광장·집 앞)에 사람을 세운다. 사냥터는 예전처럼 x 위치를 따른다.
+    const spots = this.map.npcSpots || { plaza: [], houses: [] };
+    const at = (def, list) => (list.length ? { ...def, ...list.shift() } : def);
+    this.shopNpc = this.def.shopNpc ? new ShopNpc(at(this.def.shopNpc, spots.plaza), this.map) : null;
+    this.questBoard = this.def.questBoard ? new QuestBoard(at(this.def.questBoard, spots.plaza), this.map) : null;
+    this.storyNpcs = (this.def.storyNpcs || []).map((n) => new StoryNpc(at(n, spots.plaza), this.map));
+    this.recruitNpcs = (this.def.recruits || []).map((r) => new RecruitNpc(at(r, spots.houses), this.map));
     this.warps = this._buildWarps();
     this.ropes = [];
     if (announce) this.log(`${this.def.name} 도착. (권장 Lv.${this.def.level})`, 'system');

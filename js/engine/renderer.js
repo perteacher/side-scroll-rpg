@@ -226,7 +226,8 @@ class Renderer {
     const rows = SCENERY_SHAPES[prop.shape];
     if (!rows) return;
     const theme = this._theme || DEFAULT_THEME;
-    const spr = cachedSprite(`prop:${prop.shape}:${theme.mid}${theme.accent}`, rows, sceneryPalette(theme, 'mid'));
+    const kind = PROP_PALETTE_KIND[prop.shape] || 'theme';
+    const spr = cachedSprite(`prop:${prop.shape}:${kind}:${theme.mid}${theme.accent}`, rows, propPalette(theme, prop.shape));
     const p = this._proj(prop.x, prop.y);
     this._shadow(p.x, p.y, rows[0].length * prop.scale * 0.6);
     drawSprite(this.ctx, spr, snapPx(p.x - (rows[0].length * prop.scale) / 2), snapPx(p.y - rows.length * prop.scale + 6), prop.scale);

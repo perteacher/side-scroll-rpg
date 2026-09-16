@@ -32,30 +32,105 @@ class TileMap {
     this.road = new Uint8Array(this.cols * this.rows);
     this.variant = new Uint8Array(this.cols * this.rows);
     this.props = []; // { x, y, shape, scale }
+    this.npcSpots = { plaza: [], houses: [] }; // 마을에서 NPC를 세울 자리
     this._build(def);
   }
 
   idx(c, r) { return r * this.cols + c; }
   inside(c, r) { return c >= 0 && r >= 0 && c < this.cols && r < this.rows; }
 
+  _prop(c, r, shape, scale, block = true) {
+    if (!this.inside(c, r) || !SCENERY_SHAPES[shape]) return;
+    this.props.push({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2, shape, scale });
+    if (block) this.blocked[this.idx(c, r)] = 1;
+  }
+
+  _spot(kind, c, r) {
+    if (!this.inside(c, r)) return;
+    this.npcSpots[kind].push({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 });
+  }
+
   _build(def) {
-    const propList = ISO_PROPS[(THEME_DATA[def.theme] || DEFAULT_THEME).decor] || ISO_PROPS.trees;
+    // 타일 무늬와 바깥 테두리
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
         const i = this.idx(c, r);
-        const h = hashStr(`${def.id}:${c}:${r}`);
-        this.variant[i] = h % TILE_VARIANTS;
-        const edge = c < 1 || r < 1 || c >= this.cols - 1 || r >= this.rows - 1;
-        if (edge) { this.blocked[i] = 1; continue; }
+        this.variant[i] = hashStr(`${def.id}:${c}:${r}`) % TILE_VARIANTS;
+        if (c < 1 || r < 1 || c >= this.cols - 1 || r >= this.rows - 1) this.blocked[i] = 1;
+      }
+    }
+    if (def.type === 'town') this._buildTown(def); else this._buildField(def);
+  }
+
+  // 사냥터: 가운데 오솔길 + 테마 장식이 흩어진 들판
+  _buildField(def) {
+    const propList = ISO_PROPS[(THEME_DATA[def.theme] || DEFAULT_THEME).decor] || ISO_PROPS.trees;
+    for (let r = 1; r < this.rows - 1; r++) {
+      for (let c = 1; c < this.cols - 1; c++) {
+        const i = this.idx(c, r);
+        const h = hashStr(`${def.id}:p:${c}:${r}`);
         if (r >= ROAD_ROW_FROM && r <= ROAD_ROW_TO) { this.road[i] = 1; continue; }
-        // 길에서 먼 칸일수록 장식이 잘 선다. 장식이 선 칸은 못 지나간다.
+        // 길에서 멀수록 장식이 잘 선다. 장식이 선 칸은 못 지나간다.
         const away = Math.min(Math.abs(r - ROAD_ROW_FROM), Math.abs(r - ROAD_ROW_TO));
         if (h % 100 < 4 + away * 2) {
           const p = propList[(h >>> 7) % propList.length];
-          this.props.push({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2, shape: p.shape, scale: p.scale });
-          this.blocked[i] = 1;
+          this._prop(c, r, p.shape, p.scale);
         }
       }
+    }
+  }
+
+  // 마을: 큰길 + 가운데 광장(우물·좌판·표지판) + 길 양쪽 집 줄. NPC 자리도 여기서 정한다.
+  _buildTown(def) {
+    const style = TOWN_STYLE[def.theme] || TOWN_STYLE.town_forest;
+    const plazaC = Math.floor(this.cols / 2);
+
+    // 큰길이 마을을 가로지른다
+    for (let r = ROAD_ROW_FROM; r <= ROAD_ROW_TO; r++) {
+      for (let c = 1; c < this.cols - 1; c++) this.road[this.idx(c, r)] = 1;
+    }
+    // 광장은 가운데를 위아래로 넓힌 자리
+    for (let r = ROAD_ROW_FROM - 4; r <= ROAD_ROW_TO + 4; r++) {
+      for (let c = plazaC - 6; c <= plazaC + 6; c++) {
+        if (this.inside(c, r)) this.road[this.idx(c, r)] = 1;
+      }
+    }
+
+    // 광장 가구
+    this._prop(plazaC, ROAD_ROW_FROM - 2, 'well', 3);
+    this._prop(plazaC - 5, ROAD_ROW_FROM - 3, 'signpost', 2);
+    this._prop(plazaC - 3, ROAD_ROW_TO + 3, 'stall', 3);
+    this._prop(plazaC + 3, ROAD_ROW_FROM - 3, 'stall', 3);
+    this._prop(plazaC - 4, ROAD_ROW_TO + 2, 'barrel', 2);
+    this._prop(plazaC + 5, ROAD_ROW_TO + 2, 'crate', 2);
+
+    // 광장 NPC 자리(상점·게시판·시나리오 NPC가 여기 선다)
+    [[plazaC - 3, ROAD_ROW_TO + 2], [plazaC + 3, ROAD_ROW_FROM - 2], [plazaC - 1, ROAD_ROW_TO + 3],
+      [plazaC + 1, ROAD_ROW_FROM - 4], [plazaC + 5, ROAD_ROW_TO + 3], [plazaC - 6, ROAD_ROW_TO + 3]]
+      .forEach(([c, r]) => this._spot('plaza', c, r));
+
+    // 길 양쪽으로 집을 줄 세우고, 집 앞(길 쪽)을 NPC 자리로 둔다
+    for (let c = 3; c < this.cols - 4; c += 7) {
+      if (Math.abs(c - plazaC) <= 7) continue;
+      this._prop(c, ROAD_ROW_FROM - 3, style.house, 4);
+      this._spot('houses', c, ROAD_ROW_FROM - 1);
+      this._prop(c + 3, ROAD_ROW_TO + 3, style.house, 4);
+      this._spot('houses', c + 3, ROAD_ROW_TO + 1);
+      this._prop(c + 5, ROAD_ROW_FROM - 2, 'fence', 2);
+      this._prop(c + 1, ROAD_ROW_TO + 2, 'fence', 2);
+    }
+
+    // 가로등은 길가에 세우되 길을 막지 않는다
+    for (let c = 4; c < this.cols - 2; c += 9) {
+      this._prop(c, ROAD_ROW_FROM - 1, 'lamp', 2, false);
+      this._prop(c + 4, ROAD_ROW_TO + 1, 'lamp', 2, false);
+    }
+
+    // 마을 바깥 줄 장식
+    for (let c = 2; c < this.cols - 2; c += 2) {
+      const h = hashStr(`${def.id}:o:${c}`);
+      if (h % 3 === 0) this._prop(c, 1 + (h % 2), style.extra, 3);
+      if ((h >>> 5) % 3 === 0) this._prop(c + 1, this.rows - 2 - ((h >>> 3) % 2), style.extra, 3);
     }
   }
 
