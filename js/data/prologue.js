@@ -10,7 +10,7 @@ const PROLOGUE = {
   outroMs: 2600,
 
   boss: {
-    name: '마왕 아르카논', hp: 320000, atk: 120, defense: 140, xpReward: 0,
+    name: '마왕 아르카논', hp: 1000000, atk: 120, defense: 140, xpReward: 0,
     race: 'demon', aggressive: true, boss: true, floor: 1,
     bossData: {
       enrageAt: 0.4,
