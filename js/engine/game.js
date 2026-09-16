@@ -373,6 +373,7 @@ class Game {
     this.stats.tick(dt);
     this.stats.zonesVisited.add(this.zm.def.id);
     this._tickAutoPotion(dt);
+    updateNpcFacing([...this.zm.storyNpcs, ...this.zm.recruitNpcs, this.zm.shopNpc], this.pm.partyUnits);
     this.zm.update(dt);
     if (this.zm.index === this.tower.zoneIndex && this.tower.update(dt, this.zm.enemies)) this._advanceTowerFloor();
     this.effects.update(dt);
@@ -637,9 +638,23 @@ class Game {
 
       // 리더와 너무 멀어지면 사냥을 멈추고 따라붙는다(홀드 모드는 제자리 유지가 목적이므로 제외).
       const gap = planeDist(unit, leader);
+      // 장식이나 절벽에 막혀 한참을 못 따라오면 리더 옆으로 옮겨 준다(길찾기 없는 게임의 흔한 처리).
+      if (unit.autoMode !== 'hold' && gap > FOLLOW_DISTANCE) unit._followMs = (unit._followMs || 0) + dt;
+      else unit._followMs = 0;
+      if (unit._followMs > 4000 && gap > FOLLOW_DISTANCE * 2) {
+        const c = entityCenter(leader);
+        const spot = this.zm.map.nearestFree(c.x + randRange(-40, 40), c.y + randRange(-40, 40));
+        unit.x = spot.x - unit.width / 2;
+        unit.y = spot.y - unit.height / 2;
+        unit._lift = undefined;
+        unit._followMs = 0;
+      }
       if (unit.autoMode !== 'hold' && gap > FOLLOW_DISTANCE) {
         const a = entityCenter(unit);
-        const b = entityCenter(leader);
+        // 리더와 높이가 다르면(절벽 위/아래) 곧장 가면 벽에 막힌다. 먼저 가까운 경사로로 간다.
+        const b = sameHeight(unit, leader, this.zm.map)
+          ? entityCenter(leader)
+          : (this.zm.map.nearestRamp(a.x, a.y) || entityCenter(leader));
         const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
         unit.vx = ((b.x - a.x) / len) * FOLLOW_SPEED;
         unit.vy = ((b.y - a.y) / len) * FOLLOW_SPEED;
@@ -941,7 +956,7 @@ class Game {
   }
 
   _getAttackTarget(unit) {
-    const alive = this.zm.enemies.filter((e) => e.alive);
+    const alive = this.zm.enemies.filter((e) => e.alive && sameHeight(unit, e, this.zm.map));
     if (alive.length === 0) return null;
     const reach = unit.stance.range * 1.5;
     if (this.ui.target && this.ui.target.alive && planeDist(unit, this.ui.target) <= reach) return this.ui.target;

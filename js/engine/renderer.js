@@ -84,6 +84,7 @@ class Renderer {
   draw(state) {
     const theme = THEME_DATA[state.theme] || DEFAULT_THEME;
     this._theme = theme;
+    this._map = state.map;
     const camX = snapPx(this.camX);
     const camY = snapPx(this.camY);
     this.cam = camX; // 라벨 층에서도 같은 값을 쓴다
@@ -149,12 +150,39 @@ class Renderer {
         // 화면 밖은 건너뛴다(타일이 수천 장이라 이게 없으면 느려진다).
         if (p.x - TILE > camX + this.width || p.x + TILE < camX - TILE) continue;
         if (p.y > camY + this.height || p.y + TILE * 2 < camY) continue;
-        const isRoad = map.road[i] === 1;
+        const isRoad = map.road[i] === 1 || map.ramp[i] === 1;
+        const lift = map.height[i] * ELEV;
+        // 높은 칸은 그만큼 올려 그리고, 낮아지는 쪽(화면 아래 두 면)에 절벽을 세운다.
+        if (lift > 0) this._drawCliff(p, map, c, r, state.groundColor);
         const key = `tile:${isRoad ? 'road' : 'base'}:${state.groundColor}:${map.variant[i]}`;
         const spr = cachedSprite(key, TILE_SHAPES[map.variant[i]], isRoad ? roadPal : pal);
-        drawSprite(ctx, spr, snapPx(p.x - TILE), snapPx(p.y), PIXEL_SCALE);
+        drawSprite(ctx, spr, snapPx(p.x - TILE), snapPx(p.y - lift), PIXEL_SCALE);
       }
     }
+  }
+
+  // 고지대의 남쪽·동쪽 면(화면에서 아래로 보이는 두 면)에 절벽 벽을 그린다.
+  // 벽은 칸 경계선에서 위로 자란다. 앞 칸 바닥은 경계선 아래쪽이라 서로 겹치지 않는다.
+  _drawCliff(p, map, c, r, groundColor) {
+    const { ctx } = this;
+    const h = map.height[map.idx(c, r)];
+    const at = (cc, rr) => (map.inside(cc, rr) ? map.height[map.idx(cc, rr)] : 0);
+    const face = (x1, y1, x2, y2, drop, color) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1 - h * ELEV);
+      ctx.lineTo(x2, y2 - h * ELEV);
+      ctx.lineTo(x2, y2 - (h - drop) * ELEV);
+      ctx.lineTo(x1, y1 - (h - drop) * ELEV);
+      ctx.closePath();
+      ctx.fill();
+    };
+    // 벽은 흙빛으로 깔아야 잔디와 구분된다. 해가 드는 남서면이 밝고 동남면이 어둡다.
+    const dirt = mixHex(shadeHex(groundColor, 0.75), '#6b4f33', 0.6);
+    const south = h - at(c, r + 1);
+    const east = h - at(c + 1, r);
+    if (south > 0) face(p.x - TILE, p.y + TILE / 2, p.x, p.y + TILE, south, dirt);
+    if (east > 0) face(p.x, p.y + TILE, p.x + TILE, p.y + TILE / 2, east, shadeHex(dirt, 0.68));
   }
 
   // 워프는 바닥에 빛나는 발판으로 표시한다.
@@ -225,10 +253,12 @@ class Renderer {
   _drawProp(prop) {
     const rows = SCENERY_SHAPES[prop.shape];
     if (!rows) return;
+    const lift = this._map ? this._map.heightAtWorld(prop.x, prop.y) * ELEV : 0;
     const theme = this._theme || DEFAULT_THEME;
     const kind = PROP_PALETTE_KIND[prop.shape] || 'theme';
     const spr = cachedSprite(`prop:${prop.shape}:${kind}:${theme.mid}${theme.accent}`, rows, propPalette(theme, prop.shape));
-    const p = this._proj(prop.x, prop.y);
+    const raw = this._proj(prop.x, prop.y);
+    const p = { x: raw.x, y: raw.y - lift };
     this._shadow(p.x, p.y, rows[0].length * prop.scale * 0.6);
     drawSprite(this.ctx, spr, snapPx(p.x - (rows[0].length * prop.scale) / 2), snapPx(p.y - rows.length * prop.scale + 6), prop.scale);
   }
@@ -248,11 +278,20 @@ class Renderer {
     return Math.floor(time / 480) % 2 ? 'idle1' : 'idle0';
   }
 
-  // 스프라이트는 발밑(투영된 바닥 좌표)에 세운다.
+  // 경사로를 오르내릴 때 8px씩 튀지 않게, 올릴 높이를 조금씩 따라가게 한다.
+  _lift(e) {
+    const target = elevOf(e, this._map);
+    if (e._lift === undefined) e._lift = target;
+    else e._lift += (target - e._lift) * 0.25;
+    return Math.round(e._lift);
+  }
+
+  // 스프라이트는 발밑(투영된 바닥 좌표)에 세운다. 높은 칸에 서 있으면 그만큼 올린다.
   _spriteTop(e, spr, scale) {
     const c = entityCenter(e);
     const p = this._proj(c.x, c.y);
-    return { sx: snapPx(p.x - (spr.width * scale) / 2), sy: snapPx(p.y - spr.height * scale + 4), px: p.x, py: p.y };
+    const py = p.y - this._lift(e);
+    return { sx: snapPx(p.x - (spr.width * scale) / 2), sy: snapPx(py - spr.height * scale + 4), px: p.x, py };
   }
 
   _drawUnitArt(u, time) {
@@ -330,7 +369,8 @@ class Renderer {
   _labelTop(e, spriteH, scale) {
     const c = entityCenter(e);
     const p = this._proj(c.x, c.y);
-    return { cx: p.x, top: p.y - spriteH * scale + 4 };
+    const lift = e._lift !== undefined ? Math.round(e._lift) : elevOf(e, this._map);
+    return { cx: p.x, top: p.y - lift - spriteH * scale + 4 };
   }
 
   _drawUnitLabel(u, isActive, time = 0, party = [], index = 0) {
@@ -459,10 +499,10 @@ class Renderer {
   _drawNpcArt(npc, look, time, bobSpeed) {
     const S = PIXEL_SCALE;
     const frame = Math.floor(time / bobSpeed) % 2 ? 'idle1' : 'idle0';
-    const spr = unitSprite(look, frame);
+    const spr = unitSprite(look, frame, npc.facingBack ? 'back' : 'front');
     const pos = this._spriteTop(npc, spr, S);
     this._shadow(pos.px, pos.py, npc.width);
-    drawSprite(this.ctx, spr, pos.sx, pos.sy, S);
+    drawSprite(this.ctx, spr, pos.sx, pos.sy, S, npc.facing < 0);
   }
 
   _npcLabelTop(npc) {
@@ -529,7 +569,8 @@ class Renderer {
     const spr = d.kind === 'meso' ? mesoSprite() : itemSprite(d.itemId);
     const w = spr.width * S;
     const h = spr.height * S;
-    const p = this._proj(d.x, d.y);
+    const raw = this._proj(d.x, d.y);
+    const p = { x: raw.x, y: raw.y - (this._map ? this._map.heightAtWorld(d.x, d.y) * ELEV : 0) };
     const hop = d.hop > 0 ? -Math.sin((1 - d.hop / DROP_HOP_MS) * Math.PI) * 18 : 0;
     const bob = d.hop <= 0 ? Math.round(Math.sin((time + d.bob) / 260) * 2) * 2 : 0;
     this._shadow(p.x, p.y, 16);
@@ -603,6 +644,13 @@ class Renderer {
       mctx.arc(c.x * sx, c.y * sy, r, 0, Math.PI * 2);
       mctx.fill();
     };
+    // 고지대는 한 겹 밝게 칠해 어디가 높은 곳인지 보이게 한다
+    mctx.fillStyle = 'rgba(255,255,255,0.10)';
+    for (let r = 0; r < map.rows; r++) {
+      for (let c = 0; c < map.cols; c++) {
+        if (map.height[map.idx(c, r)] > 0) mctx.fillRect(c * TILE * sx, r * TILE * sy, TILE * sx + 0.5, TILE * sy + 0.5);
+      }
+    }
     mctx.fillStyle = 'rgba(255,255,255,0.06)';
     mctx.fillRect(0, (ROAD_ROW_FROM * TILE) * sy, size, ((ROAD_ROW_TO - ROAD_ROW_FROM + 1) * TILE) * sy);
     state.warps.forEach((w) => dot(w, '#8ad6ff', 3));

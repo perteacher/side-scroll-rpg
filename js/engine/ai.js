@@ -16,7 +16,18 @@ function dirTo(from, to) {
 // 킵 모드: 가장 가까운 적을 향해 걸어가 사거리에 들면 공격한다.
 function updateKeepAI(unit, enemies, dt, spawnProjectile, map = null, tryCastSkill = null) {
   const target = findNearestEnemy(unit, enemies);
-  if (!target) { unit.vx = 0; unit.vy = 0; return; }
+  if (!target) {
+    // 같은 높이에 남은 몹이 없으면 가까운 경사로로 올라가(내려가) 사냥을 이어 간다.
+    const other = enemies.find((e) => e.alive);
+    const ramp = other && map ? map.nearestRamp(unit.x + unit.width / 2, unit.y + unit.height / 2) : null;
+    if (!ramp) { unit.vx = 0; unit.vy = 0; return; }
+    const a = entityCenter(unit);
+    const len = Math.hypot(ramp.x - a.x, ramp.y - a.y) || 1;
+    unit.vx = ((ramp.x - a.x) / len) * 90;
+    unit.vy = ((ramp.y - a.y) / len) * 90;
+    setFacing(unit, unit.vx, unit.vy);
+    return;
+  }
   const d = dirTo(unit, target);
   setFacing(unit, d.x, d.y);
   if (d.dist > unit.stance.range * 0.8) {
@@ -55,14 +66,15 @@ function findNearestEnemy(unit, enemies, filterFn = null) {
   enemies.forEach((e) => {
     if (!e.alive) return;
     if (filterFn && !filterFn(e)) return;
+    if (!sameHeight(unit, e)) return;
     const d = planeDist(unit, e);
     if (d < nearestDist) { nearestDist = d; nearest = e; }
   });
   return nearest;
 }
 
-// 쿼터뷰에는 층이 없다. 예전 사이드뷰의 층 판정 자리를 메우는 함수(항상 참).
-function sameLevel() { return true; }
+// 높이가 두 단 이상 차이나면(절벽 위/아래) 서로 못 때린다. 예전 사이드뷰의 층 판정 자리.
+function sameLevel(a, b) { return (a && b) ? sameHeight(a, b) : true; }
 
 // 몹 AI: 선공 몹은 어그로 범위 안의 파티원을 쫓고, 비선공 몹은 맞기 전까지 배회만 한다.
 function updateEnemyAI(enemy, partyUnits, dt, logFn) {
@@ -73,9 +85,11 @@ function updateEnemyAI(enemy, partyUnits, dt, logFn) {
 
   let nearest = null; let nearestDist = Infinity;
   alive.forEach((u) => {
+    if (!sameHeight(enemy, u)) return; // 절벽 너머는 쫓지 않는다
     const d = planeDist(enemy, u);
     if (d < nearestDist) { nearestDist = d; nearest = u; }
   });
+  if (!nearest) { updateWander(enemy, dt); return; }
 
   // 맞아서 화난 몹은 어그로 범위를 넓게 잡아 끝까지 쫓아온다.
   const chaseRange = enemy.provoked ? enemy.aggroRange * 2 : enemy.aggroRange;

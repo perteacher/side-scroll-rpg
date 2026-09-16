@@ -475,6 +475,7 @@ class RecruitNpc {
     const spot = placeOnMap(map, recruitDef, `npc:${this.charId}`);
     this.x = spot.x - this.width / 2;
     this.y = spot.y - this.height / 2;
+    faceRoad(this, map ? map.w / 2 : null);
   }
 }
 
@@ -525,6 +526,7 @@ class ShopNpc {
     const spot = placeOnMap(map, def, `shop:${def.name}`);
     this.x = spot.x - this.width / 2;
     this.y = spot.y - this.height / 2;
+    faceRoad(this, map ? map.w / 2 : null);
   }
 }
 
@@ -548,5 +550,6 @@ class StoryNpc {
     const spot = placeOnMap(map, def, `story:${def.id}`);
     this.x = spot.x - this.width / 2;
     this.y = spot.y - this.height / 2;
+    faceRoad(this, map ? map.w / 2 : null);
   }
 }

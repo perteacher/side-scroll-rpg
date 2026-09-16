@@ -25,6 +25,7 @@ class ZoneManager {
     this.def = ZONE_DATA[index];
     // 쿼터뷰: 존마다 바닥 타일맵을 만들고 그 위에 배치한다.
     this.map = new TileMap(this.def);
+    setActiveMap(this.map); // 높이 판정에 쓰는 현재 지도
     this.platforms = [];
     // 몹 레벨은 존 권장 레벨을 따른다(몹 정의가 직접 들고 있으면 그쪽이 우선).
     this.enemies = (this.def.enemies || []).map((e) => new Enemy({ level: this.def.level, ...e }, this.map));

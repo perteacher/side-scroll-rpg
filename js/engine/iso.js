@@ -1,6 +1,7 @@
 // 쿼터뷰(아이소메트릭) 좌표계.
 //
-// 월드는 바닥 평면 하나다. x = 동쪽, y = 남쪽 (둘 다 월드 px). 높이 축은 쓰지 않는다.
+// 월드는 바닥 평면 하나다. x = 동쪽, y = 남쪽 (둘 다 월드 px).
+// 높이는 칸마다 0~2단으로 따로 들고 있고(height), 화면에서 한 단당 ELEV px 올려 그린다.
 // 화면 좌표는 2:1 마름모 투영이다:
 //     sx = x - y,   sy = (x + y) / 2
 // 한 칸(TILE=32 월드 px 정사각)은 화면에서 64×32 마름모가 된다.
@@ -10,15 +11,25 @@ const TILE = 32;
 const ZONE_DEPTH_TILES = 22; // 존의 세로 칸 수(모든 존 공통)
 const ROAD_ROW_FROM = 9;     // 가운데를 가로지르는 길
 const ROAD_ROW_TO = 12;
+const ELEV = 12;             // 높이 한 단을 화면에서 몇 px 올릴지
+const PLATEAU_H = 2;         // 고지대 높이(2단 = 16px). 경사로가 그 사이 1단을 메운다
+const PLATEAU_ROW_TO = 6;    // 사냥터 북쪽 이 줄까지가 고지대(마지막 줄에 경사로를 깎는다)
+const RAMP_EVERY = 13;       // 경사로 간격(칸)
+
+// 지금 떠 있는 지도. 높이 판정(같은 층인지)에 쓴다.
+let ACTIVE_MAP = null;
+function setActiveMap(m) { ACTIVE_MAP = m; }
 
 function isoSX(x, y) { return x - y; }
 function isoSY(x, y) { return (x + y) * 0.5; }
 function isoDepth(e) { return e.x + e.y; }
 
-// 옛 1차원 배치(x + floor)를 평면 좌표로 옮긴다. floor 2였던 대상은 길 위쪽(뒤쪽)에 선다.
+// 옛 1차원 배치(x + floor)를 평면 좌표로 옮긴다.
+// floor 2였던 대상은 북쪽 고지대 위에 선다(예전 2층 발판의 자리).
+// 보스는 덩치가 커서 경사로에 끼기 쉬우니 항상 길 위에 놓는다.
 function isoPlaceY(def, seedKey) {
   const h = hashStr(`${seedKey}:${def.x}:${def.floor || 1}`);
-  if (def.floor === 2) return (4 + (h % 4)) * TILE + TILE / 2;
+  if (def.floor === 2 && !def.boss) return (2 + (h % (PLATEAU_ROW_TO - 2))) * TILE + TILE / 2;
   return (ROAD_ROW_FROM + (h % (ROAD_ROW_TO - ROAD_ROW_FROM + 1))) * TILE + TILE / 2;
 }
 
@@ -31,6 +42,8 @@ class TileMap {
     this.blocked = new Uint8Array(this.cols * this.rows);
     this.road = new Uint8Array(this.cols * this.rows);
     this.variant = new Uint8Array(this.cols * this.rows);
+    this.height = new Uint8Array(this.cols * this.rows); // 0 = 평지, 2 = 고지대, 1 = 그 사이 경사로
+    this.ramp = new Uint8Array(this.cols * this.rows);   // 경사로 칸(흙길 색으로 칠한다)
     this.props = []; // { x, y, shape, scale }
     this.npcSpots = { plaza: [], houses: [] }; // 마을에서 NPC를 세울 자리
     this._build(def);
@@ -62,13 +75,15 @@ class TileMap {
     if (def.type === 'town') this._buildTown(def); else this._buildField(def);
   }
 
-  // 사냥터: 가운데 오솔길 + 테마 장식이 흩어진 들판
+  // 사냥터: 가운데 오솔길 + 북쪽 고지대(예전 2층) + 테마 장식이 흩어진 들판
   _buildField(def) {
     const propList = ISO_PROPS[(THEME_DATA[def.theme] || DEFAULT_THEME).decor] || ISO_PROPS.trees;
+    this._buildPlateau(def);
     for (let r = 1; r < this.rows - 1; r++) {
       for (let c = 1; c < this.cols - 1; c++) {
         const i = this.idx(c, r);
         const h = hashStr(`${def.id}:p:${c}:${r}`);
+        if (this.road[i]) continue; // 길·경사로에는 장식을 세우지 않는다
         if (r >= ROAD_ROW_FROM && r <= ROAD_ROW_TO) { this.road[i] = 1; continue; }
         // 길에서 멀수록 장식이 잘 선다. 장식이 선 칸은 못 지나간다.
         const away = Math.min(Math.abs(r - ROAD_ROW_FROM), Math.abs(r - ROAD_ROW_TO));
@@ -134,6 +149,41 @@ class TileMap {
     }
   }
 
+  // 북쪽 줄을 두 단 올리고, 일정 간격으로 한 단짜리 경사로를 깎아 오르내릴 길을 낸다.
+  // 한 번에 한 단까지만 오를 수 있으므로 경사로가 없는 곳은 그대로 절벽이 된다.
+  _buildPlateau(def) {
+    for (let r = 1; r <= PLATEAU_ROW_TO; r++) {
+      for (let c = 1; c < this.cols - 1; c++) this.height[this.idx(c, r)] = PLATEAU_H;
+    }
+    for (let c = 4; c < this.cols - 4; c += RAMP_EVERY) {
+      const w = 1 + (hashStr(`${def.id}:ramp:${c}`) % 2);
+      for (let k = 0; k < w; k++) {
+        const cc = c + k;
+        if (!this.inside(cc, PLATEAU_ROW_TO)) continue;
+        const i = this.idx(cc, PLATEAU_ROW_TO);
+        this.height[i] = 1;
+        this.ramp[i] = 1;
+        // 경사로 위아래로 흙길을 내서 장식이 길을 막지 않게 한다.
+        for (let r = PLATEAU_ROW_TO - 2; r <= ROAD_ROW_FROM; r++) {
+          if (this.inside(cc, r)) this.road[this.idx(cc, r)] = 1;
+        }
+      }
+    }
+  }
+
+  heightAtWorld(x, y) {
+    const c = Math.floor(x / TILE);
+    const r = Math.floor(y / TILE);
+    if (!this.inside(c, r)) return 0;
+    return this.height[this.idx(c, r)];
+  }
+
+  // 한 번에 한 단까지만 오르내린다. 두 단 차이(절벽)는 막는다.
+  canStand(fromX, fromY, toX, toY) {
+    if (this.blockedAtWorld(toX, toY)) return false;
+    return Math.abs(this.heightAtWorld(toX, toY) - this.heightAtWorld(fromX, fromY)) <= 1;
+  }
+
   blockedAtWorld(x, y) {
     const c = Math.floor(x / TILE);
     const r = Math.floor(y / TILE);
@@ -143,16 +193,35 @@ class TileMap {
 
   // 벽에 부딪히면 그 축만 막고 나머지 축으로는 계속 움직인다(모서리에 끼지 않게).
   moveEntity(e, dx, dy, radius = 10) {
+    const halfW = (e.width || 0) / 2;
+    const halfH = (e.height || 0) / 2;
+    const c = entityCenter(e);
     if (dx) {
       const nx = e.x + dx;
-      if (!this.blockedAtWorld(nx + Math.sign(dx) * radius, e.y)) e.x = nx;
+      if (this.canStand(c.x, c.y, nx + halfW + Math.sign(dx) * radius, c.y)) { e.x = nx; c.x = nx + halfW; }
     }
     if (dy) {
       const ny = e.y + dy;
-      if (!this.blockedAtWorld(e.x, ny + Math.sign(dy) * radius)) e.y = ny;
+      if (this.canStand(c.x, c.y, c.x, ny + halfH + Math.sign(dy) * radius)) e.y = ny;
     }
     e.x = clamp(e.x, TILE, this.w - TILE);
     e.y = clamp(e.y, TILE, this.h - TILE);
+  }
+
+  // 주어진 지점에서 가장 가까운 경사로 칸의 한가운데. 층이 갈린 동료가 길을 찾을 때 쓴다.
+  nearestRamp(x, y) {
+    let best = null;
+    let bestD = Infinity;
+    for (let r = 0; r < this.rows; r++) {
+      for (let c = 0; c < this.cols; c++) {
+        if (!this.ramp[this.idx(c, r)]) continue;
+        const px = c * TILE + TILE / 2;
+        const py = r * TILE + TILE / 2;
+        const d = Math.hypot(px - x, py - y);
+        if (d < bestD) { bestD = d; best = { x: px, y: py }; }
+      }
+    }
+    return best;
   }
 
   // 막힌 칸에 놓인 대상을 가장 가까운 빈 칸으로 밀어낸다(배치 보정).
@@ -190,4 +259,56 @@ function setFacing(e, dx, dy) {
   if (!dx && !dy) return;
   e.facing = isoSX(dx, dy) >= 0 ? 1 : -1;
   e.facingBack = (dx + dy) < 0;
+}
+
+// 대상이 선 칸의 높이를 화면 px로. 그림·이름표를 이만큼 올려 그린다.
+function elevOf(e, map) {
+  const m = map || ACTIVE_MAP;
+  if (!m) return 0;
+  const c = entityCenter(e);
+  return m.heightAtWorld(c.x, c.y) * ELEV;
+}
+
+// 서로 때릴 수 있는 높이인가. 한 단 차이(경사로 위/아래)까지는 같은 층으로 친다.
+function sameHeight(a, b, map) {
+  const m = map || ACTIVE_MAP;
+  if (!m) return true;
+  const A = entityCenter(a);
+  const B = entityCenter(b);
+  return Math.abs(m.heightAtWorld(A.x, A.y) - m.heightAtWorld(B.x, B.y)) <= 1;
+}
+
+// 서 있는 사람의 기본 방향. 길보다 북쪽에 있으면 남쪽(길 쪽)을, 남쪽에 있으면 북쪽을 본다.
+// 되돌아갈 방향을 home*에 적어 둔다(파티가 지나가면 잠깐 돌아봤다가 이쪽으로 돌아온다).
+function faceRoad(e, plazaX = null) {
+  const c = entityCenter(e);
+  const roadY = (ROAD_ROW_FROM + ROAD_ROW_TO + 1) * TILE / 2;
+  const dy = c.y < roadY ? 1 : -1;
+  const dx = plazaX === null ? 0 : Math.sign(plazaX - c.x) * 0.4;
+  setFacing(e, dx, dy);
+  e.homeFacing = e.facing;
+  e.homeBack = e.facingBack;
+}
+
+// 파티가 가까이 오면 그쪽으로 돌아본다. 멀어지면 원래 보던 쪽으로.
+const NPC_TURN_RANGE = 140;
+function updateNpcFacing(npcs, partyUnits) {
+  npcs.forEach((npc) => {
+    if (!npc) return;
+    let near = null;
+    let best = NPC_TURN_RANGE;
+    partyUnits.forEach((u) => {
+      if (u.downed) return;
+      const d = planeDist(npc, u);
+      if (d < best) { best = d; near = u; }
+    });
+    if (near) {
+      const a = entityCenter(npc);
+      const b = entityCenter(near);
+      setFacing(npc, b.x - a.x, b.y - a.y);
+    } else if (npc.homeFacing !== undefined) {
+      npc.facing = npc.homeFacing;
+      npc.facingBack = npc.homeBack;
+    }
+  });
 }
