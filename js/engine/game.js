@@ -1,21 +1,14 @@
 const MOVE_SPEED = 200;
 const WORLD_HEIGHT = 540;
 const WORLD_WIDTH = 960;
-const FOLLOW_DISTANCE = 220;
+const FOLLOW_DISTANCE = 96;    // 리더와 이만큼 벌어지면 따라붙는다(쿼터뷰라 거리가 짧다)
 const FOLLOW_SPEED = 230;
-
-// 메이플식 이동
-const FLASH_JUMP_SPEED = 560;  // 플래시 점프 수평 속도
-const FLASH_JUMP_MS = 260;
-const FLASH_JUMP_LIFT = -280;
-const ROPE_CLIMB_SPEED = 150;
-const ROPE_GRAB_RANGE = 12;
-const ROPE_JUMP_OFF_VY = -300;
 
 // 바닥 전리품
 const DROP_PICKUP_DELAY_MS = 400; // 튀어나온 직후엔 안 빨려온다
 const DROP_MAGNET_RANGE = 150;
 const DROP_LIFETIME_MS = 60000;
+const DROP_HOP_MS = 420;       // 떨어질 때 살짝 튀는 시간
 const MAX_GROUND_DROPS = 150;
 
 class Game {
@@ -116,8 +109,10 @@ class Game {
     this.ui.onCreateInBarracks = (classId, nickname) => {
       const unit = this.pm.createPlayerCharacter(classId, nickname);
       if (!unit) return;
-      unit.x = this.pm.activeUnit ? this.pm.activeUnit.x : 120;
-      unit.y = GROUND_Y - unit.height;
+      const near = this.pm.activeUnit ? entityCenter(this.pm.activeUnit) : { x: TILE * 3, y: (ROAD_ROW_FROM + 1) * TILE };
+      const spot = this.zm.map.nearestFree(near.x + 40, near.y);
+      unit.x = spot.x - unit.width / 2;
+      unit.y = spot.y - unit.height / 2;
       this.ui.rebuildPartySlots();
       this.ui.refreshOpenWindows();
     };
@@ -209,7 +204,8 @@ class Game {
       window.location.reload();
     };
 
-    this.input.bindCanvasClick(this.canvas, (sx, sy) => ({ x: sx + this.renderer.camX, y: sy }));
+    // 화면 클릭 → 쿼터뷰 역투영으로 바닥 좌표를 얻는다.
+    this.input.bindCanvasClick(this.canvas, (sx, sy) => isoUnproject(sx + this.renderer.camX, sy + this.renderer.camY));
     this.input.onMouseClickWorld = (wx, wy) => this._handleWorldClick(wx, wy);
 
     window.addEventListener('beforeunload', () => {
@@ -315,11 +311,17 @@ class Game {
   }
 
   _resetPartyPositions(entryX = null) {
-    const baseX = entryX === null ? 120 : entryX;
+    const map = this.zm.map;
+    const baseX = entryX === null ? TILE * 3 : entryX;
+    const roadY = (ROAD_ROW_FROM + 1) * TILE + TILE / 2;
     this.pm.partyUnits.forEach((u, i) => {
-      u.x = clamp(baseX + i * 50, 0, this.zm.width - u.width);
-      u.y = GROUND_Y - u.height; u.vx = 0; u.vy = 0;
-      u.onRope = null; u.flashTimer = 0;
+      const spot = map.nearestFree(
+        clamp(baseX + i * 40, TILE, map.w - TILE),
+        clamp(roadY + (i - 1) * 26, TILE, map.h - TILE),
+      );
+      u.x = spot.x - u.width / 2;
+      u.y = spot.y - u.height / 2;
+      u.vx = 0; u.vy = 0;
       clearStatuses(u);
     });
   }
@@ -332,7 +334,7 @@ class Game {
     const hit = this.zm.warps.find((w) => aabbIntersect(unit, w));
     if (!hit) return false;
     this.warpPrompt = hit;
-    if (!this.input.wasPressed('arrowup')) return false;
+    if (!this.input.wasPressed('enter')) return false;
     this._teleport(hit.targetIndex, 'auto');
     this.warpPrompt = null;
     return true;
@@ -379,7 +381,7 @@ class Game {
       e.attackAnim = Math.max(0, (e.attackAnim || 0) - dt);
     });
 
-    if (this.pm.activeUnit) this.renderer.updateCamera(this.pm.activeUnit, this.zm.width);
+    if (this.pm.activeUnit) this.renderer.updateCamera(this.pm.activeUnit, this.zm.map);
     this.ui._hudDt = dt;
     this.ui.refreshPartyHUD();
     this.ui.refreshTargetBar();
@@ -435,57 +437,30 @@ class Game {
   }
 
   // 조작 캐릭터: 방향키를 누르면 수동 이동, 안 누르면 자동전투 모드(off/keep/hold)를 따른다.
+  // 쿼터뷰라 화면 기준 방향을 월드 방향으로 바꿔서 움직인다(↑는 화면 위 = 월드 북서).
   _updateActiveUnit(dt, warpedThisFrame = false) {
     const unit = this.pm.activeUnit;
     if (!unit) return;
-    if (unit.downed) { unit.onRope = null; unit.vx = 0; this._applyPhysics(unit, dt); return; }
+    if (unit.downed || isHardCc(unit)) { unit.vx = 0; unit.vy = 0; return; }
     const { input } = this;
-    // 워프로 이동한 프레임에는 ↑가 이미 쓰였다.
-    const upPressed = !warpedThisFrame && input.wasPressed('arrowup');
 
-    // 기절·빙결: 조작을 받지 않는다(로프에 매달렸으면 매달린 채로 굳는다).
-    if (isHardCc(unit)) {
-      unit.vx = 0; unit.flashTimer = 0;
-      if (!unit.onRope) this._applyPhysics(unit, dt);
-      return;
-    }
+    let dx = 0;
+    let dy = 0;
+    if (input.isDown('arrowup')) { dx -= 1; dy -= 1; }
+    if (input.isDown('arrowdown')) { dx += 1; dy += 1; }
+    if (input.isDown('arrowleft')) { dx -= 1; dy += 1; }
+    if (input.isDown('arrowright')) { dx += 1; dy -= 1; }
 
-    // 로프에 매달린 동안은 로프 조작만 받는다.
-    if (unit.onRope) { this._updateOnRope(unit, dt); return; }
-
-    // 로프 잡기: 로프 앞에서 ↑(점프 중에 ↑를 누르고 있어도 잡힌다) / 로프가 달린 발판 위에서 ↓
-    const ropeHere = this._ropeAt(unit);
-    if (ropeHere && (upPressed || (!unit.grounded && input.isDown('arrowup')))) { this._grabRope(unit, ropeHere); return; }
-    const ropeBelow = unit.grounded ? this._ropeBelow(unit) : null;
-    if (ropeBelow && input.wasPressed('arrowdown')) { this._grabRope(unit, ropeBelow); unit.y += 12; return; }
-
-    const speed = MOVE_SPEED * unit.stance.moveSpeedMult * (1 + (unit.bonus || EMPTY_FAMILY_BONUS).moveSpeed);
-    const manualLeft = input.isDown('arrowleft');
-    const manualRight = input.isDown('arrowright');
-
-    if (manualLeft || manualRight) {
-      unit.vx = manualLeft ? -speed : speed;
-      unit.facing = manualLeft ? -1 : 1;
+    if (dx || dy) {
+      const len = Math.hypot(dx, dy) || 1;
+      const speed = MOVE_SPEED * unit.stance.moveSpeedMult * (1 + (unit.bonus || EMPTY_FAMILY_BONUS).moveSpeed);
+      unit.vx = (dx / len) * speed;
+      unit.vy = (dy / len) * speed;
+      unit.facing = isoSX(dx, dy) >= 0 ? 1 : -1;
     } else {
       this._runAutoMode(unit, dt);
     }
-    // ↑: 땅에서는 점프, 공중에서 한 번 더 누르면 플래시 점프
-    if (upPressed) {
-      if (unit.grounded) { unit.vy = JUMP_VELOCITY; unit.grounded = false; }
-      else if (!unit.usedFlashJump) this._flashJump(unit);
-    }
-    if (unit.flashTimer > 0) {
-      unit.flashTimer = Math.max(0, unit.flashTimer - dt);
-      unit.vx = FLASH_JUMP_SPEED * unit.facing;
-    }
-    // ↓ : 발판 위에 있을 때 아래층으로 내려간다.
-    if (this.input.wasPressed('arrowdown') && unit.grounded && this._standingOnPlatform(unit)) {
-      unit.dropTimer = 220;
-      unit.grounded = false;
-    }
-
-    this._applyPhysics(unit, dt);
-    unit.x = clamp(unit.x, 0, this.zm.width - unit.width);
+    this._applyMove(unit, dt);
 
     if (this.input.wasPressed(' ') && unit.basicAtkCooldown <= 0) {
       const target = this._getAttackTarget(unit);
@@ -495,6 +470,13 @@ class Game {
         this._checkEnemyDeath(target, unit);
       }
     }
+  }
+
+  // 속도(vx, vy)만큼 바닥 위를 움직인다. 벽·장식에 막히면 그 축만 멈춘다.
+  _applyMove(e, dt, radius = 10) {
+    const k = dt / 1000;
+    if (!e.vx && !e.vy) return;
+    this.zm.map.moveEntity(e, e.vx * k, e.vy * k, radius);
   }
 
   // HP가 0이면 전투 불능. 전원이 쓰러지면 가장 가까운 마을로 귀환한다.
@@ -636,19 +618,13 @@ class Game {
     SaveManager.save(this);
   }
 
-  _standingOnPlatform(unit) {
-    const bottom = unit.y + unit.height;
-    return this.zm.platforms.some((p) => unit.x + unit.width > p.x && unit.x < p.x + p.width
-      && Math.abs(bottom - p.y) < 6);
-  }
-
   _runAutoMode(unit, dt) {
-    if (unit.downed) { unit.vx = 0; return; }
-    if (unit.autoMode === 'off') { unit.vx = 0; return; }
+    if (unit.downed) { unit.vx = 0; unit.vy = 0; return; }
+    if (unit.autoMode === 'off') { unit.vx = 0; unit.vy = 0; return; }
     const aliveBefore = this.zm.enemies.filter((e) => e.alive);
     const spawn = (u, t, dmg, crit, color) => this._spawnProjectile(u, t, dmg, crit, color);
     const cast = (u, t) => this._tryAutoSkill(u, t);
-    if (unit.autoMode === 'keep') updateKeepAI(unit, this.zm.enemies, dt, spawn, this.zm.platforms, cast);
+    if (unit.autoMode === 'keep') updateKeepAI(unit, this.zm.enemies, dt, spawn, this.zm.map, cast);
     else updateHoldAI(unit, this.zm.enemies, dt, spawn, cast);
     aliveBefore.forEach((e) => { if (!e.alive) this._checkEnemyDeath(e, unit); });
   }
@@ -657,66 +633,22 @@ class Game {
     const leader = this.pm.activeUnit;
     this.pm.partyUnits.forEach((unit, i) => {
       if (i === this.pm.activeIndex) return;
-      if (isHardCc(unit)) {
-        unit.vx = 0; unit.flashTimer = 0;
-        if (!unit.onRope) this._applyPhysics(unit, dt);
-        return;
-      }
-      // 로프에 매달렸으면 리더 높이까지 자동으로 오르내린다.
-      if (unit.onRope) { this._climbCompanionRope(unit, leader, dt); return; }
+      if (isHardCc(unit)) { unit.vx = 0; unit.vy = 0; return; }
 
       // 리더와 너무 멀어지면 사냥을 멈추고 따라붙는다(홀드 모드는 제자리 유지가 목적이므로 제외).
-      const gap = (leader.x + leader.width / 2) - (unit.x + unit.width / 2);
-      const heightGap = (unit.y + unit.height) - (leader.y + leader.height);
-      // 리더가 위층에 있고 발밑에 로프가 있으면 잡는다. 점프로는 못 오르는 높이를 로프로 따라붙는다.
-      if (unit.autoMode !== 'hold' && heightGap > 30 && unit.grounded) {
-        const rope = this._ropeAt(unit);
-        if (rope) { this._grabRope(unit, rope); return; }
-      }
-      if (unit.autoMode !== 'hold' && Math.abs(gap) > FOLLOW_DISTANCE) {
-        const dir = Math.sign(gap);
-        unit.vx = FOLLOW_SPEED * dir;
-        unit.facing = dir;
-        // 많이 처졌으면 점프 → 플래시 점프로 단숨에 따라붙는다.
-        if (Math.abs(gap) > FOLLOW_DISTANCE * 1.8) {
-          if (unit.grounded) { unit.vy = JUMP_VELOCITY; unit.grounded = false; }
-          else if (!unit.usedFlashJump) this._flashJump(unit);
-        }
+      const gap = planeDist(unit, leader);
+      if (unit.autoMode !== 'hold' && gap > FOLLOW_DISTANCE) {
+        const a = entityCenter(unit);
+        const b = entityCenter(leader);
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        unit.vx = ((b.x - a.x) / len) * FOLLOW_SPEED;
+        unit.vy = ((b.y - a.y) / len) * FOLLOW_SPEED;
+        unit.facing = isoSX(unit.vx, unit.vy) >= 0 ? 1 : -1;
       } else {
         this._runAutoMode(unit, dt);
       }
-      if (unit.flashTimer > 0) {
-        unit.flashTimer = Math.max(0, unit.flashTimer - dt);
-        unit.vx = FLASH_JUMP_SPEED * unit.facing;
-      }
-      this._applyPhysics(unit, dt);
-      unit.x = clamp(unit.x, 0, this.zm.width - unit.width);
+      this._applyMove(unit, dt);
     });
-  }
-
-  // 동료 자동 등반. 리더 발높이를 목표로 오르내리고, 꼭대기·바닥에 닿으면 로프에서 내린다.
-  _climbCompanionRope(unit, leader, dt) {
-    const rope = unit.onRope;
-    const leaderBottom = leader.y + leader.height;
-    const bottom = unit.y + unit.height;
-    // 리더가 발판 위면 끝까지 오르고, 바닥이면 끝까지 내린다.
-    // 리더 발높이만 목표로 삼으면 여유 구간에 걸려 발판 코앞에서 매달린 채 멈춘다.
-    const toPlatform = leaderBottom <= rope.platformY + 4;
-    const toGround = leaderBottom >= rope.bottom - 4;
-    let dir = 0;
-    if (toPlatform) dir = -1;
-    else if (toGround) dir = 1;
-    else if (bottom > leaderBottom + 6) dir = -1;
-    else if (bottom < leaderBottom - 6) dir = 1;
-
-    unit.climbing = dir !== 0;
-    unit.vx = 0; unit.vy = 0;
-    unit.grounded = false;
-    unit.x = clamp(rope.x - unit.width / 2, 0, this.zm.width - unit.width);
-    unit.y += dir * ROPE_CLIMB_SPEED * dt / 1000;
-    const now = unit.y + unit.height;
-    if (now <= rope.platformY + 2) { this._leaveRope(unit, rope.platformY - unit.height); return; }
-    if (now >= rope.bottom - 2) this._leaveRope(unit, rope.bottom - unit.height);
   }
 
   // 파티 슬롯별 스킬 사용(1번 QWE / 2번 ASD / 3번 ZXC). 조작 캐릭터가 아니어도 쓸 수 있다.
@@ -917,85 +849,6 @@ class Game {
     return true;
   }
 
-  // ---------- 메이플식 이동 ----------
-  // 플래시 점프: 공중에서 ↑를 한 번 더 누르면 바라보는 쪽으로 크게 도약한다. 착지하면 다시 쓸 수 있다.
-  _flashJump(unit) {
-    unit.usedFlashJump = true;
-    unit.flashTimer = FLASH_JUMP_MS;
-    unit.vy = Math.min(unit.vy, FLASH_JUMP_LIFT);
-    this.effects.burst(unit.x + unit.width / 2 - unit.facing * 16, unit.y + unit.height * 0.6, 30, 'rgba(220,240,255,0.85)');
-    this.audio.swap();
-  }
-
-  // 로프 앞(발판 아래)에 서 있거나 매달릴 수 있는 높이에 있는가
-  _ropeAt(unit) {
-    const cx = unit.x + unit.width / 2;
-    const bottom = unit.y + unit.height;
-    return this.zm.ropes.find((r) => Math.abs(cx - r.x) <= ROPE_GRAB_RANGE && bottom > r.platformY + 4 && unit.y < r.bottom) || null;
-  }
-
-  // 로프가 달린 발판 위, 로프 바로 위에 서 있는가(↓로 내려가며 잡는다)
-  _ropeBelow(unit) {
-    const cx = unit.x + unit.width / 2;
-    const bottom = unit.y + unit.height;
-    return this.zm.ropes.find((r) => Math.abs(cx - r.x) <= ROPE_GRAB_RANGE && Math.abs(bottom - r.platformY) < 6) || null;
-  }
-
-  _grabRope(unit, rope) {
-    unit.onRope = rope;
-    unit.climbing = false;
-    unit.vx = 0; unit.vy = 0;
-    unit.flashTimer = 0;
-    unit.grounded = false;
-    unit.x = rope.x - unit.width / 2;
-  }
-
-  _leaveRope(unit, y) {
-    unit.onRope = null;
-    unit.climbing = false;
-    unit.y = y;
-    unit.vy = 0;
-    unit.grounded = true;
-    unit.usedFlashJump = false;
-  }
-
-  // 로프 위: ↑/↓로 오르내리고 꼭대기에 닿으면 발판에 올라선다. ←/→는 옆으로 뛰어내리기.
-  _updateOnRope(unit, dt) {
-    const rope = unit.onRope;
-    const { input } = this;
-    const side = input.wasPressed('arrowleft') ? -1 : (input.wasPressed('arrowright') ? 1 : 0);
-    if (side) {
-      unit.onRope = null;
-      unit.climbing = false;
-      unit.facing = side;
-      unit.vx = side * MOVE_SPEED;
-      unit.vy = ROPE_JUMP_OFF_VY;
-      unit.usedFlashJump = false;
-      this._applyPhysics(unit, dt);
-      return;
-    }
-    const dir = (input.isDown('arrowdown') ? 1 : 0) - (input.isDown('arrowup') ? 1 : 0);
-    unit.climbing = dir !== 0;
-    unit.vx = 0; unit.vy = 0;
-    unit.x = clamp(rope.x - unit.width / 2, 0, this.zm.width - unit.width);
-    unit.y += dir * ROPE_CLIMB_SPEED * dt / 1000;
-    const bottom = unit.y + unit.height;
-    if (dir < 0 && bottom <= rope.platformY) { this._leaveRope(unit, rope.platformY - unit.height); return; }
-    if (bottom >= rope.bottom) { this._leaveRope(unit, rope.bottom - unit.height); return; }
-    unit.grounded = false;
-  }
-
-  // 로프 근처면 조작 안내를 띄운다.
-  _ropePrompt() {
-    const u = this.pm.activeUnit;
-    if (!u || u.onRope || !u.grounded || u.downed) return null;
-    const up = this._ropeAt(u);
-    if (up) return { rope: up, text: '↑ 로프', y: u.y - 40 };
-    const down = this._ropeBelow(u);
-    if (down) return { rope: down, text: '↓ 로프', y: u.y - 40 };
-    return null;
-  }
-
   // ---------- 바닥 전리품 ----------
   // 몹이 죽으면 전리품이 튀어나와 바닥에 떨어진다. 파티원이 가까이 가면 빨려와 주워진다.
   _rollDrops(enemy, firstKill = false) {
@@ -1020,54 +873,44 @@ class Game {
 
   _spawnDrop(payload, x, y) {
     if (this.drops.length >= MAX_GROUND_DROPS) this.drops.shift();
+    const spot = this.zm.map.nearestFree(x + randRange(-20, 20), y + randRange(-16, 16));
     this.drops.push({
-      ...payload, x, y,
-      vx: randRange(-90, 90), vy: randRange(-380, -260),
-      age: 0, grounded: false, collected: false, bob: Math.random() * 1000,
+      ...payload, x: spot.x, y: spot.y,
+      age: 0, hop: DROP_HOP_MS, collected: false, bob: Math.random() * 1000,
     });
   }
 
+  // 바닥에 떨어진 전리품은 파티원이 가까이 가면 빨려와 주워진다(쿼터뷰라 중력은 없다).
   _updateDrops(dt) {
     if (this.drops.length === 0) return;
     const sec = dt / 1000;
     const pickers = this.pm.partyUnits.filter((u) => !u.downed);
     this.drops.forEach((d) => {
       d.age += dt;
-      if (d.age > DROP_PICKUP_DELAY_MS) {
-        let best = null;
-        let bestDist = DROP_MAGNET_RANGE;
-        pickers.forEach((u) => {
-          const dist = Math.hypot(u.x + u.width / 2 - d.x, u.y + u.height / 2 - d.y);
-          if (dist < bestDist) { bestDist = dist; best = u; }
-        });
-        if (best) {
-          const k = Math.min(1, sec * 9);
-          d.x += (best.x + best.width / 2 - d.x) * k;
-          d.y += (best.y + best.height / 2 - d.y) * k;
-          d.grounded = false;
-          if (bestDist < 24) this._collectDrop(d, best);
-          return;
-        }
-      }
-      if (d.grounded) return;
-      const prevY = d.y;
-      d.vy += GRAVITY * sec;
-      d.x = clamp(d.x + d.vx * sec, 10, this.zm.width - 10);
-      d.y += d.vy * sec;
-      if (d.vy > 0) {
-        const p = this.zm.platforms.find((pl) => d.x > pl.x && d.x < pl.x + pl.width && prevY <= pl.y && d.y >= pl.y);
-        if (p) { d.y = p.y; d.grounded = true; }
-      }
-      if (d.y >= GROUND_Y) { d.y = GROUND_Y; d.grounded = true; }
-      if (d.grounded) { d.vx = 0; d.vy = 0; }
+      if (d.hop > 0) d.hop = Math.max(0, d.hop - dt);
+      if (d.age <= DROP_PICKUP_DELAY_MS) return;
+      let best = null;
+      let bestDist = DROP_MAGNET_RANGE;
+      pickers.forEach((u) => {
+        const c = entityCenter(u);
+        const dist = Math.hypot(c.x - d.x, c.y - d.y);
+        if (dist < bestDist) { bestDist = dist; best = u; }
+      });
+      if (!best) return;
+      const c = entityCenter(best);
+      const k = Math.min(1, sec * 9);
+      d.x += (c.x - d.x) * k;
+      d.y += (c.y - d.y) * k;
+      if (bestDist < 26) this._collectDrop(d, best);
     });
     this.drops = this.drops.filter((d) => !d.collected && d.age < DROP_LIFETIME_MS);
   }
 
   _collectDrop(d, unit) {
     d.collected = true;
-    const ux = unit.x + unit.width / 2;
-    const uy = unit.y - 14;
+    const c = entityCenter(unit);
+    const ux = c.x;
+    const uy = c.y;
     this.audio.pickup();
     if (d.kind === 'meso') {
       this.pm.addGold(d.amount);
@@ -1094,27 +937,23 @@ class Game {
   }
 
   _enemiesNear(center, radius) {
-    const cx = center.x + center.width / 2;
-    return this.zm.enemies.filter((e) => e.alive && Math.abs((e.x + e.width / 2) - cx) <= radius);
+    return this.zm.enemies.filter((e) => e.alive && planeDist(center, e) <= radius);
   }
 
   _getAttackTarget(unit) {
     const alive = this.zm.enemies.filter((e) => e.alive);
     if (alive.length === 0) return null;
-    if (this.ui.target && this.ui.target.alive) {
-      const d = Math.abs((this.ui.target.x + this.ui.target.width / 2) - (unit.x + unit.width / 2));
-      if (d <= unit.stance.range * 1.5) return this.ui.target;
-    }
-    let nearest = null; let nearestDist = Infinity;
+    const reach = unit.stance.range * 1.5;
+    if (this.ui.target && this.ui.target.alive && planeDist(unit, this.ui.target) <= reach) return this.ui.target;
+    let nearest = null;
+    let nearestDist = Infinity;
     alive.forEach((e) => {
-      if (!sameLevel(unit, e)) return; // 층이 다르면 조준하지 않는다
-      const d = Math.abs((e.x + e.width / 2) - (unit.x + unit.width / 2));
-      if (d < nearestDist && d <= unit.stance.range * 1.5) { nearestDist = d; nearest = e; }
+      const d = planeDist(unit, e);
+      if (d < nearestDist && d <= reach) { nearestDist = d; nearest = e; }
     });
     return nearest;
   }
 
-  // 캐릭터 레벨이 오르면 그만큼 가문 경험치를 준다.
   _syncFamilyProgress() {
     this.pm.units.forEach((u) => {
       const seen = this._seenLevels.get(u.id);
@@ -1170,29 +1009,25 @@ class Game {
           log: (t, tag) => this.ui.logChat(t, tag),
           partyUnits: this.pm.partyUnits,
           worldWidth: this.zm.width,
-          summon: (def) => this.zm.enemies.push(new Enemy(def, this.zm.platforms)),
+          summon: (def) => this.zm.enemies.push(new Enemy(def, this.zm.map)),
           bossProjectile: (boss, target, dmg, delay) => this._spawnBossProjectile(boss, target, dmg, delay),
         });
       } else {
         updateEnemyAI(enemy, this.pm.partyUnits, dt, (t, tag) => this.ui.logChat(t, tag));
       }
-      enemy.x += enemy.vx * (1 - slow) * dt / 1000;
-      if (enemy.platform) {
-        // 2층 몹은 발판 위에 머문다.
-        enemy.x = clamp(enemy.x, enemy.platform.x, enemy.platform.x + enemy.platform.width - enemy.width);
-        enemy.y = enemy.platform.y - enemy.height;
-      } else {
-        enemy.x = clamp(enemy.x, 0, this.zm.width - enemy.width);
-      }
+      const k = (1 - slow) * dt / 1000;
+      this.zm.map.moveEntity(enemy, enemy.vx * k, enemy.vy * k, enemy.width * 0.4);
     });
   }
 
   _spawnProjectile(ownerUnit, targetEnemy, dmg, isCrit, color) {
-    const dir = targetEnemy.x >= ownerUnit.x ? 1 : -1;
-    const p = new Projectile(
-      ownerUnit.x + ownerUnit.width / 2, ownerUnit.y + ownerUnit.height / 2,
-      480 * dir, ownerUnit.uid, dmg, isCrit, color,
-    );
+    const a = entityCenter(ownerUnit);
+    const b = entityCenter(targetEnemy);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const p = new Projectile(a.x, a.y, (dx / len) * 480, ownerUnit.uid, dmg, isCrit, color);
+    p.vy = (dy / len) * 480;
     p.targetUid = targetEnemy.uid;
     p.pendingDamage = { dmg, isCrit };
     p.ownerRef = ownerUnit;
@@ -1202,11 +1037,16 @@ class Game {
 
   // 보스의 원거리 탄막. 파티원에게 날아가며 맞으면 피해를 준다.
   _spawnBossProjectile(boss, target, dmg, offset) {
-    const dir = target.x >= boss.x ? 1 : -1;
+    const a = entityCenter(boss);
+    const b = entityCenter(target);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
     const p = new Projectile(
-      boss.x + boss.width / 2 - dir * offset, boss.y + boss.height * 0.4,
-      340 * dir, boss.uid, Math.round(dmg), false, '#c0392b',
+      a.x - (dx / len) * offset, a.y - (dy / len) * offset,
+      (dx / len) * 340, boss.uid, Math.round(dmg), false, '#c0392b',
     );
+    p.vy = (dy / len) * 340;
     p.hostile = true;
     p.life = 2600;
     this.projectiles.push(p);
@@ -1215,10 +1055,11 @@ class Game {
   _updateProjectiles(dt) {
     this.projectiles.forEach((p) => {
       p.x += p.vx * dt / 1000;
+      p.y += p.vy * dt / 1000;
       p.life -= dt;
       if (p.dead) return;
       if (p.hostile) {
-        const box = { x: p.x - 6, y: p.y - 6, width: 12, height: 12 };
+        const box = { x: p.x - 10, y: p.y - 10, width: 20, height: 20 };
         const hitUnit = this.pm.partyUnits.find((u) => !u.downed && u.hp > 0 && aabbIntersect(box, u));
         if (hitUnit) {
           p.dead = true;
@@ -1232,7 +1073,7 @@ class Game {
       }
       const target = this.zm.enemies.find((e) => e.uid === p.targetUid && e.alive);
       if (!target) { p.dead = true; return; }
-      const box = { x: p.x - 5, y: p.y - 5, width: 10, height: 10 };
+      const box = { x: p.x - 10, y: p.y - 10, width: 20, height: 20 };
       if (aabbIntersect(box, target)) {
         p.dead = true;
         applyDamageToEnemy(target, p.pendingDamage.dmg, p.pendingDamage.isCrit);
@@ -1252,7 +1093,8 @@ class Game {
         }
       }
     });
-    this.projectiles = this.projectiles.filter((p) => !p.dead && p.life > 0 && p.x > -50 && p.x < this.zm.width + 50);
+    this.projectiles = this.projectiles.filter((p) => !p.dead && p.life > 0
+      && p.x > -60 && p.x < this.zm.width + 60 && p.y > -60 && p.y < this.zm.depth + 60);
   }
 
   // 파티원 상태이상(보스 패턴의 기절·화상). 쓰러지면 풀린다.
@@ -1283,34 +1125,6 @@ class Game {
       if (unit.mp < unit.maxMp) unit.mp = clamp(unit.mp + sec * 0.05 * unit.maxMp, 0, unit.maxMp);
       if (unit.hp < unit.maxHp) unit.hp = clamp(unit.hp + sec * 0.02 * unit.maxHp, 0, unit.maxHp);
     });
-  }
-
-  _applyPhysics(unit, dt) {
-    if (unit.onRope) return;
-    const prevBottom = unit.y + unit.height;
-    unit.dropTimer = Math.max(0, unit.dropTimer - dt);
-    unit.vy += GRAVITY * dt / 1000;
-    unit.x += unit.vx * dt / 1000;
-    unit.y += unit.vy * dt / 1000;
-
-    // 2층 발판은 위에서 내려올 때만 착지한다(아래에서 점프해 통과, ↓로 내려갈 때도 통과).
-    let landed = false;
-    if (unit.vy >= 0 && unit.dropTimer <= 0) {
-      const bottom = unit.y + unit.height;
-      this.zm.platforms.forEach((p) => {
-        const overlapX = unit.x + unit.width > p.x && unit.x < p.x + p.width;
-        if (overlapX && prevBottom <= p.y + 2 && bottom >= p.y) {
-          unit.y = p.y - unit.height;
-          unit.vy = 0;
-          landed = true;
-        }
-      });
-    }
-
-    const floorY = GROUND_Y - unit.height;
-    if (!landed && unit.y >= floorY) { unit.y = floorY; unit.vy = 0; landed = true; }
-    unit.grounded = landed;
-    if (landed) unit.usedFlashJump = false;
   }
 
   _handleWorldClick(wx, wy) {
@@ -1355,9 +1169,7 @@ class Game {
       enemies: this.zm.enemies,
       warps: this.zm.warps,
       warpPrompt: this.warpPrompt,
-      platforms: this.zm.platforms,
-      ropes: this.zm.ropes,
-      ropePrompt: this._ropePrompt(),
+      map: this.zm.map,
       drops: this.drops,
       partyUnits: this.pm.partyUnits,
       partyLevel: Math.max(1, ...this.pm.partyUnits.map((u) => u.level)),
@@ -1371,7 +1183,7 @@ class Game {
       enemies: this.zm.enemies,
       recruitNpcs: this.zm.recruitNpcs,
       warps: this.zm.warps,
-      worldWidth: this.zm.width,
+      map: this.zm.map,
     });
   }
 }

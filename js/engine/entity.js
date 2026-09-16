@@ -6,6 +6,13 @@ const JUMP_VELOCITY = -520;
 const AUTO_MODES = ['off', 'keep', 'hold'];
 const AUTO_MODE_LABEL = { off: '정지', keep: '킵', hold: '홀드' };
 
+// 옛 1차원 배치(x + floor)를 타일맵 위의 빈 칸으로 옮긴다.
+function placeOnMap(map, def, seedKey) {
+  const wantY = def.y !== undefined ? def.y : isoPlaceY(def, seedKey);
+  if (!map) return { x: def.x, y: wantY };
+  return map.nearestFree(clamp(def.x, TILE, map.w - TILE), wantY);
+}
+
 class PartyUnit {
   constructor(def, runtime) {
     this.id = def.id;
@@ -51,8 +58,9 @@ class PartyUnit {
     this._bindWeaponSlots();
     this._equipStarterGear();
 
-    this.width = 34; this.height = 52;
-    this.x = 100; this.y = GROUND_Y - this.height;
+    // 쿼터뷰: width/height는 바닥에 차지하는 크기다(그림 크기가 아니다).
+    this.width = 24; this.height = 24;
+    this.x = 100; this.y = 320;
     this.vx = 0; this.vy = 0; this.facing = 1; this.grounded = true;
 
     this.maxHp = this._calcMaxHp();
@@ -370,20 +378,22 @@ class PartyUnit {
 }
 
 class Enemy {
-  constructor(def, platforms = []) {
+  constructor(def, map = null) {
     this.uid = nextUid();
     this.name = def.name;
     this.race = def.race;
     this.level = def.level || 1; // 존 권장 레벨에서 받아온다(탑은 층에 비례)
-    this.width = 32; this.height = 48;
+    this.width = def.boss ? 48 : 28;
+    this.height = this.width;
     this.floor = def.floor || 1;
-    // 2층 몹은 발판 위에 서고, 그 발판 범위 안에서만 배회한다.
-    this.platform = this.floor === 2
-      ? platforms.find((p) => def.x + 20 > p.x && def.x < p.x + p.width) || null
-      : null;
-    this.spawnX = def.x;
-    this.spawnY = (this.platform ? this.platform.y : GROUND_Y) - this.height;
-    this.x = def.x; this.y = this.spawnY;
+    // 옛 1차원 배치(x + floor)를 평면 좌표로 옮기고, 막힌 칸이면 빈 칸으로 밀어낸다.
+    const wantY = def.y !== undefined ? def.y : isoPlaceY(def, def.name || 'enemy');
+    const spot = map
+      ? map.nearestFree(clamp(def.x, TILE, map.w - TILE), wantY)
+      : { x: def.x, y: wantY };
+    this.x = spot.x - this.width / 2;
+    this.y = spot.y - this.height / 2;
+    this.spawnX = this.x; this.spawnY = this.y;
     this.vx = 0; this.vy = 0; this.facing = -1; this.grounded = true;
     this.maxHp = def.hp; this.hp = def.hp;
     this.atk = def.atk; this.defense = def.defense; this.xpReward = def.xpReward;
@@ -406,9 +416,6 @@ class Enemy {
     this.summoned = !!def.summoned;
     this.respawnMs = this.boss ? BOSS_RESPAWN_MS : ENEMY_RESPAWN_MS;
     if (this.boss) {
-      this.width = 56; this.height = 78;
-      this.y = (this.platform ? this.platform.y : GROUND_Y) - this.height;
-      this.spawnY = this.y;
       this.aggroRange = 420;
       this.attackRange = 62;
       this.patternIndex = 0;
@@ -454,14 +461,15 @@ class Projectile {
 
 // 마을의 영입 퀘스트 NPC. 클릭하면 퀘스트 수락/완료 창이 열린다.
 class RecruitNpc {
-  constructor(recruitDef, platforms = []) {
+  constructor(recruitDef, map = null) {
     this.charId = recruitDef.charId;
     this.charDef = CHARACTER_DATA.find((c) => c.id === recruitDef.charId);
     this.name = `${this.charDef.name}`;
     this.tier = recruitDef.tier;
-    this.width = 30; this.height = 50;
-    this.x = recruitDef.x;
-    this.y = floorYFor(recruitDef, platforms, this.height);
+    this.width = 26; this.height = 26;
+    const spot = placeOnMap(map, recruitDef, `npc:${this.charId}`);
+    this.x = spot.x - this.width / 2;
+    this.y = spot.y - this.height / 2;
   }
 }
 
@@ -506,31 +514,34 @@ class Gear {
 
 // 마을 잡화상. 잡템 판매 / 소모품 구매 / 제작을 제공한다.
 class ShopNpc {
-  constructor(def, platforms = []) {
+  constructor(def, map = null) {
     this.name = def.name;
-    this.width = 30; this.height = 52;
-    this.x = def.x;
-    this.y = floorYFor(def, platforms, this.height);
+    this.width = 26; this.height = 26;
+    const spot = placeOnMap(map, def, `shop:${def.name}`);
+    this.x = spot.x - this.width / 2;
+    this.y = spot.y - this.height / 2;
   }
 }
 
 // 마을 의뢰 게시판. 클릭하면 일반 퀘스트를 수주/완료한다.
 class QuestBoard {
-  constructor(def, platforms = []) {
+  constructor(def, map = null) {
     this.name = def.name;
-    this.width = 44; this.height = 54;
-    this.x = def.x;
-    this.y = floorYFor(def, platforms, this.height);
+    this.width = 34; this.height = 34;
+    const spot = placeOnMap(map, def, `board:${def.name}`);
+    this.x = spot.x - this.width / 2;
+    this.y = spot.y - this.height / 2;
   }
 }
 
 // 시나리오 진행용 마을 NPC.
 class StoryNpc {
-  constructor(def, platforms = []) {
+  constructor(def, map = null) {
     this.id = def.id;
     this.name = def.name;
-    this.width = 30; this.height = 52;
-    this.x = def.x;
-    this.y = floorYFor(def, platforms, this.height);
+    this.width = 26; this.height = 26;
+    const spot = placeOnMap(map, def, `story:${def.id}`);
+    this.x = spot.x - this.width / 2;
+    this.y = spot.y - this.height / 2;
   }
 }

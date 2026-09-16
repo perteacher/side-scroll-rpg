@@ -89,7 +89,7 @@ class EffectManager {
       if (it.kind === 'spark') {
         it.x += it.vx * dt / 1000;
         it.y += it.vy * dt / 1000;
-        it.vy += 520 * dt / 1000;
+        it.vx *= 0.94; it.vy *= 0.94;
       }
     });
     this.items = this.items.filter((it) => it.life > 0);
@@ -136,19 +136,20 @@ class EffectManager {
   }
 
   _drawText(ctx, it, t) {
+    const p = worldToScreen(it.x, it.y);
     const pop = it.crit ? 1 + (1 - t) * 0.35 : 1;
     ctx.font = `bold ${Math.round(it.size * pop)}px sans-serif`;
     // 획득 표시는 글자 왼쪽에 도트 아이콘을 붙인다.
     if (it.itemId) {
       const half = ctx.measureText(it.text).width / 2;
-      drawSprite(ctx, itemSprite(it.itemId), it.x - half - 20, it.y - 15, 1.25);
+      drawSprite(ctx, itemSprite(it.itemId), p.x - half - 20, p.y - 15, 1.25);
     }
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-    ctx.strokeText(it.text, it.x, it.y);
+    ctx.strokeText(it.text, p.x, p.y);
     ctx.fillStyle = it.color;
-    ctx.fillText(it.text, it.x, it.y);
+    ctx.fillText(it.text, p.x, p.y);
   }
 
   // ---------- 도트 연출 ----------
@@ -177,40 +178,45 @@ class EffectManager {
   }
 
   _drawSlash(ctx, it, t) {
+    const p = worldToScreen(it.x, it.y);
     const spread = Math.PI * 0.75;
     const start = -spread / 2 + (1 - t) * spread * 0.6;
-    ctx.translate(it.x, it.y);
+    ctx.translate(p.x, p.y - 16);
     ctx.scale(it.facing, 1);
     this._dotArc(ctx, 0, 0, it.radius, start, start + spread * 0.7, `rgba(255,255,255,${0.35 + t * 0.6})`, 6);
     this._dotArc(ctx, 0, 0, it.radius * 0.72, start, start + spread * 0.7, `rgba(160,220,255,${t * 0.7})`, 4);
   }
 
   _drawSpark(ctx, it) {
+    const p = worldToScreen(it.x, it.y);
     ctx.fillStyle = it.color;
-    this._dot(ctx, it.x, it.y, 4);
+    this._dot(ctx, p.x, p.y - 16, 4);
   }
 
   _drawBurst(ctx, it, t) {
+    const p = worldToScreen(it.x, it.y);
     const r = it.radius * (1.05 - t * 0.75);
-    // 안쪽부터 바깥쪽으로 색이 옅어지는 고리 세 겹
-    this._dotRing(ctx, it.x, it.y, r, r, it.color, 6);
-    this._dotRing(ctx, it.x, it.y, r * 0.72, r * 0.72, 'rgba(255,255,255,0.85)', 4);
-    this._dotRing(ctx, it.x, it.y, r * 0.42, r * 0.42, it.color, 4);
+    // 바닥에 퍼지는 고리라서 세로를 절반으로 눌러 그린다(쿼터뷰).
+    this._dotRing(ctx, p.x, p.y, r, r * 0.5, it.color, 6);
+    this._dotRing(ctx, p.x, p.y, r * 0.72, r * 0.36, 'rgba(255,255,255,0.85)', 4);
+    this._dotRing(ctx, p.x, p.y, r * 0.42, r * 0.21, it.color, 4);
   }
 
   _drawSwap(ctx, it, t) {
+    const p = worldToScreen(it.x, it.y);
     const r = 10 + (1 - t) * 34;
-    this._dotRing(ctx, it.x, it.y - 4, r, r * 0.32, it.color, 4);
-    this._dotRing(ctx, it.x, it.y - 4, r * 0.6, r * 0.2, `rgba(255,255,255,${t * 0.8})`, 4);
+    this._dotRing(ctx, p.x, p.y, r, r * 0.5, it.color, 4);
+    this._dotRing(ctx, p.x, p.y, r * 0.6, r * 0.3, `rgba(255,255,255,${t * 0.8})`, 4);
   }
 
   _drawCast(ctx, it, t) {
+    const p = worldToScreen(it.x, it.y);
     const r = 16 + (1 - t) * 14;
-    this._dotRing(ctx, it.x, it.y + 14, r, r * 0.35, it.color, 4);
+    this._dotRing(ctx, p.x, p.y, r, r * 0.5, it.color, 4);
     ctx.fillStyle = '#ffffff';
     for (let i = 0; i < 3; i++) {
       const a = (1 - t) * Math.PI * 2 + i * (Math.PI * 2 / 3);
-      this._dot(ctx, it.x + Math.cos(a) * r, it.y + 14 + Math.sin(a) * r * 0.35, 4);
+      this._dot(ctx, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r * 0.5, 4);
     }
   }
 }
