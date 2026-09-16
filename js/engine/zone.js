@@ -1,6 +1,24 @@
 // 현재 존의 몹/NPC/워프/발판을 관리한다. 존은 exits로 여러 갈래와 이어진다.
 const WARP_WIDTH = 56;
 const WARP_HEIGHT = 56;
+// 한 종류당 몇 마리씩 깔지. 길이 갈래지면서 빈 들판이 넓어져 사냥감을 늘렸다.
+const ENEMY_SPAWN_MULT = 3;
+const SPAWN_SPREAD = 150; // 복제한 몹을 x로 이만큼씩 벌린다
+
+// 존 정의의 몹 목록을 불려서 되돌려준다. 보스와 소환몹은 그대로 둔다.
+function spreadEnemies(list, zoneWidth) {
+  const out = [];
+  list.forEach((def) => {
+    out.push(def);
+    if (def.boss || def.summoned) return;
+    for (let k = 1; k < ENEMY_SPAWN_MULT; k++) {
+      const dir = k % 2 ? 1 : -1;
+      const x = clamp(def.x + dir * SPAWN_SPREAD * Math.ceil(k / 2), TILE * 2, zoneWidth - TILE * 2);
+      out.push({ ...def, x });
+    }
+  });
+  return out;
+}
 
 function findZoneIndex(zoneId) { return ZONE_DATA.findIndex((z) => z.id === zoneId); }
 
@@ -28,7 +46,8 @@ class ZoneManager {
     setActiveMap(this.map); // 높이 판정에 쓰는 현재 지도
     this.platforms = [];
     // 몹 레벨은 존 권장 레벨을 따른다(몹 정의가 직접 들고 있으면 그쪽이 우선).
-    this.enemies = (this.def.enemies || []).map((e) => new Enemy({ level: this.def.level, ...e }, this.map));
+    this.enemies = spreadEnemies(this.def.enemies || [], this.map.w)
+      .map((e) => new Enemy({ level: this.def.level, ...e }, this.map));
     // 마을은 배치 설계에서 정한 자리(광장·집 앞)에 사람을 세운다. 사냥터는 예전처럼 x 위치를 따른다.
     const spots = this.map.npcSpots || { plaza: [], houses: [] };
     const at = (def, list) => (list.length ? { ...def, ...list.shift() } : def);
@@ -46,9 +65,8 @@ class ZoneManager {
       const targetIndex = findZoneIndex(exit.to);
       const target = ZONE_DATA[targetIndex];
       // 워프는 길 위의 빈 칸에 놓는다.
-      const spot = this.map.nearestFree(
-        clamp(exit.x, TILE * 2, this.map.w - TILE * 2), (ROAD_ROW_FROM + 1) * TILE + TILE / 2,
-      );
+      const wx = clamp(exit.x, TILE * 2, this.map.w - TILE * 2);
+      const spot = this.map.nearestFree(wx, this.map.roadRowAt(wx));
       return {
         x: spot.x - WARP_WIDTH / 2, y: spot.y - WARP_HEIGHT / 2, width: WARP_WIDTH, height: WARP_HEIGHT,
         targetIndex, label: target.name, type: target.type, level: target.level,

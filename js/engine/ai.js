@@ -14,27 +14,77 @@ function dirTo(from, to) {
 }
 
 // 킵 모드: 가장 가까운 적을 향해 걸어가 사거리에 들면 공격한다.
+const AI_SPEED = 90;
+const STUCK_MS = 150;    // 이만큼 제자리걸음이면 막힌 것으로 본다
+const SIDESTEP_MS = 520; // 막혔을 때 옆으로 도는 시간
+const PROBE_DIST = 28;   // 옆으로 돌 때 이만큼 앞이 비었는지 찔러 본다
+
+// 나무·절벽에 코를 박고 제자리걸음하면 옆으로 돌아 나간다(길찾기가 없어서 필요한 처리).
+// 목표 방향 (dx, dy)를 받아 실제로 갈 방향을 돌려준다.
+function avoidStuck(unit, dx, dy, dt) {
+  const moved = Math.hypot(unit.x - (unit._lastX === undefined ? unit.x : unit._lastX),
+    unit.y - (unit._lastY === undefined ? unit.y : unit._lastY));
+  unit._lastX = unit.x;
+  unit._lastY = unit.y;
+
+  // 도는 중이면 그 방향을 유지한다(왔다 갔다 하지 않게).
+  if (unit._sideMs > 0) {
+    unit._sideMs -= dt;
+    if (unit._sideMs > 0) {
+      return unit._sideDir ? { x: -dy * unit._sideDir, y: dx * unit._sideDir } : { x: -dx, y: -dy };
+    }
+    unit._stuckMs = 0;
+  }
+
+  unit._stuckMs = moved < 0.35 ? (unit._stuckMs || 0) + dt : 0;
+  if (unit._stuckMs <= STUCK_MS) return { x: dx, y: dy };
+
+  // 막혔다. 좌우 중 실제로 발 디딜 수 있는 쪽으로 돈다(장식·절벽 둘 다 canStand로 걸러진다).
+  const map = ACTIVE_MAP;
+  const c = entityCenter(unit);
+  const free = (s) => !map || map.canStand(c.x, c.y, c.x - dy * s * PROBE_DIST, c.y + dx * s * PROBE_DIST);
+  const dirs = [];
+  if (free(1)) dirs.push(1);
+  if (free(-1)) dirs.push(-1);
+  unit._sideMs = SIDESTEP_MS;
+  unit._sideDir = dirs.length ? dirs[hashStr(`${unit.id}:${Math.round(unit.x / 64)}`) % dirs.length] : 0;
+  // 양쪽 다 막히면 뒤로 물러났다가 다시 붙는다.
+  return unit._sideDir ? { x: -dy * unit._sideDir, y: dx * unit._sideDir } : { x: -dx, y: -dy };
+}
+
+// 경사로 쪽으로 걸어간다. 단차 때문에 곧장 못 가는 상황에서 쓴다.
+function walkToRamp(unit, map, dt) {
+  const a = entityCenter(unit);
+  const ramp = map && map.nearestRamp ? map.nearestRamp(a.x, a.y) : null;
+  if (!ramp) { unit.vx = 0; unit.vy = 0; return false; }
+  const len = Math.hypot(ramp.x - a.x, ramp.y - a.y) || 1;
+  const s = avoidStuck(unit, (ramp.x - a.x) / len, (ramp.y - a.y) / len, dt);
+  unit.vx = s.x * AI_SPEED;
+  unit.vy = s.y * AI_SPEED;
+  setFacing(unit, unit.vx, unit.vy);
+  return true;
+}
+
 function updateKeepAI(unit, enemies, dt, spawnProjectile, map = null, tryCastSkill = null) {
   const target = findNearestEnemy(unit, enemies);
+  // 같은 높이에 남은 몹이 없으면 가까운 경사로로 올라가(내려가) 사냥을 이어 간다.
   if (!target) {
-    // 같은 높이에 남은 몹이 없으면 가까운 경사로로 올라가(내려가) 사냥을 이어 간다.
-    const other = enemies.find((e) => e.alive);
-    const ramp = other && map ? map.nearestRamp(unit.x + unit.width / 2, unit.y + unit.height / 2) : null;
-    if (!ramp) { unit.vx = 0; unit.vy = 0; return; }
-    const a = entityCenter(unit);
-    const len = Math.hypot(ramp.x - a.x, ramp.y - a.y) || 1;
-    unit.vx = ((ramp.x - a.x) / len) * 90;
-    unit.vy = ((ramp.y - a.y) / len) * 90;
-    setFacing(unit, unit.vx, unit.vy);
+    if (!enemies.some((e) => e.alive) || !walkToRamp(unit, map, dt)) { unit.vx = 0; unit.vy = 0; }
     return;
   }
+  // 사냥감이 다른 단에 있으면 곧장 가 봐야 절벽에 박힌다. 경사로부터 탄다.
+  if (!sameStep(unit, target, map)) { walkToRamp(unit, map, dt); return; }
+
   const d = dirTo(unit, target);
-  setFacing(unit, d.x, d.y);
   if (d.dist > unit.stance.range * 0.8) {
-    unit.vx = d.x * 90;
-    unit.vy = d.y * 90;
+    const s = avoidStuck(unit, d.x, d.y, dt);
+    unit.vx = s.x * AI_SPEED;
+    unit.vy = s.y * AI_SPEED;
+    setFacing(unit, unit.vx, unit.vy);
   } else {
     unit.vx = 0; unit.vy = 0;
+    unit._stuckMs = 0; unit._sideMs = 0;
+    setFacing(unit, d.x, d.y);
     tryAutoAttack(unit, target, spawnProjectile, tryCastSkill);
   }
 }
@@ -67,7 +117,8 @@ function findNearestEnemy(unit, enemies, filterFn = null) {
     if (!e.alive) return;
     if (filterFn && !filterFn(e)) return;
     if (!sameHeight(unit, e)) return;
-    const d = planeDist(unit, e);
+    // 같은 단에 있는 몹을 확실히 먼저 고른다(단차를 넘나드느라 버벅이지 않게).
+    const d = planeDist(unit, e) + (sameStep(unit, e) ? 0 : 900);
     if (d < nearestDist) { nearestDist = d; nearest = e; }
   });
   return nearest;

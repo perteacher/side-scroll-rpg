@@ -9,8 +9,12 @@
 
 const TILE = 32;
 const ZONE_DEPTH_TILES = 22; // 존의 세로 칸 수(모든 존 공통)
-const ROAD_ROW_FROM = 9;     // 가운데를 가로지르는 길
+const ROAD_ROW_FROM = 9;     // 마을 큰길(사냥터는 아래 구불구불한 길을 쓴다)
 const ROAD_ROW_TO = 12;
+const MAIN_ROW_MIN = 8;      // 사냥터 본길이 오르내리는 범위
+const MAIN_ROW_MAX = 16;
+const ROAD_BEND_EVERY = 8;   // 이 칸마다 본길이 새 목표 줄로 꺾인다
+const BRANCH_EVERY = 17;     // 남쪽 샛길 간격(칸)
 const ELEV = 12;             // 높이 한 단을 화면에서 몇 px 올릴지
 const PLATEAU_H = 2;         // 고지대 높이(2단 = 16px). 경사로가 그 사이 1단을 메운다
 const PLATEAU_ROW_TO = 6;    // 사냥터 북쪽 이 줄까지가 고지대(마지막 줄에 경사로를 깎는다)
@@ -27,10 +31,15 @@ function isoDepth(e) { return e.x + e.y; }
 // 옛 1차원 배치(x + floor)를 평면 좌표로 옮긴다.
 // floor 2였던 대상은 북쪽 고지대 위에 선다(예전 2층 발판의 자리).
 // 보스는 덩치가 커서 경사로에 끼기 쉬우니 항상 길 위에 놓는다.
-function isoPlaceY(def, seedKey) {
+function isoPlaceY(def, seedKey, map = null) {
   const h = hashStr(`${seedKey}:${def.x}:${def.floor || 1}`);
   if (def.floor === 2 && !def.boss) return (2 + (h % (PLATEAU_ROW_TO - 2))) * TILE + TILE / 2;
-  return (ROAD_ROW_FROM + (h % (ROAD_ROW_TO - ROAD_ROW_FROM + 1))) * TILE + TILE / 2;
+  if (!map || !map.roadRow) return (ROAD_ROW_FROM + (h % (ROAD_ROW_TO - ROAD_ROW_FROM + 1))) * TILE + TILE / 2;
+  // 길이 구불구불하니 그 길을 기준으로 위아래 네 칸 안에 흩어 놓는다.
+  const c = clamp(Math.floor(def.x / TILE), 0, map.cols - 1);
+  const base = map.roadRow[c];
+  const off = def.boss ? 0 : (h % 9) - 4;
+  return clamp(base + off, PLATEAU_ROW_TO + 1, map.rows - 2) * TILE + TILE / 2;
 }
 
 class TileMap {
@@ -44,6 +53,7 @@ class TileMap {
     this.variant = new Uint8Array(this.cols * this.rows);
     this.height = new Uint8Array(this.cols * this.rows); // 0 = 평지, 2 = 고지대, 1 = 그 사이 경사로
     this.ramp = new Uint8Array(this.cols * this.rows);   // 경사로 칸(흙길 색으로 칠한다)
+    this.roadRow = null; // 사냥터: 열마다 본길의 가운데 줄
     this.props = []; // { x, y, shape, scale }
     this.npcSpots = { plaza: [], houses: [] }; // 마을에서 NPC를 세울 자리
     this._build(def);
@@ -75,24 +85,117 @@ class TileMap {
     if (def.type === 'town') this._buildTown(def); else this._buildField(def);
   }
 
-  // 사냥터: 가운데 오솔길 + 북쪽 고지대(예전 2층) + 테마 장식이 흩어진 들판
+  // 사냥터: 갈래길 + 북쪽 고지대(예전 2층) + 드문드문한 테마 장식
   _buildField(def) {
     const propList = ISO_PROPS[(THEME_DATA[def.theme] || DEFAULT_THEME).decor] || ISO_PROPS.trees;
-    this._buildPlateau(def);
+    const rampCols = this._buildPlateau(def);
+    this._buildFieldRoads(def, rampCols);
+    this._scatterProps(def, propList);
+  }
+
+  // 사냥터 길. 일직선이 아니라 구불구불한 본길 + 샛길 + 빈터로 짠다.
+  _buildFieldRoads(def, rampCols) {
+    // 본길: 8칸마다 목표 줄을 뽑고 그 사이를 이어 부드럽게 굽힌다.
+    const pts = [];
+    for (let c = 0; c <= this.cols + ROAD_BEND_EVERY; c += ROAD_BEND_EVERY) {
+      const h = hashStr(`${def.id}:main:${c}`);
+      pts.push({ c, r: MAIN_ROW_MIN + (h % (MAIN_ROW_MAX - MAIN_ROW_MIN + 1)) });
+    }
+    this.roadRow = new Int8Array(this.cols);
+    for (let c = 0; c < this.cols; c++) {
+      const i = Math.min(pts.length - 2, Math.floor(c / ROAD_BEND_EVERY));
+      const a = pts[i];
+      const b = pts[i + 1];
+      const t = (c - a.c) / (b.c - a.c);
+      this.roadRow[c] = clamp(Math.round(a.r + (b.r - a.r) * t), MAIN_ROW_MIN, MAIN_ROW_MAX);
+      this._carveDisc(c, this.roadRow[c], 1);
+    }
+
+    // 경사로마다 본길과 잇는 오르막 샛길. 고지대 위로도 조금 더 이어 준다.
+    rampCols.forEach((c) => {
+      this._carveLine(c, PLATEAU_ROW_TO + 1, c, this.roadRow[c], 1);
+      const h = hashStr(`${def.id}:up:${c}`);
+      this._carveLine(c, PLATEAU_ROW_TO - 1, clamp(c + (h % 7) - 3, 2, this.cols - 3), 2 + (h % 3), 1);
+    });
+
+    // 남쪽 샛길: 본길에서 갈라져 빈터로 빠진다. 일부는 다시 본길로 붙어 고리가 된다.
+    for (let c = 9; c < this.cols - 6; c += BRANCH_EVERY) {
+      const h = hashStr(`${def.id}:branch:${c}`);
+      const endC = clamp(c + ((h >>> 3) % 9) - 4, 3, this.cols - 4);
+      const endR = clamp(this.roadRow[c] + 4 + (h % 3), MAIN_ROW_MIN, this.rows - 3);
+      this._carveLine(c, this.roadRow[c], endC, endR, 1);
+      this._carveDisc(endC, endR, 2); // 빈터(몹이 모이는 자리)
+      if (h % 3 === 0) {
+        const backC = clamp(endC + 9, 3, this.cols - 3);
+        this._carveLine(endC, endR, backC, this.roadRow[backC], 1);
+      }
+    }
+  }
+
+  _carveDisc(c, r, rad) {
+    for (let dr = -rad; dr <= rad; dr++) {
+      for (let dc = -rad; dc <= rad; dc++) {
+        if (dc * dc + dr * dr > rad * rad + rad) continue;
+        const cc = c + dc;
+        const rr = r + dr;
+        if (cc < 1 || rr < 1 || cc >= this.cols - 1 || rr >= this.rows - 1) continue;
+        this.road[this.idx(cc, rr)] = 1;
+      }
+    }
+  }
+
+  _carveLine(c0, r0, c1, r1, rad) {
+    const steps = Math.max(Math.abs(c1 - c0), Math.abs(r1 - r0));
+    for (let s = 0; s <= steps; s++) {
+      const t = steps === 0 ? 0 : s / steps;
+      this._carveDisc(Math.round(c0 + (c1 - c0) * t), Math.round(r0 + (r1 - r0) * t), rad);
+    }
+  }
+
+  // 길에서 몇 칸 떨어졌는지(BFS). 장식을 길 가까이에는 덜 세우려고 쓴다.
+  _roadDistance() {
+    const d = new Int16Array(this.cols * this.rows).fill(999);
+    const q = [];
+    for (let i = 0; i < d.length; i++) if (this.road[i]) { d[i] = 0; q.push(i); }
+    for (let k = 0; k < q.length; k++) {
+      const i = q[k];
+      const c = i % this.cols;
+      const r = (i - c) / this.cols;
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dc, dr]) => {
+        const cc = c + dc;
+        const rr = r + dr;
+        if (!this.inside(cc, rr)) return;
+        const j = this.idx(cc, rr);
+        if (d[j] <= d[i] + 1) return;
+        d[j] = d[i] + 1;
+        q.push(j);
+      });
+    }
+    return d;
+  }
+
+  // 장식은 길에서 멀수록 드물게 세운다. 예전엔 너무 빽빽해 시야를 가렸다.
+  _scatterProps(def, propList) {
+    const dist = this._roadDistance();
     for (let r = 1; r < this.rows - 1; r++) {
       for (let c = 1; c < this.cols - 1; c++) {
         const i = this.idx(c, r);
+        if (this.road[i]) continue;
         const h = hashStr(`${def.id}:p:${c}:${r}`);
-        if (this.road[i]) continue; // 길·경사로에는 장식을 세우지 않는다
-        if (r >= ROAD_ROW_FROM && r <= ROAD_ROW_TO) { this.road[i] = 1; continue; }
-        // 길에서 멀수록 장식이 잘 선다. 장식이 선 칸은 못 지나간다.
-        const away = Math.min(Math.abs(r - ROAD_ROW_FROM), Math.abs(r - ROAD_ROW_TO));
-        if (h % 100 < 4 + away * 2) {
+        const away = Math.min(dist[i], 6);
+        if (h % 100 < away * 1.6) {
           const p = propList[(h >>> 7) % propList.length];
           this._prop(c, r, p.shape, p.scale);
         }
       }
     }
+  }
+
+  // 사냥터에서 그 x의 본길 한가운데(월드 y). 워프·부활 위치를 길 위에 놓을 때 쓴다.
+  roadRowAt(worldX) {
+    if (!this.roadRow) return (ROAD_ROW_FROM + 1) * TILE + TILE / 2;
+    const c = clamp(Math.floor(worldX / TILE), 0, this.cols - 1);
+    return this.roadRow[c] * TILE + TILE / 2;
   }
 
   // 마을: 큰길 + 가운데 광장(우물·좌판·표지판) + 길 양쪽 집 줄. NPC 자리도 여기서 정한다.
@@ -155,6 +258,7 @@ class TileMap {
     for (let r = 1; r <= PLATEAU_ROW_TO; r++) {
       for (let c = 1; c < this.cols - 1; c++) this.height[this.idx(c, r)] = PLATEAU_H;
     }
+    const rampCols = [];
     for (let c = 4; c < this.cols - 4; c += RAMP_EVERY) {
       const w = 1 + (hashStr(`${def.id}:ramp:${c}`) % 2);
       for (let k = 0; k < w; k++) {
@@ -163,12 +267,11 @@ class TileMap {
         const i = this.idx(cc, PLATEAU_ROW_TO);
         this.height[i] = 1;
         this.ramp[i] = 1;
-        // 경사로 위아래로 흙길을 내서 장식이 길을 막지 않게 한다.
-        for (let r = PLATEAU_ROW_TO - 2; r <= ROAD_ROW_FROM; r++) {
-          if (this.inside(cc, r)) this.road[this.idx(cc, r)] = 1;
-        }
+        this.road[i] = 1;
+        rampCols.push(cc);
       }
     }
+    return rampCols;
   }
 
   heightAtWorld(x, y) {
@@ -176,6 +279,13 @@ class TileMap {
     const r = Math.floor(y / TILE);
     if (!this.inside(c, r)) return 0;
     return this.height[this.idx(c, r)];
+  }
+
+  rampAtWorld(x, y) {
+    const c = Math.floor(x / TILE);
+    const r = Math.floor(y / TILE);
+    if (!this.inside(c, r)) return false;
+    return this.ramp[this.idx(c, r)] === 1;
   }
 
   // 한 번에 한 단까지만 오르내린다. 두 단 차이(절벽)는 막는다.
@@ -234,7 +344,7 @@ class TileMap {
         if (!this.blockedAtWorld(nx, ny)) return { x: nx, y: ny };
       }
     }
-    return { x: clamp(x, TILE, this.w - TILE), y: (ROAD_ROW_FROM + 1) * TILE };
+    return { x: clamp(x, TILE, this.w - TILE), y: this.roadRowAt(x) };
   }
 }
 
@@ -311,4 +421,17 @@ function updateNpcFacing(npcs, partyUnits) {
       npc.facingBack = npc.homeBack;
     }
   });
+}
+
+// 걸어서 곧장 갈 수 있는 같은 단인가. 경사로 위에 서 있으면 위아래 어느 쪽으로든 갈 수 있다.
+// (sameHeight는 "때릴 수 있는가", sameStep은 "곧장 걸어갈 수 있는가"를 본다)
+function sameStep(a, b, map = null) {
+  const m = map || ACTIVE_MAP;
+  if (!m || !m.heightAtWorld) return true;
+  const A = entityCenter(a);
+  const B = entityCenter(b);
+  const ha = m.heightAtWorld(A.x, A.y);
+  const hb = m.heightAtWorld(B.x, B.y);
+  if (ha === hb) return true;
+  return m.rampAtWorld(A.x, A.y);
 }

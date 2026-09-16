@@ -1,7 +1,8 @@
 const MOVE_SPEED = 200;
 const WORLD_HEIGHT = 540;
 const WORLD_WIDTH = 960;
-const FOLLOW_DISTANCE = 96;    // 리더와 이만큼 벌어지면 따라붙는다(쿼터뷰라 거리가 짧다)
+const FOLLOW_DISTANCE = 260;   // 리더와 이만큼 벌어지면 사냥을 접고 따라붙는다
+const HOLD_BREAK_DISTANCE = 560; // 홀드 중이라도 이만큼 멀어지면 낙오로 보고 킵으로 푼다
 const FOLLOW_SPEED = 230;
 
 // 바닥 전리품
@@ -109,7 +110,7 @@ class Game {
     this.ui.onCreateInBarracks = (classId, nickname) => {
       const unit = this.pm.createPlayerCharacter(classId, nickname);
       if (!unit) return;
-      const near = this.pm.activeUnit ? entityCenter(this.pm.activeUnit) : { x: TILE * 3, y: (ROAD_ROW_FROM + 1) * TILE };
+      const near = this.pm.activeUnit ? entityCenter(this.pm.activeUnit) : { x: TILE * 3, y: this.zm.map.roadRowAt(TILE * 3) };
       const spot = this.zm.map.nearestFree(near.x + 40, near.y);
       unit.x = spot.x - unit.width / 2;
       unit.y = spot.y - unit.height / 2;
@@ -313,7 +314,7 @@ class Game {
   _resetPartyPositions(entryX = null) {
     const map = this.zm.map;
     const baseX = entryX === null ? TILE * 3 : entryX;
-    const roadY = (ROAD_ROW_FROM + 1) * TILE + TILE / 2;
+    const roadY = map.roadRowAt(baseX);
     this.pm.partyUnits.forEach((u, i) => {
       const spot = map.nearestFree(
         clamp(baseX + i * 40, TILE, map.w - TILE),
@@ -638,6 +639,11 @@ class Game {
 
       // 리더와 너무 멀어지면 사냥을 멈추고 따라붙는다(홀드 모드는 제자리 유지가 목적이므로 제외).
       const gap = planeDist(unit, leader);
+      // 홀드는 제자리 유지가 목적이지만, 리더가 멀리 가 버리면 혼자 낙오한다. 킵으로 풀어 따라오게 한다.
+      if (unit.autoMode === 'hold' && gap > HOLD_BREAK_DISTANCE) {
+        unit.autoMode = 'keep';
+        this.ui.logChat(`${unit.name}: 리더와 너무 멀어져 홀드를 풀고 킵으로 전환합니다.`, 'system');
+      }
       // 장식이나 절벽에 막혀 한참을 못 따라오면 리더 옆으로 옮겨 준다(길찾기 없는 게임의 흔한 처리).
       if (unit.autoMode !== 'hold' && gap > FOLLOW_DISTANCE) unit._followMs = (unit._followMs || 0) + dt;
       else unit._followMs = 0;
@@ -656,8 +662,9 @@ class Game {
           ? entityCenter(leader)
           : (this.zm.map.nearestRamp(a.x, a.y) || entityCenter(leader));
         const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-        unit.vx = ((b.x - a.x) / len) * FOLLOW_SPEED;
-        unit.vy = ((b.y - a.y) / len) * FOLLOW_SPEED;
+        const s = avoidStuck(unit, (b.x - a.x) / len, (b.y - a.y) / len, dt);
+        unit.vx = s.x * FOLLOW_SPEED;
+        unit.vy = s.y * FOLLOW_SPEED;
         setFacing(unit, unit.vx, unit.vy);
       } else {
         this._runAutoMode(unit, dt);

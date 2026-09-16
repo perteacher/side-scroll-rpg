@@ -8,7 +8,7 @@ const AUTO_MODE_LABEL = { off: '정지', keep: '킵', hold: '홀드' };
 
 // 옛 1차원 배치(x + floor)를 타일맵 위의 빈 칸으로 옮긴다.
 function placeOnMap(map, def, seedKey) {
-  const wantY = def.y !== undefined ? def.y : isoPlaceY(def, seedKey);
+  const wantY = def.y !== undefined ? def.y : isoPlaceY(def, seedKey, map);
   if (!map) return { x: def.x, y: wantY };
   return map.nearestFree(clamp(def.x, TILE, map.w - TILE), wantY);
 }
@@ -387,7 +387,7 @@ class Enemy {
     this.height = this.width;
     this.floor = def.floor || 1;
     // 옛 1차원 배치(x + floor)를 평면 좌표로 옮기고, 막힌 칸이면 빈 칸으로 밀어낸다.
-    const wantY = def.y !== undefined ? def.y : isoPlaceY(def, def.name || 'enemy');
+    const wantY = def.y !== undefined ? def.y : isoPlaceY(def, def.name || 'enemy', map);
     const spot = map
       ? map.nearestFree(clamp(def.x, TILE, map.w - TILE), wantY)
       : { x: def.x, y: wantY };

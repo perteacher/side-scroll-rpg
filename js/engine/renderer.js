@@ -651,8 +651,13 @@ class Renderer {
         if (map.height[map.idx(c, r)] > 0) mctx.fillRect(c * TILE * sx, r * TILE * sy, TILE * sx + 0.5, TILE * sy + 0.5);
       }
     }
-    mctx.fillStyle = 'rgba(255,255,255,0.06)';
-    mctx.fillRect(0, (ROAD_ROW_FROM * TILE) * sy, size, ((ROAD_ROW_TO - ROAD_ROW_FROM + 1) * TILE) * sy);
+    // 길은 실제 타일을 그대로 찍는다(사냥터 길이 구불구불해서 띠로는 못 그린다)
+    mctx.fillStyle = 'rgba(255,255,255,0.09)';
+    for (let r = 0; r < map.rows; r++) {
+      for (let c = 0; c < map.cols; c++) {
+        if (map.road[map.idx(c, r)]) mctx.fillRect(c * TILE * sx, r * TILE * sy, TILE * sx + 0.5, TILE * sy + 0.5);
+      }
+    }
     state.warps.forEach((w) => dot(w, '#8ad6ff', 3));
     state.recruitNpcs.forEach((n) => dot(n, '#f1c40f', 2.5));
     state.enemies.filter((e) => e.alive).forEach((e) => dot(e, '#e74c3c', 2.5));
