@@ -369,7 +369,7 @@ class Renderer {
     const S = this._enemyScale(e);
     const moving = Math.hypot(e.vx || 0, e.vy || 0) > 5;
     const frame = moving && Math.floor(time / 150) % 2 ? 'b' : 'a';
-    const spr = monsterSprite(e, frame);
+    const spr = monsterSprite(e, frame, e.facingBack ? 'back' : 'front');
     const pos = this._spriteTop(e, spr, S);
     const lunge = (e.attackAnim || 0) > 0 && !isHardCc(e) ? e.facing * 6 : 0;
 

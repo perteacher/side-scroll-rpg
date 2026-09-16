@@ -137,6 +137,8 @@ function rollDamage(attackerUnit, targetUnit, dmgMult) {
     * statusDefenseMult(targetUnit); // 방어 붕괴
   // 관통 숙련만큼 상대 방어력을 무시한다.
   const effectiveDef = targetDef * (1 - clamp(bon.pierce, 0, 0.9));
-  const dmg = Math.max(1, Math.round(raw - effectiveDef * 0.5));
+  // 방어력은 빼기로 깎지만, 상대 방어가 내 공격보다 높아도 원 피해의 15%는 들어간다.
+  // (예전엔 여기서 1로 주저앉아 상위 존 몹을 아예 못 잡았다)
+  const dmg = Math.max(1, Math.round(raw * 0.15), Math.round(raw - effectiveDef * 0.5));
   return { dmg, isCrit, miss: false };
 }

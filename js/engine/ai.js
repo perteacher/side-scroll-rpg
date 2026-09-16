@@ -209,6 +209,7 @@ function _startBossPattern(boss, nearest, ctx) {
     for (let i = 0; i < p.count; i++) {
       ctx.summon({
         ...p.minion,
+        level: boss.level,
         x: c.x + randRange(-120, 120),
         y: c.y + randRange(-80, 80),
         summoned: true,

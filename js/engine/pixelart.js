@@ -96,18 +96,20 @@ function heldWeaponGear(unit) {
 // ---------- 몬스터 합성 ----------
 // 종족별 틀 하나에 이름으로 정한 색을 입힌다. 같은 이름의 몹은 늘 같은 색이다.
 // frame: a(다리 모음) / b(다리 벌림)
-function monsterSprite(enemy, frame = 'a') {
+function monsterSprite(enemy, frame = 'a', dir = 'front') {
   const race = MONSTER_LAYERS[enemy.race] ? enemy.race : 'humanoid';
-  const key = `mon:${race}:${enemy.name}:${frame}`;
+  const key = `mon:${race}:${enemy.name}:${frame}:${dir}`;
   let c = _spriteCache.get(key);
   if (c) return c;
   const layers = MONSTER_LAYERS[race];
+  const back = MONSTER_BACK_LAYERS[race];
   const pal = monsterPalette(race, enemy.name);
   c = document.createElement('canvas');
   c.width = UNIT_W; c.height = UNIT_H;
   const x = c.getContext('2d');
   x.drawImage(compileSprite(frame === 'b' ? layers.legs_b : layers.legs_a, pal), 0, 0);
-  x.drawImage(compileSprite(layers.body, pal), 0, 0);
+  // 뒷모습은 몸통만 바꾼다(다리는 좌우 대칭이라 그대로).
+  x.drawImage(compileSprite(dir === 'back' && back ? back.body : layers.body, pal), 0, 0);
   _spriteCache.set(key, c);
   return c;
 }

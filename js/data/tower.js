@@ -31,12 +31,14 @@ function isTowerBossFloor(floor) { return floor % TOWER_BOSS_EVERY === 0; }
 
 // 층 번호로 그 층의 몹 배치를 만든다. 보스 층은 보스 하나 + 호위 몇 마리.
 function makeTowerFloor(floor, zoneWidth) {
-  const hp = towerStat(60, TOWER_HP_GROWTH, floor);
-  const atk = towerStat(6, TOWER_ATK_GROWTH, floor);
-  const defense = towerStat(3, TOWER_DEF_GROWTH, floor);
-  const xpReward = towerStat(25, TOWER_XP_GROWTH, floor);
+  // 탑은 층마다 자체 배율이 있어서 레벨 배율(balance.js)을 쓰지 않는다(noScale).
+  // 대신 1층 기준값을 지금 파티 기준으로 올려 잡았다(예전 값은 한 대에 죽었다).
+  const hp = towerStat(5200, TOWER_HP_GROWTH, floor);
+  const atk = towerStat(24, TOWER_ATK_GROWTH, floor);
+  const defense = towerStat(8, TOWER_DEF_GROWTH, floor);
+  const xpReward = towerStat(600, TOWER_XP_GROWTH, floor);
   const kind = TOWER_MONSTERS[(floor - 1) % TOWER_MONSTERS.length];
-  const template = { ...kind, hp, atk, defense, xpReward, aggressive: true };
+  const template = { ...kind, hp, atk, defense, xpReward, aggressive: true, noScale: true };
 
   if (!isTowerBossFloor(floor)) {
     const count = 5 + Math.min(7, Math.floor(floor / 4));
@@ -57,7 +59,7 @@ function makeTowerFloor(floor, zoneWidth) {
       name: `${bossName} (${floor}층)`,
       x: Math.round(zoneWidth * 0.72),
       hp: hp * 14, atk: bossAtk, defense: Math.round(defense * 1.6),
-      xpReward: xpReward * 18, race: 'demon', aggressive: true, boss: true, floor: 1,
+      xpReward: xpReward * 18, race: 'demon', aggressive: true, boss: true, floor: 1, noScale: true,
       // 층마다 피해량이 달라야 해서 패턴을 인스턴스에 직접 붙인다.
       bossData: {
         enrageAt: 0.5,
@@ -66,7 +68,7 @@ function makeTowerFloor(floor, zoneWidth) {
           { type: 'charge', telegraph: 700, speed: 360, damage: Math.round(bossAtk * 1.2), cooldown: 3600, warn: '돌진 준비!' },
           { type: 'volley', telegraph: 750, count: 4, damage: Math.round(bossAtk * 0.9), cooldown: 4000, warn: '어둠의 탄막!' },
           { type: 'summon', telegraph: 950, count: 2, cooldown: 9000, warn: '심연에서 무언가 기어나온다!',
-            minion: { name: '심연의 조각', hp: Math.round(hp * 0.5), atk: Math.round(atk * 0.8), defense, xpReward: Math.round(xpReward * 0.4), race: 'demon', aggressive: true } },
+            minion: { name: '심연의 조각', hp: Math.round(hp * 0.5), atk: Math.round(atk * 0.8), defense, xpReward: Math.round(xpReward * 0.4), race: 'demon', aggressive: true, noScale: true } },
         ],
       },
     },

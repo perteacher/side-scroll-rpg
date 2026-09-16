@@ -395,8 +395,13 @@ class Enemy {
     this.y = spot.y - this.height / 2;
     this.spawnX = this.x; this.spawnY = this.y;
     this.vx = 0; this.vy = 0; this.facing = -1; this.grounded = true;
-    this.maxHp = def.hp; this.hp = def.hp;
-    this.atk = def.atk; this.defense = def.defense; this.xpReward = def.xpReward;
+    // 몹 수치는 정의값 × 레벨 배율(balance.js). 탑처럼 스스로 층 배율을 가진 몹은 noScale로 건너뛴다.
+    const sc = def.noScale ? { hp: 1, atk: 1, xp: 1, def: 1 } : enemyScaleFor(this.level);
+    this.maxHp = Math.max(1, Math.round(def.hp * sc.hp));
+    this.hp = this.maxHp;
+    this.atk = Math.max(1, Math.round(def.atk * sc.atk));
+    this.defense = Math.max(0, Math.round(def.defense * sc.def));
+    this.xpReward = Math.max(1, Math.round(def.xpReward * sc.xp));
     this.aggroRange = 220; this.attackRange = 46;
     this.evade = def.evade !== undefined ? def.evade : 0.06; // 기본 회피율(가문 조준 숙련으로 상쇄)
     this.attackCooldownMs = 0;
