@@ -122,7 +122,7 @@ function rollGearGrade(boss) {
   return 1;
 }
 
-const EQUIP_DROP_CHANCE = 0.1;
+const EQUIP_DROP_CHANCE = 0.06; // 몹이 3배라 0.1은 장비가 너무 쏟아졌다
 const PARTY_WEAPON_BIAS = 0.7; // 무기가 떴을 때 파티가 쓸 수 있는 계열로 바꿔 줄 확률
 
 // 사냥터·보스 드랍. 존 권장 레벨의 레벨대에서 등급을 굴린다.

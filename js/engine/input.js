@@ -41,7 +41,8 @@ class InputManager {
       const sx = (e.clientX - rect.left) / k;
       const sy = (e.clientY - rect.top) / k;
       const world = getWorldFromScreen(sx, sy);
-      if (this.onMouseClickWorld) this.onMouseClickWorld(world.x, world.y);
+      // 월드 좌표만으로는 발밑만 집힌다. 그림 기준으로 판정할 수 있게 화면 좌표도 같이 넘긴다.
+      if (this.onMouseClickWorld) this.onMouseClickWorld(world.x, world.y, sx, sy);
     });
   }
 }

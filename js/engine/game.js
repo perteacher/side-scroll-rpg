@@ -2,6 +2,7 @@ const MOVE_SPEED = 200;
 const WORLD_HEIGHT = 540;
 const WORLD_WIDTH = 960;
 const DOWN_RECOVER_MS = 25000; // 쓰러진 파티원이 스스로 일어나기까지
+const INTERACT_RANGE = 86;     // 이 거리 안에서 Space를 누르면 NPC와 대화한다
 const FOLLOW_DISTANCE = 260;   // 리더와 이만큼 벌어지면 사냥을 접고 따라붙는다
 const HOLD_BREAK_DISTANCE = 560; // 홀드 중이라도 이만큼 멀어지면 낙오로 보고 킵으로 푼다
 const FOLLOW_SPEED = 230;
@@ -208,7 +209,7 @@ class Game {
 
     // 화면 클릭 → 쿼터뷰 역투영으로 바닥 좌표를 얻는다.
     this.input.bindCanvasClick(this.canvas, (sx, sy) => isoUnproject(sx + this.renderer.camX, sy + this.renderer.camY));
-    this.input.onMouseClickWorld = (wx, wy) => this._handleWorldClick(wx, wy);
+    this.input.onMouseClickWorld = (wx, wy, sx, sy) => this._handleWorldClick(wx, wy, sx, sy);
 
     window.addEventListener('beforeunload', () => {
       if (this.resetting) return;
@@ -375,6 +376,7 @@ class Game {
     this.stats.tick(dt);
     this.stats.zonesVisited.add(this.zm.def.id);
     this._tickAutoPotion(dt);
+    this.interactTarget = this._findInteractable();
     updateNpcFacing([...this.zm.storyNpcs, ...this.zm.recruitNpcs, this.zm.shopNpc], this.pm.partyUnits);
     this.zm.update(dt);
     if (this.zm.index === this.tower.zoneIndex && this.tower.update(dt, this.zm.enemies)) this._advanceTowerFloor();
@@ -465,6 +467,7 @@ class Game {
     }
     this._applyMove(unit, dt);
 
+    if (this.input.wasPressed(' ') && this._tryInteract()) return;
     if (this.input.wasPressed(' ') && unit.basicAtkCooldown <= 0) {
       const target = this._getAttackTarget(unit);
       if (target) {
@@ -1172,16 +1175,55 @@ class Game {
     });
   }
 
-  _handleWorldClick(wx, wy) {
+  // 화면에 그려진 그림 기준으로 클릭을 받는다.
+  // 월드 좌표(발밑 상자)로만 재면 몸통을 눌러도 안 잡힌다 — 그림은 발밑보다 한참 위에 그려지기 때문이다.
+  _spriteHit(e, sx, sy, wide, tall) {
+    if (!e) return false;
+    const c = entityCenter(e);
+    const px = isoSX(c.x, c.y) - this.renderer.camX;
+    const py = isoSY(c.x, c.y) - this.renderer.camY - elevOf(e, this.zm.map);
+    return sx >= px - wide / 2 && sx <= px + wide / 2 && sy >= py - tall && sy <= py + 10;
+  }
+
+  _handleWorldClick(wx, wy, sx = null, sy = null) {
     const inBox = (n) => wx >= n.x && wx <= n.x + n.width && wy >= n.y && wy <= n.y + n.height;
-    if (this.zm.questBoard && inBox(this.zm.questBoard)) { this.ui.openBoard(); return; }
-    if (this.zm.shopNpc && inBox(this.zm.shopNpc)) { this.ui.openShop(this.zm.shopNpc); return; }
-    const story = this.zm.storyNpcs.find(inBox);
+    // 사람 크기 그림: 가로 44 · 세로 62 (도트 16x28 x 2배 + 여유)
+    const person = (n) => !!n && (inBox(n) || (sx !== null && this._spriteHit(n, sx, sy, 44, 62)));
+    const board = (n) => !!n && (inBox(n) || (sx !== null && this._spriteHit(n, sx, sy, 52, 60)));
+
+    if (board(this.zm.questBoard)) { this.ui.openBoard(); return; }
+    if (person(this.zm.shopNpc)) { this.ui.openShop(this.zm.shopNpc); return; }
+    const story = this.zm.storyNpcs.find(person);
     if (story) { this.ui.showStoryDialogue(story); return; }
-    const npc = this.zm.recruitNpcs.find(inBox);
+    const npc = this.zm.recruitNpcs.find(person);
     if (npc) { this.ui.showNpcDialogue(npc); return; }
-    const hit = this.zm.enemies.find((e) => e.alive && wx >= e.x && wx <= e.x + e.width && wy >= e.y && wy <= e.y + e.height);
+    const hit = this.zm.enemies.find((e) => e.alive && (inBox(e)
+      || (sx !== null && this._spriteHit(e, sx, sy, e.width * 1.8, e.width * 2.4))));
     this.ui.setTarget(hit || null);
+  }
+
+  // 가까이 있는 대화 상대. Space로 말을 걸 수 있고, 머리 위에 안내가 뜬다.
+  _findInteractable() {
+    const unit = this.pm.activeUnit;
+    if (!unit) return null;
+    const list = [this.zm.questBoard, this.zm.shopNpc, ...this.zm.storyNpcs, ...this.zm.recruitNpcs].filter(Boolean);
+    let best = null;
+    let bestDist = INTERACT_RANGE;
+    list.forEach((n) => {
+      const d = planeDist(unit, n);
+      if (d < bestDist) { bestDist = d; best = n; }
+    });
+    return best;
+  }
+
+  _tryInteract() {
+    const target = this.interactTarget;
+    if (!target) return false;
+    if (target === this.zm.questBoard) { this.ui.openBoard(); return true; }
+    if (target === this.zm.shopNpc) { this.ui.openShop(target); return true; }
+    if (this.zm.storyNpcs.includes(target)) { this.ui.showStoryDialogue(target); return true; }
+    if (this.zm.recruitNpcs.includes(target)) { this.ui.showNpcDialogue(target); return true; }
+    return false;
   }
 
   // 영입 NPC 머리 위 표시를 진행 상태에 맞춘다.
@@ -1214,6 +1256,7 @@ class Game {
       enemies: this.zm.enemies,
       warps: this.zm.warps,
       warpPrompt: this.warpPrompt,
+      interactTarget: this.interactTarget,
       map: this.zm.map,
       drops: this.drops,
       partyUnits: this.pm.partyUnits,

@@ -123,6 +123,7 @@ class Renderer {
     m.translate(-camX, -camY);
     state.warps.forEach((w) => this._drawWarpLabel(w, w === state.warpPrompt));
     if (state.questBoard) this._drawQuestBoardLabel(state.questBoard, state.time, state.boardHasQuest);
+    this._interact = state.interactTarget || null;
     state.storyNpcs.forEach((npc) => this._drawStoryNpcLabel(npc, state.activeStoryNpcId, state.time));
     if (state.shopNpc) this._drawShopNpcLabel(state.shopNpc, state.time);
     state.recruitNpcs.forEach((npc) => this._drawRecruitNpcLabel(npc, state.time, state.recruitStatus[npc.charId]));
@@ -510,20 +511,29 @@ class Renderer {
     return this._labelTop(npc, spr.height, PIXEL_SCALE);
   }
 
+  // 가까이 가면 머리 위에 'Space 대화'를 띄운다.
+  _drawInteractHint(npc, cx, top) {
+    if (this._interact !== npc) return;
+    this._text('Space 대화', cx, top - 26, '#f7dc6f', 'bold 11px sans-serif');
+  }
+
   _drawStoryNpcLabel(npc, activeId, time) {
     const { cx, top } = this._npcLabelTop(npc);
+    this._drawInteractHint(npc, cx, top);
     if (npc.id === activeId) this._text('!', cx, top - 14 + Math.sin(time / 280) * 2, '#f1c40f', 'bold 15px sans-serif');
     this._text(npc.name, cx, top - 2, '#aed6f1', '11px sans-serif');
   }
 
   _drawShopNpcLabel(npc, time) {
     const { cx, top } = this._npcLabelTop(npc);
+    this._drawInteractHint(npc, cx, top);
     this._text('$', cx, top - 14 + Math.sin(time / 300) * 2, '#f7dc6f', 'bold 14px sans-serif');
     this._text(npc.name, cx, top - 2, '#a9dfbf', '11px sans-serif');
   }
 
   _drawRecruitNpcLabel(npc, time, status) {
     const { cx, top } = this._npcLabelTop(npc);
+    this._drawInteractHint(npc, cx, top);
     const mark = { available: '!', active: '…', ready: '?', done: '✓' }[status] || '';
     const color = { available: '#f1c40f', active: '#f5b041', ready: '#2ecc71', done: '#7f8c8d' }[status] || '#fff';
     if (mark) this._text(mark, cx, top - 14 + Math.sin(time / 260) * 2, color, 'bold 15px sans-serif');

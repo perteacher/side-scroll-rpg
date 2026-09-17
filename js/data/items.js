@@ -98,6 +98,11 @@ const DROP_TABLE = {
   '마족 대장': [{ id: 'dark_crystal', chance: 1.0 }, { id: 'war_banner_scrap', chance: 0.8 }],
 };
 
+// 몹을 3배로 깔면서 바닥에 떨어지는 것이 너무 많아졌다(1분에 19개).
+// 표에 적힌 확률은 그대로 두고 여기서 한 번에 낮춘다.
+const MATERIAL_DROP_MULT = 0.55;
+Object.values(DROP_TABLE).forEach((rows) => rows.forEach((r) => { r.chance = Math.round(r.chance * MATERIAL_DROP_MULT * 1000) / 1000; }));
+
 // 제작법: 재료 + 골드 → 결과물
 const RECIPE_DATA = [
   { id: 'sturdy_blade', result: 'sturdy_blade', gold: 120, tier: 1,
@@ -262,12 +267,14 @@ function potentialLineText(line) {
 }
 
 // ===== 메소(골드) 드랍 — 바닥에 떨어진 것을 줍는다 =====
-const MESO_DROP_CHANCE = 0.7;
+// 메소 더미가 바닥을 덮지 않게 빈도는 낮추고 한 번에 주는 양을 늘렸다(수입은 그대로).
+const MESO_DROP_CHANCE = 0.33;
+const MESO_PER_DROP = 2.1;
 // 메소는 몹 레벨에서 바로 뽑는다.
 // 예전에는 경험치 보상에 비례했는데, 탑처럼 경험치가 폭증하는 곳에서 골드까지 같이 폭증해
 // 5분 만에 40만 골드가 쌓였다(제작·강화 비용이 의미를 잃는다).
 function mesoAmount(enemy) {
-  const base = 6 + (enemy.level || 1) * 4;
+  const base = (6 + (enemy.level || 1) * 4) * MESO_PER_DROP;
   return Math.max(1, Math.round(base * randRange(0.7, 1.4) * (enemy.boss ? 6 : 1)));
 }
 
