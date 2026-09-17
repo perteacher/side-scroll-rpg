@@ -207,12 +207,145 @@ const ZONE_DATA = [
   {
     id: 'field5b', theme: 'demon', type: 'field', name: '마족의 진지', level: 45, width: 3800, groundColor: '#402f3f',
     platforms: [{ x: 880, width: 580, y: FLOOR2_Y }, { x: 2600, width: 600, y: FLOOR2_Y }],
-    exits: [{ to: 'town5', x: 40 }, { to: 'field5a', x: 1900 }, { to: 'town6', x: 3680 }],
+    exits: [{ to: 'town5', x: 40 }, { to: 'field5a', x: 1900 }, { to: 'town7', x: 3680 }],
     enemies: [
       ...makeEnemies({ name: '마족 전사', hp: 420, atk: 52, defense: 34, xpReward: 320, race: 'demon', aggressive: true }, 14, 420, 230),
       ...makeEnemies({ name: '마족 전사', hp: 420, atk: 52, defense: 34, xpReward: 320, race: 'demon', aggressive: true }, 4, 940, 170, 2),
       ...makeEnemies({ name: '마족 대장', hp: 900, atk: 70, defense: 45, xpReward: 900, race: 'demon', aggressive: true }, 2, 2660, 300, 2),
       { name: '마왕군 사령관 발데', x: 3500, hp: 12000, atk: 96, defense: 64, xpReward: 12000, race: 'demon', aggressive: true, boss: true, floor: 1 },
+    ],
+  },
+  // ================= 중반 구간 (50~95) =================
+  // 45에서 100까지 사냥터가 없어서 탑만 돌아야 했다. 다섯 티어를 채워 넣었다.
+  // 몹 수치는 배율표(balance.js)를 곱하기 전 값이고, 경험치는 배율 1이라 여기 적힌 값이 그대로다.
+  {
+    id: 'town7', theme: 'town_snow', type: 'town', name: '설원 전초기지 카르네비아', level: 50, width: 1800, groundColor: '#54657a',
+    platforms: TOWN_PLATFORMS,
+    exits: [
+      { to: 'field5b', x: 60 },
+      { to: 'field7a', x: 1360 }, { to: 'field7b', x: 1560 }, { to: 'field8a', x: 1720 },
+    ],
+    storyNpcs: [
+      { id: 'sigrid', name: '설원 순찰대장 시그리드', x: 430 },
+      { id: 'anselm', name: '얼음 세공사 안셀름', x: 1270, floor: 2 },
+    ],
+    shopNpc: { name: '보급관 라우라', x: 700, floor: 2 },
+    questBoard: { x: 980, name: '전초기지 의뢰 게시판' },
+    recruits: [],
+  },
+  {
+    id: 'field7a', theme: 'frost', type: 'field', name: '얼어붙은 고원', level: 50, width: 3800, groundColor: '#5b7285',
+    platforms: [{ x: 760, width: 600, y: FLOOR2_Y }, { x: 2500, width: 620, y: FLOOR2_Y }],
+    exits: [{ to: 'town7', x: 40 }, { to: 'field7b', x: 1900 }],
+    enemies: [
+      ...makeEnemies({ name: '서리 늑대', hp: 530, atk: 60, defense: 34, xpReward: 224, race: 'beast', aggressive: true }, 13, 420, 250),
+      ...makeEnemies({ name: '얼음 정령', hp: 600, atk: 54, defense: 40, xpReward: 236, race: 'inanimate', aggressive: false }, 5, 820, 170, 2),
+      ...makeEnemies({ name: '눈보라 약탈자', hp: 560, atk: 64, defense: 32, xpReward: 230, race: 'humanoid', aggressive: true }, 4, 2560, 170, 2),
+    ],
+  },
+  {
+    id: 'field7b', theme: 'frost', type: 'field', name: '서리 협곡', level: 55, width: 3800, groundColor: '#4e6478',
+    platforms: [{ x: 880, width: 580, y: FLOOR2_Y }, { x: 2600, width: 600, y: FLOOR2_Y }],
+    exits: [{ to: 'town7', x: 40 }, { to: 'field7a', x: 1900 }, { to: 'field8a', x: 3680 }],
+    enemies: [
+      ...makeEnemies({ name: '빙결 거인', hp: 670, atk: 70, defense: 42, xpReward: 253, race: 'humanoid', aggressive: true }, 13, 420, 240),
+      ...makeEnemies({ name: '서리 박쥐', hp: 600, atk: 74, defense: 36, xpReward: 248, race: 'beast', aggressive: true }, 5, 940, 170, 2),
+      { name: '설산의 지배자 프로스타', x: 3500, hp: 16750, atk: 126, defense: 59, xpReward: 7590, race: 'beast', aggressive: true, boss: true, floor: 1 },
+    ],
+  },
+  {
+    id: 'field8a', theme: 'volcano', type: 'field', name: '화산 기슭', level: 60, width: 3900, groundColor: '#5c3a2c',
+    platforms: [{ x: 800, width: 600, y: FLOOR2_Y }, { x: 2600, width: 620, y: FLOOR2_Y }],
+    exits: [{ to: 'town7', x: 40 }, { to: 'field7b', x: 240 }, { to: 'field8b', x: 1950 }],
+    enemies: [
+      ...makeEnemies({ name: '용암 도마뱀', hp: 850, atk: 81, defense: 50, xpReward: 286, race: 'beast', aggressive: true }, 13, 420, 250),
+      ...makeEnemies({ name: '화산 골렘', hp: 980, atk: 74, defense: 62, xpReward: 300, race: 'inanimate', aggressive: false }, 5, 860, 170, 2),
+      ...makeEnemies({ name: '용암 도마뱀', hp: 850, atk: 81, defense: 50, xpReward: 286, race: 'beast', aggressive: true }, 4, 2660, 170, 2),
+    ],
+  },
+  {
+    id: 'field8b', theme: 'volcano', type: 'field', name: '용암 동굴', level: 65, width: 3900, groundColor: '#4a2c22',
+    platforms: [{ x: 900, width: 580, y: FLOOR2_Y }, { x: 2700, width: 600, y: FLOOR2_Y }],
+    exits: [{ to: 'field8a', x: 40 }, { to: 'town8', x: 3780 }],
+    enemies: [
+      ...makeEnemies({ name: '불꽃 정령', hp: 1090, atk: 94, defense: 60, xpReward: 323, race: 'demon', aggressive: true }, 13, 420, 245),
+      ...makeEnemies({ name: '마그마 웜', hp: 1200, atk: 88, defense: 68, xpReward: 336, race: 'beast', aggressive: false }, 5, 960, 170, 2),
+      { name: '화산의 주인 이그니스', x: 3600, hp: 27250, atk: 169, defense: 84, xpReward: 9690, race: 'demon', aggressive: true, boss: true, floor: 1 },
+    ],
+  },
+  {
+    id: 'town8', theme: 'town_sky', type: 'town', name: '부유 도시 아에리스', level: 70, width: 1800, groundColor: '#5c7c99',
+    platforms: TOWN_PLATFORMS,
+    exits: [
+      { to: 'field8b', x: 60 },
+      { to: 'field9a', x: 1360 }, { to: 'field9b', x: 1560 }, { to: 'field10a', x: 1720 },
+    ],
+    storyNpcs: [
+      { id: 'elysia', name: '항공사 엘리시아', x: 430 },
+      { id: 'thane', name: '풍력 기사 테인', x: 1270, floor: 2 },
+    ],
+    shopNpc: { name: '구름 상인 미렐', x: 700, floor: 2 },
+    questBoard: { x: 980, name: '아에리스 의뢰 게시판' },
+    recruits: [],
+  },
+  {
+    id: 'field9a', theme: 'sky_isle', type: 'field', name: '부유섬 외곽', level: 70, width: 4000, groundColor: '#5f8299',
+    platforms: [{ x: 820, width: 620, y: FLOOR2_Y }, { x: 2700, width: 640, y: FLOOR2_Y }],
+    exits: [{ to: 'town8', x: 40 }, { to: 'field9b', x: 2000 }],
+    enemies: [
+      ...makeEnemies({ name: '하늘 사냥꾼', hp: 1400, atk: 110, defense: 72, xpReward: 365, race: 'humanoid', aggressive: true }, 13, 420, 255),
+      ...makeEnemies({ name: '폭풍 까마귀', hp: 1300, atk: 118, defense: 66, xpReward: 358, race: 'beast', aggressive: true }, 5, 880, 175, 2),
+      ...makeEnemies({ name: '하늘 사냥꾼', hp: 1400, atk: 110, defense: 72, xpReward: 365, race: 'humanoid', aggressive: true }, 4, 2760, 175, 2),
+    ],
+  },
+  {
+    id: 'field9b', theme: 'sky_isle', type: 'field', name: '폭풍의 섬', level: 75, width: 4000, groundColor: '#4f7288',
+    platforms: [{ x: 900, width: 600, y: FLOOR2_Y }, { x: 2800, width: 620, y: FLOOR2_Y }],
+    exits: [{ to: 'town8', x: 40 }, { to: 'field9a', x: 2000 }, { to: 'field10a', x: 3880 }],
+    enemies: [
+      ...makeEnemies({ name: '번개 정령', hp: 1830, atk: 128, defense: 86, xpReward: 413, race: 'inanimate', aggressive: true }, 13, 420, 250),
+      ...makeEnemies({ name: '구름 거인', hp: 2100, atk: 120, defense: 98, xpReward: 430, race: 'humanoid', aggressive: false }, 5, 980, 175, 2),
+      { name: '폭풍왕 아에로스', x: 3700, hp: 45750, atk: 230, defense: 120, xpReward: 12390, race: 'inanimate', aggressive: true, boss: true, floor: 1 },
+    ],
+  },
+  {
+    id: 'field10a', theme: 'abyss', type: 'field', name: '마계 관문', level: 80, width: 4100, groundColor: '#3a2b48',
+    platforms: [{ x: 840, width: 620, y: FLOOR2_Y }, { x: 2800, width: 640, y: FLOOR2_Y }],
+    exits: [{ to: 'town8', x: 40 }, { to: 'field9b', x: 240 }, { to: 'field10b', x: 2050 }],
+    enemies: [
+      ...makeEnemies({ name: '심연 사냥개', hp: 2400, atk: 152, defense: 104, xpReward: 467, race: 'demon', aggressive: true }, 14, 420, 245),
+      ...makeEnemies({ name: '타락한 기사', hp: 2700, atk: 144, defense: 118, xpReward: 486, race: 'humanoid', aggressive: false }, 5, 900, 175, 2),
+      ...makeEnemies({ name: '심연 사냥개', hp: 2400, atk: 152, defense: 104, xpReward: 467, race: 'demon', aggressive: true }, 4, 2860, 175, 2),
+    ],
+  },
+  {
+    id: 'field10b', theme: 'abyss', type: 'field', name: '타락한 성소', level: 85, width: 4100, groundColor: '#2f2340',
+    platforms: [{ x: 920, width: 600, y: FLOOR2_Y }, { x: 2900, width: 620, y: FLOOR2_Y }],
+    exits: [{ to: 'field10a', x: 40 }, { to: 'field11a', x: 3980 }],
+    enemies: [
+      ...makeEnemies({ name: '나락 사제', hp: 3200, atk: 180, defense: 124, xpReward: 527, race: 'undead', aggressive: true }, 14, 420, 240),
+      ...makeEnemies({ name: '공허 촉수', hp: 3600, atk: 168, defense: 140, xpReward: 548, race: 'demon', aggressive: false }, 5, 1000, 175, 2),
+      { name: '나락의 대사제 모르간', x: 3800, hp: 80000, atk: 324, defense: 174, xpReward: 15810, race: 'undead', aggressive: true, boss: true, floor: 1 },
+    ],
+  },
+  {
+    id: 'field11a', theme: 'temple', type: 'field', name: '잊힌 신전', level: 90, width: 4200, groundColor: '#6b6147',
+    platforms: [{ x: 880, width: 640, y: FLOOR2_Y }, { x: 2900, width: 660, y: FLOOR2_Y }],
+    exits: [{ to: 'field10b', x: 40 }, { to: 'field11b', x: 2100 }, { to: 'town8', x: 240 }],
+    enemies: [
+      ...makeEnemies({ name: '신전 수호상', hp: 4400, atk: 215, defense: 150, xpReward: 596, race: 'inanimate', aggressive: true }, 14, 420, 250),
+      ...makeEnemies({ name: '봉인된 사도', hp: 4800, atk: 205, defense: 164, xpReward: 620, race: 'undead', aggressive: false }, 5, 920, 175, 2),
+      ...makeEnemies({ name: '신전 수호상', hp: 4400, atk: 215, defense: 150, xpReward: 596, race: 'inanimate', aggressive: true }, 4, 2960, 175, 2),
+    ],
+  },
+  {
+    id: 'field11b', theme: 'temple', type: 'field', name: '신들의 무덤', level: 95, width: 4200, groundColor: '#585038',
+    platforms: [{ x: 950, width: 620, y: FLOOR2_Y }, { x: 3000, width: 640, y: FLOOR2_Y }],
+    exits: [{ to: 'field11a', x: 40 }, { to: 'town6', x: 4080 }],
+    enemies: [
+      ...makeEnemies({ name: '잊힌 신관', hp: 6100, atk: 258, defense: 180, xpReward: 673, race: 'undead', aggressive: true }, 14, 420, 245),
+      ...makeEnemies({ name: '신성 파수꾼', hp: 6800, atk: 244, defense: 200, xpReward: 700, race: 'inanimate', aggressive: false }, 5, 1020, 175, 2),
+      { name: '잊힌 신 아스테리온', x: 3950, hp: 152500, atk: 464, defense: 252, xpReward: 20190, race: 'undead', aggressive: true, boss: true, floor: 1 },
     ],
   },
   // ================= 승급 구간 (베테랑 / 익스퍼트 / 마스터) =================
@@ -221,7 +354,7 @@ const ZONE_DATA = [
     id: 'town6', theme: 'town_castle', type: 'town', name: '고룡의 관문 드라켄호프', level: 100, width: 1800, groundColor: '#2f3a4d',
     platforms: TOWN_PLATFORMS,
     exits: [
-      { to: 'field5b', x: 60 },
+      { to: 'field11b', x: 60 },
       { to: 'field6a', x: 1400 }, { to: 'field6b', x: 1620 },
     ],
     storyNpcs: [
@@ -266,6 +399,15 @@ const ZONE_DATA = [
     ],
   },
 ];
+
+// 병작(쩔) 전용. 들어갈 때마다 파티 최고 레벨에 맞춰 몹을 다시 만든다(js/data/training.js).
+ZONE_DATA.push({
+  id: 'training', theme: 'quarry', type: 'training', name: '수련장', level: 1, width: 2800,
+  groundColor: '#4a4a3c',
+  platforms: [{ x: 600, width: 500, y: FLOOR2_Y }, { x: 1700, width: 500, y: FLOOR2_Y }],
+  exits: [{ to: 'town1', x: 40 }],
+  enemies: [],
+});
 
 // 엔드게임 존. 층을 올라갈 때마다 내용물을 갈아 끼우므로 enemies/exits는 비워 둔다.
 // noRespawn이 있어야 "층을 다 비웠다" 판정이 성립한다.

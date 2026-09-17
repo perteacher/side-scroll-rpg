@@ -13,7 +13,7 @@ const TOWER_CHECKPOINT = 5;     // 이 배수 층부터 재도전 가능
 const TOWER_HP_GROWTH = 1.12;
 const TOWER_ATK_GROWTH = 1.09;
 const TOWER_DEF_GROWTH = 1.10;
-const TOWER_XP_GROWTH = 1.16; // 층마다 경험치가 배로 뛰면 몇 층 만에 만렙이 된다
+const TOWER_XP_GROWTH = 1.14; // 층마다 경험치가 배로 뛰면 몇 층 만에 만렙이 된다
 
 const TOWER_MONSTERS = [
   { name: '심연의 그림자', race: 'demon' },
@@ -38,7 +38,9 @@ function makeTowerFloor(floor, zoneWidth) {
   const hp = towerStat(5200, TOWER_HP_GROWTH, floor);
   const atk = towerStat(24, TOWER_ATK_GROWTH, floor);
   const defense = towerStat(8, TOWER_DEF_GROWTH, floor);
-  const xpReward = towerStat(150, TOWER_XP_GROWTH, floor);
+  // 50~95 사냥터가 생기면서 탑은 '더 빠른 대신 더 위험한' 선택지가 됐다.
+  // 같은 레벨대 사냥터보다 마리당 경험치가 1.4배쯤 되게 잡았다(예전엔 4배라 탑만 돌게 됐다).
+  const xpReward = towerStat(70, TOWER_XP_GROWTH, floor);
   const kind = TOWER_MONSTERS[(floor - 1) % TOWER_MONSTERS.length];
   // 층에서 몹 레벨을 만든다. 전투 수치는 noScale이라 쓰지 않지만, 떨어지는 장비의 레벨대와 표시에 쓴다.
   // 사냥터가 45에서 끊기고 100에서 다시 시작하므로 그 사이 레벨대(51~90) 장비는 탑에서 나온다.

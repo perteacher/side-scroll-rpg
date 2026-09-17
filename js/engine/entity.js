@@ -7,6 +7,10 @@ const AUTO_MODES = ['off', 'keep', 'hold'];
 const AUTO_MODE_LABEL = { off: '정지', keep: '킵', hold: '홀드' };
 
 // 옛 1차원 배치(x + floor)를 타일맵 위의 빈 칸으로 옮긴다.
+// 사냥 한 마리로 받을 수 있는 경험치의 상한(다음 레벨 요구량 대비).
+// 병작으로 1레벨이 100레벨 존에 서 있어도 한 번에 세 레벨씩은 못 오른다.
+const XP_PER_KILL_CAP = 0.35;
+
 function placeOnMap(map, def, seedKey) {
   const wantY = def.y !== undefined ? def.y : isoPlaceY(def, seedKey, map);
   if (!map) return { x: def.x, y: wantY };
@@ -357,7 +361,9 @@ class PartyUnit {
   // 승급하지 않으면 그 구간의 끝 레벨에서 경험치가 멈춘다.
   get levelCap() { return levelCapForRank(this.rank || 0); }
 
-  gainXp(amount, logFn) {
+  // 병작(쩔)으로 한 방에 몇 레벨씩 뛰지 않게, 사냥 경험치는 한 마리당 다음 레벨 요구량의
+  // 일부까지만 인정한다. 퀘스트·경험치 카드는 상한을 적용하지 않는다(opts.capped로 구분).
+  gainXp(amount, logFn, opts = {}) {
     const cap = this.levelCap;
     if (this.level >= cap) {
       this.xp = 0;
@@ -371,7 +377,10 @@ class PartyUnit {
       return;
     }
     const levelBefore = this.level;
-    this.xp += amount;
+    const gain = opts.capped
+      ? Math.min(amount, Math.max(1, Math.round(xpToNextLevel(this.level) * XP_PER_KILL_CAP)))
+      : amount;
+    this.xp += gain;
     let leveled = false;
     while (this.level < cap && this.xp >= xpToNextLevel(this.level)) {
       this.xp -= xpToNextLevel(this.level);

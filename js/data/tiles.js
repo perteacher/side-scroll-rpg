@@ -72,6 +72,8 @@ const TOWN_STYLE = {
   town_port: { house: 'house', extra: 'ship' },
   town_desert: { house: 'tent', extra: 'rock_small' },
   town_castle: { house: 'house', extra: 'wall' },
+  town_snow: { house: 'house', extra: 'rock_big' },
+  town_sky: { house: 'house', extra: 'pillar' },
 };
 
 // 마을 가구는 테마 색(풀·흙)이 아니라 돌·나무 색으로 칠한다. 안 그러면 바닥에 묻혀 안 보인다.

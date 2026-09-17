@@ -20,6 +20,14 @@ const THEME_DATA = {
   ruins: { sky: ['#c9b184', '#ddd0aa'], far: '#8e7f5e', mid: '#6d6147', decor: 'pillars', accent: '#b0a078' },
   warfront: { sky: ['#5a5f7a', '#8b8ea3'], far: '#464b60', mid: '#333749', decor: 'walls', accent: '#7b8398' },
   demon: { sky: ['#5b2333', '#8c3b3b'], far: '#42202c', mid: '#2e1720', decor: 'spikes', accent: '#c0392b' },
+  // 50~95 구간
+  frost: { sky: ['#a8d8ef', '#dff0f7'], far: '#6f8fa8', mid: '#53708a', decor: 'rocks', accent: '#cfe9f5' },
+  volcano: { sky: ['#5a2d22', '#a0492c'], far: '#5b2f24', mid: '#3d1f18', decor: 'rocks', accent: '#e2703a' },
+  sky_isle: { sky: ['#8fd3ff', '#d8f0ff'], far: '#6ea3c8', mid: '#4d7ea8', decor: 'pillars', accent: '#ffe9a8' },
+  abyss: { sky: ['#2b1b3a', '#4a2b55'], far: '#33203f', mid: '#231630', decor: 'spikes', accent: '#9b59b6' },
+  temple: { sky: ['#d9c9a0', '#efe3c2'], far: '#8d7f5e', mid: '#6a5f45', decor: 'pillars', accent: '#d4af37' },
+  town_snow: { sky: ['#c9e6f2', '#eef7fb'], far: '#7f97a8', mid: '#64798c', decor: 'houses', accent: '#a8c4d8' },
+  town_sky: { sky: ['#9ad8ff', '#e2f3ff'], far: '#6f9fc4', mid: '#527fa4', decor: 'houses', accent: '#f0d27a' },
 };
 
 const DEFAULT_THEME = THEME_DATA.forest;

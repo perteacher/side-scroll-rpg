@@ -140,9 +140,18 @@ function incomingDamage(unit, rawAtk) {
 }
 
 // 몹 AI: 선공 몹은 어그로 범위 안의 파티원을 쫓고, 비선공 몹은 맞기 전까지 배회만 한다.
+// 병작(쩔) 보호: 몹보다 한참 낮은 레벨은 노리지 않는다. 데리고 온 저레벨이 한 대에 죽으면
+// 쩔 자체가 성립하지 않는다. 때릴 상대가 그 캐릭터밖에 없으면 그때는 노린다.
+const LEECH_LEVEL_GAP = 15;
+
+function preferredTargets(enemy, alive) {
+  const grown = alive.filter((u) => (enemy.level || 1) - u.level < LEECH_LEVEL_GAP);
+  return grown.length ? grown : alive;
+}
+
 function updateEnemyAI(enemy, partyUnits, dt, logFn) {
   if (!enemy.alive) return;
-  const alive = partyUnits.filter((u) => u.hp > 0 && !u.downed);
+  const alive = preferredTargets(enemy, partyUnits.filter((u) => u.hp > 0 && !u.downed));
   const hostile = enemy.aggressive || enemy.provoked;
   if (alive.length === 0 || !hostile) { updateWander(enemy, dt); return; }
 
@@ -184,7 +193,7 @@ function updateEnemyAI(enemy, partyUnits, dt, logFn) {
 
 // 보스 AI: 평소엔 접근/평타, 쿨마다 패턴을 예고한 뒤 발동한다. HP 절반 밑이면 광폭화.
 function updateBossAI(boss, partyUnits, dt, ctx) {
-  const alive = partyUnits.filter((u) => u.hp > 0 && !u.downed);
+  const alive = preferredTargets(boss, partyUnits.filter((u) => u.hp > 0 && !u.downed));
   if (alive.length === 0) { boss.vx = 0; boss.vy = 0; return; }
 
   const data = boss.bossData || BOSS_DATA[boss.name];

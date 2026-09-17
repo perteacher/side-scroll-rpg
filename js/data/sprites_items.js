@@ -308,6 +308,12 @@ const MATERIAL_SPRITES = {
   demon_horn: { shape: 'horn', pal: { w: '#c98a73', m: '#7b2d26', d: '#3d1210' } },
   dark_crystal: { shape: 'crystal', pal: { v: '#6c3483', w: '#c39bd3', x: '#2e1437' } },
   war_banner_scrap: { shape: 'cloth', pal: { c: '#d65a4a', e: '#9e2f24', f: '#5c1812' } },
+  frost_shard: { shape: 'crystal', pal: { v: '#7fd4f0', w: '#e8fbff', x: '#2e6d86' } },
+  obsidian_chip: { shape: 'core', pal: { s: '#3a3340', t: '#1e1a24', r: '#e2703a', y: '#ffb46b' } },
+  storm_feather: { shape: 'fang', pal: { w: '#eaf4ff', m: '#9bb8d8' } },
+  abyss_fragment: { shape: 'fragment', pal: { r: '#8e6fb0', u: '#5a3d78', c: '#c9a0ff' } },
+  divine_relic: { shape: 'gear', pal: { g: '#d4af37', w: '#fff3c4' } },
+  sealed_rune: { shape: 'coin', pal: { w: '#f2e6c9', m: '#c9a227', d: '#6b4f8a' } },
 };
 
 const SPECIAL_SPRITES = {

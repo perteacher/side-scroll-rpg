@@ -20,6 +20,14 @@ const ITEM_DATA = {
   demon_horn: { name: '마족의 뿔', price: 240, tier: 5 },
   dark_crystal: { name: '흑정석', price: 300, tier: 5 },
   war_banner_scrap: { name: '찢긴 군기', price: 270, tier: 5 },
+  // --- 6티어 재료 (50~70 구간) ---
+  frost_shard: { name: '서리 결정', price: 380, tier: 6 },
+  obsidian_chip: { name: '화산 흑요석', price: 440, tier: 6 },
+  storm_feather: { name: '폭풍의 깃털', price: 520, tier: 6 },
+  // --- 7티어 재료 (75~95 구간) ---
+  abyss_fragment: { name: '나락의 조각', price: 900, tier: 7 },
+  divine_relic: { name: '신성 유물', price: 1100, tier: 7 },
+  sealed_rune: { name: '봉인된 룬', price: 1300, tier: 7 },
 
   // --- 제작품(퀘스트 납품용) ---
   sturdy_blade: { name: '튼튼한 검', price: 0, tier: 1, craft: true },
@@ -96,6 +104,28 @@ const DROP_TABLE = {
   '마족 주술노예': [{ id: 'dark_crystal', chance: 0.35 }],
   '마족 전사': [{ id: 'demon_horn', chance: 0.45 }, { id: 'war_banner_scrap', chance: 0.3 }],
   '마족 대장': [{ id: 'dark_crystal', chance: 1.0 }, { id: 'war_banner_scrap', chance: 0.8 }],
+  // --- 50~95 구간 ---
+  '서리 늑대': [{ id: 'frost_shard', chance: 0.5 }],
+  '얼음 정령': [{ id: 'frost_shard', chance: 0.45 }],
+  '눈보라 약탈자': [{ id: 'frost_shard', chance: 0.4 }, { id: 'obsidian_chip', chance: 0.12 }],
+  '빙결 거인': [{ id: 'frost_shard', chance: 0.5 }, { id: 'obsidian_chip', chance: 0.2 }],
+  '서리 박쥐': [{ id: 'frost_shard', chance: 0.45 }],
+  '용암 도마뱀': [{ id: 'obsidian_chip', chance: 0.5 }],
+  '화산 골렘': [{ id: 'obsidian_chip', chance: 0.45 }],
+  '불꽃 정령': [{ id: 'obsidian_chip', chance: 0.5 }, { id: 'storm_feather', chance: 0.15 }],
+  '마그마 웜': [{ id: 'obsidian_chip', chance: 0.45 }],
+  '하늘 사냥꾼': [{ id: 'storm_feather', chance: 0.5 }],
+  '폭풍 까마귀': [{ id: 'storm_feather', chance: 0.5 }],
+  '번개 정령': [{ id: 'storm_feather', chance: 0.5 }, { id: 'abyss_fragment', chance: 0.15 }],
+  '구름 거인': [{ id: 'storm_feather', chance: 0.45 }],
+  '심연 사냥개': [{ id: 'abyss_fragment', chance: 0.5 }],
+  '타락한 기사': [{ id: 'abyss_fragment', chance: 0.45 }],
+  '나락 사제': [{ id: 'abyss_fragment', chance: 0.5 }, { id: 'divine_relic', chance: 0.2 }],
+  '공허 촉수': [{ id: 'abyss_fragment', chance: 0.45 }],
+  '신전 수호상': [{ id: 'divine_relic', chance: 0.5 }],
+  '봉인된 사도': [{ id: 'divine_relic', chance: 0.45 }],
+  '잊힌 신관': [{ id: 'sealed_rune', chance: 0.5 }, { id: 'divine_relic', chance: 0.25 }],
+  '신성 파수꾼': [{ id: 'sealed_rune', chance: 0.45 }],
 };
 
 // 몹을 3배로 깔면서 바닥에 떨어지는 것이 너무 많아졌다(1분에 19개).
@@ -171,6 +201,8 @@ const TIER_MATERIALS = {
   3: ['pirate_coin', 'wet_timber', 'deep_pearl'],
   4: ['sand_scale', 'relic_fragment', 'ancient_gear'],
   5: ['demon_horn', 'dark_crystal', 'war_banner_scrap'],
+  6: ['frost_shard', 'obsidian_chip', 'storm_feather'],
+  7: ['abyss_fragment', 'divine_relic', 'sealed_rune'],
 };
 
 // ===== 강화 (별 하나가 한 단계) =====

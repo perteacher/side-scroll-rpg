@@ -296,9 +296,22 @@ class Game {
     this.ui.closeWindow('tower-window');
   }
 
+  // 수련장은 들어갈 때마다 파티 최고 레벨로 몹을 다시 만든다.
+  _buildTrainingZone() {
+    const def = ZONE_DATA.find((z) => z.id === TRAINING_ZONE_ID);
+    if (!def) return;
+    const level = Math.max(1, ...this.pm.partyUnits.map((u) => u.level));
+    def.level = level;
+    def.enemies = makeTrainingEnemies(level, def.width);
+  }
+
   _teleport(zoneIndex, entryX = null) {
+    const isTraining = ZONE_DATA[zoneIndex] && ZONE_DATA[zoneIndex].type === 'training';
+    if (isTraining) this._buildTrainingZone();
     const fromZoneId = this.zm.def.id;
-    if (!this.zm.travelTo(zoneIndex)) return;
+    // 수련장은 이미 안에 있어도 다시 들어오면 파티 레벨에 맞춰 새로 깔아 준다.
+    if (isTraining && this.zm.index === zoneIndex) this.zm._load(zoneIndex, false);
+    else if (!this.zm.travelTo(zoneIndex)) return;
     if (this.tower.active && zoneIndex !== this.tower.zoneIndex) this.tower.stop();
     if (entryX === 'auto') entryX = this.zm.entryXFrom(fromZoneId);
     this.projectiles = [];
@@ -309,6 +322,10 @@ class Game {
     this.audio.warp();
     this.sm.onZoneEnter(this.zm.def.id);
     if (this.zm.isTown) this._reviveAll();
+    if (this.zm.def.type === 'training') {
+      this.ui.logChat('[수련장] 파티 최고 레벨에 맞춘 몹이 나옵니다. 키우고 싶은 캐릭터를 [정지]로 두면'
+        + ' 몹이 그 캐릭터를 노리지 않고, 경험치는 그대로 받습니다(병작).', 'npc');
+    }
     this.ui.closeWindow('teleport-window');
     SaveManager.save(this);
   }
@@ -1030,7 +1047,7 @@ class Game {
     const log = (t, tag) => this.ui.logChat(t, tag);
     this.pm.partyUnits.forEach((unit) => {
       if (unit.downed) return;
-      unit.gainXp(enemy.xpReward, log);
+      unit.gainXp(enemy.xpReward, log, { capped: true });
       unit.gainStanceXp(stanceXp, log);
     });
     if (this.ui.target === enemy) this.ui.setTarget(null);
