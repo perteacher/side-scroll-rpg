@@ -275,8 +275,8 @@ const ITEM_SHAPES = {
     '..kmmmmkdddddk..', '..kmmmmkdddddk..', '..kmmmmkdddddk..', '..kmmmmkdddddk..',
     '...kkmmkddddk...', '.....kkkddkk....', '.......kk.......', '................',
   ],
-  // 바닥에 떨어지는 메소(8x8)
-  meso: ['..kkkk..', '.kyyyyk.', 'kyywwyyk', 'kywyyyyk', 'kyyyyydk', 'kyyyyddk', '.kddddk.', '..kkkk..'],
+  // 바닥에 떨어지는 골드(8x8)
+  gold: ['..kkkk..', '.kyyyyk.', 'kyywwyyk', 'kywyyyyk', 'kyyyyydk', 'kyyyyddk', '.kddddk.', '..kkkk..'],
 
   // 정의되지 않은 아이템용
   unknown: mirrorRows([

@@ -266,15 +266,15 @@ function potentialLineText(line) {
   return bonusText({ [line.stat]: line.value });
 }
 
-// ===== 메소(골드) 드랍 — 바닥에 떨어진 것을 줍는다 =====
-// 메소 더미가 바닥을 덮지 않게 빈도는 낮추고 한 번에 주는 양을 늘렸다(수입은 그대로).
-const MESO_DROP_CHANCE = 0.33;
-const MESO_PER_DROP = 2.1;
-// 메소는 몹 레벨에서 바로 뽑는다.
+// ===== 골드 드랍 — 바닥에 떨어진 것을 줍는다 =====
+// 골드 더미가 바닥을 덮지 않게 빈도는 낮추고 한 번에 주는 양을 늘렸다(수입은 그대로).
+const GOLD_DROP_CHANCE = 0.33;
+const GOLD_PER_DROP = 2.1;
+// 골드는 몹 레벨에서 바로 뽑는다.
 // 예전에는 경험치 보상에 비례했는데, 탑처럼 경험치가 폭증하는 곳에서 골드까지 같이 폭증해
 // 5분 만에 40만 골드가 쌓였다(제작·강화 비용이 의미를 잃는다).
-function mesoAmount(enemy) {
-  const base = (6 + (enemy.level || 1) * 4) * MESO_PER_DROP;
+function goldAmount(enemy) {
+  const base = (6 + (enemy.level || 1) * 4) * GOLD_PER_DROP;
   return Math.max(1, Math.round(base * randRange(0.7, 1.4) * (enemy.boss ? 6 : 1)));
 }
 

@@ -52,8 +52,8 @@ function itemIconHtml(itemId, size = 24) {
   return `<img class="item-icon" src="${itemIconURL(itemId)}" width="${size}" height="${size}" alt="">`;
 }
 
-function mesoSprite() {
-  return cachedSprite('meso', ITEM_SHAPES.meso, { y: '#f1c40f', w: '#fff3b0', d: '#b7950b' });
+function goldSprite() {
+  return cachedSprite('gold', ITEM_SHAPES.gold, { y: '#f1c40f', w: '#fff3b0', d: '#b7950b' });
 }
 
 // ---------- 캐릭터 합성 ----------

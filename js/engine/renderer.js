@@ -576,7 +576,7 @@ class Renderer {
   _drawDropArt(d, time) {
     const { ctx } = this;
     const S = PIXEL_SCALE;
-    const spr = d.kind === 'meso' ? mesoSprite() : itemSprite(d.itemId);
+    const spr = d.kind === 'gold' ? goldSprite() : itemSprite(d.itemId);
     const w = spr.width * S;
     const h = spr.height * S;
     const raw = this._proj(d.x, d.y);

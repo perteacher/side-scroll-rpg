@@ -901,7 +901,7 @@ class Game {
     // 최초 처치는 확정 보상. 새 몬스터를 만날 때마다 반드시 뭔가 떨어진다.
     if (firstKill) {
       if (table.length) this._spawnDrop({ kind: 'item', itemId: table[0].id }, cx, cy);
-      this._spawnDrop({ kind: 'meso', amount: Math.max(20, mesoAmount(enemy) * 2) }, cx, cy);
+      this._spawnDrop({ kind: 'gold', amount: Math.max(20, goldAmount(enemy) * 2) }, cx, cy);
       this.ui.logChat(`[최초 처치] ${enemy.name} — 첫 처치 보상!`, 'party');
       this.effects.loot(cx, enemy.y - 24, '최초 처치!', '#f7dc6f');
     }
@@ -910,7 +910,7 @@ class Game {
     const stances = [...new Set(this.pm.partyUnits.flatMap((u) => u.stanceIds))];
     const equipId = rollEquipmentDrop(zoneLevel, { boss: enemy.boss, stances });
     if (equipId) this._spawnDrop({ kind: 'gear', itemId: equipId }, cx, cy);
-    if (Math.random() < MESO_DROP_CHANCE) this._spawnDrop({ kind: 'meso', amount: mesoAmount(enemy) }, cx, cy);
+    if (Math.random() < GOLD_DROP_CHANCE) this._spawnDrop({ kind: 'gold', amount: goldAmount(enemy) }, cx, cy);
     if (enemy.boss) {
       if (Math.random() < 0.4) this._spawnDrop({ kind: 'item', itemId: 'craftsman_cube' }, cx, cy);
       // 승급 인장. 낮은 존 보스도 베테랑 인장을 준다.
@@ -959,7 +959,7 @@ class Game {
     const ux = c.x;
     const uy = c.y;
     this.audio.pickup();
-    if (d.kind === 'meso') {
+    if (d.kind === 'gold') {
       this.pm.addGold(d.amount);
       this.effects.loot(ux, uy, `+${d.amount.toLocaleString()} G`, '#f7dc6f');
       return;
@@ -972,7 +972,7 @@ class Game {
       if (gear.tier >= 3) {
         this.effects.flash(TIER_COLOR[gear.tier]);
         this.audio.rare();
-        this.ui.logChat(`✦ 희귀 장비! ${gear.displayName} (T${gear.tier})`, 'party');
+        this.ui.logChat(`✦ ${GEAR_GRADE_NAME[gear.tier]} 장비! ${gear.displayName} (${gearGradeLabel(gear.item)})`, 'party');
       }
     } else {
       this.pm.addItem(d.itemId, 1);
