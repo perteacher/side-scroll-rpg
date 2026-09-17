@@ -7,11 +7,13 @@ const TOWER_ENTRY_LEVEL = 20;   // 이 레벨 이상인 캐릭터가 있어야 �
 const TOWER_BOSS_EVERY = 5;     // 보스 층 주기
 const TOWER_CHECKPOINT = 5;     // 이 배수 층부터 재도전 가능
 
-// 층당 배율. 1.28^49 ≈ 1170배 — 50층이면 초반 몹의 천 배가 넘는다.
-const TOWER_HP_GROWTH = 1.28;
-const TOWER_ATK_GROWTH = 1.22;
-const TOWER_DEF_GROWTH = 1.24;
-const TOWER_XP_GROWTH = 1.30;
+// 층당 배율.
+// 예전엔 1.28배씩 올려서 10층도 못 가 벽에 부딪혔다. 탑이 45~100레벨 구간을 책임지는 사냥터라
+// 층을 꾸준히 오를 수 있어야 하고, 그래야 그 층 레벨대의 장비도 따라온다.
+const TOWER_HP_GROWTH = 1.12;
+const TOWER_ATK_GROWTH = 1.09;
+const TOWER_DEF_GROWTH = 1.10;
+const TOWER_XP_GROWTH = 1.16; // 층마다 경험치가 배로 뛰면 몇 층 만에 만렙이 된다
 
 const TOWER_MONSTERS = [
   { name: '심연의 그림자', race: 'demon' },
@@ -36,11 +38,12 @@ function makeTowerFloor(floor, zoneWidth) {
   const hp = towerStat(5200, TOWER_HP_GROWTH, floor);
   const atk = towerStat(24, TOWER_ATK_GROWTH, floor);
   const defense = towerStat(8, TOWER_DEF_GROWTH, floor);
-  const xpReward = towerStat(600, TOWER_XP_GROWTH, floor);
+  const xpReward = towerStat(150, TOWER_XP_GROWTH, floor);
   const kind = TOWER_MONSTERS[(floor - 1) % TOWER_MONSTERS.length];
   // 층에서 몹 레벨을 만든다. 전투 수치는 noScale이라 쓰지 않지만, 떨어지는 장비의 레벨대와 표시에 쓴다.
   // 사냥터가 45에서 끊기고 100에서 다시 시작하므로 그 사이 레벨대(51~90) 장비는 탑에서 나온다.
-  const level = clamp(20 + floor * 2, 20, 130);
+  // 층이 곧 레벨대다. 25층 근처에서 100레벨 몹이 나오도록 잡았다(그 층의 장비가 그 레벨대다).
+  const level = clamp(20 + floor * 3, 20, 130);
   const template = { ...kind, hp, atk, defense, xpReward, level, aggressive: true, noScale: true };
 
   if (!isTowerBossFloor(floor)) {

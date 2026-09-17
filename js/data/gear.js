@@ -15,16 +15,18 @@ const GEAR_GRADES = [
   { g: 5, name: '전설', prefix: '전설 ', mult: 2.1 },
 ];
 
-// scale: 그 레벨대 '일반' 등급의 배율(1티어 기본 장비 = 1). mat: 강화·제작 재료 티어.
+// scale: 그 레벨대 '일반' 등급의 배율(1티어 기본 장비 = 1).
+// mat: 강화·제작에 쓰는 재료 티어. 그 레벨대에서 실제로 사냥하는 존이 주는 재료로 맞춘다
+// (예전에는 11~20 장비가 1~10 존 재료를 요구해서, 상위 존으로 넘어가면 제작이 막혔다).
 const GEAR_BRACKETS = [
   { b: 1, from: 1, to: 10, name: '견습', scale: 1, mat: 1 },
-  { b: 2, from: 11, to: 20, name: '숙련', scale: 2.5, mat: 1 },
-  { b: 3, from: 21, to: 30, name: '정예', scale: 5.5, mat: 2 },
-  { b: 4, from: 31, to: 40, name: '백은', scale: 10, mat: 2 },
-  { b: 5, from: 41, to: 50, name: '흑철', scale: 17, mat: 3 },
-  { b: 6, from: 51, to: 60, name: '용린', scale: 26, mat: 3 },
-  { b: 7, from: 61, to: 70, name: '성전', scale: 38, mat: 4 },
-  { b: 8, from: 71, to: 80, name: '심연', scale: 54, mat: 4 },
+  { b: 2, from: 11, to: 20, name: '숙련', scale: 2.5, mat: 2 },
+  { b: 3, from: 21, to: 30, name: '정예', scale: 5.5, mat: 3 },
+  { b: 4, from: 31, to: 40, name: '백은', scale: 10, mat: 4 },
+  { b: 5, from: 41, to: 50, name: '흑철', scale: 17, mat: 5 },
+  { b: 6, from: 51, to: 60, name: '용린', scale: 26, mat: 5 },
+  { b: 7, from: 61, to: 70, name: '성전', scale: 38, mat: 5 },
+  { b: 8, from: 71, to: 80, name: '심연', scale: 54, mat: 5 },
   { b: 9, from: 81, to: 90, name: '신화', scale: 74, mat: 5 },
   { b: 10, from: 91, to: 100, name: '천공', scale: 100, mat: 5 },
   { b: 11, from: 101, to: 110, name: '베테랑', scale: 150, mat: 5, rank: 'veteran' },
@@ -120,17 +122,27 @@ function rollGearGrade(boss) {
   return 1;
 }
 
-const EQUIP_DROP_CHANCE = 0.07;
+const EQUIP_DROP_CHANCE = 0.1;
+const PARTY_WEAPON_BIAS = 0.7; // 무기가 떴을 때 파티가 쓸 수 있는 계열로 바꿔 줄 확률
 
 // 사냥터·보스 드랍. 존 권장 레벨의 레벨대에서 등급을 굴린다.
 // 보스는 반드시 한 점 떨어뜨린다.
+// 무기는 10계열이라 그냥 굴리면 쓸 수 있는 무기가 좀처럼 안 나온다(레벨대가 올라가도 초반 무기를 낀 채로 버틴다).
+// 그래서 무기가 나오면 대개 파티가 쓰는 계열로 바꿔 준다.
 function rollEquipmentDrop(level, opts = {}) {
   const boss = !!opts.boss;
   if (!boss && Math.random() > EQUIP_DROP_CHANCE) return null;
   const br = bracketFromLevel(level);
-  const pool = GEAR_POOL[`${br.b}:${rollGearGrade(boss)}`] || [];
+  const grade = rollGearGrade(boss);
+  const pool = GEAR_POOL[`${br.b}:${grade}`] || [];
   if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
+  let id = pool[Math.floor(Math.random() * pool.length)];
+  const stances = opts.stances || [];
+  if (stances.length && ITEM_DATA[id].slot === 'weapon' && Math.random() < PARTY_WEAPON_BIAS) {
+    const mine = pool.filter((x) => ITEM_DATA[x].slot === 'weapon' && stances.includes(ITEM_DATA[x].stanceId));
+    if (mine.length) id = mine[Math.floor(Math.random() * mine.length)];
+  }
+  return id;
 }
 
 // 장비 제작은 일반·고급 등급까지만(희귀 이상은 사냥으로 얻는다).

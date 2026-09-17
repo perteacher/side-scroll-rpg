@@ -1,6 +1,7 @@
 const MOVE_SPEED = 200;
 const WORLD_HEIGHT = 540;
 const WORLD_WIDTH = 960;
+const DOWN_RECOVER_MS = 25000; // 쓰러진 파티원이 스스로 일어나기까지
 const FOLLOW_DISTANCE = 260;   // 리더와 이만큼 벌어지면 사냥을 접고 따라붙는다
 const HOLD_BREAK_DISTANCE = 560; // 홀드 중이라도 이만큼 멀어지면 낙오로 보고 킵으로 푼다
 const FOLLOW_SPEED = 230;
@@ -364,7 +365,7 @@ class Game {
     this._updateProjectiles(dt);
     this._tickPartyStatuses(dt);
     this._updateDrops(dt);
-    this._checkDowned();
+    this._checkDowned(dt);
     this._updateSynergies();
     this._syncFamilyProgress();
     this._tickCooldowns(dt);
@@ -482,17 +483,31 @@ class Game {
   }
 
   // HP가 0이면 전투 불능. 전원이 쓰러지면 가장 가까운 마을로 귀환한다.
-  _checkDowned() {
+  _checkDowned(dt = 0) {
     let changed = false;
     this.pm.partyUnits.forEach((unit) => {
       if (unit.hp > 0 || unit.downed) return;
       unit.downed = true;
+      unit.downTimer = DOWN_RECOVER_MS;
       unit.vx = 0;
       changed = true;
       this.stats.deaths += 1;
       this.effects.damage(unit.x + unit.width / 2, unit.y - 6, 0, { text: 'DOWN', color: '#e74c3c', crit: true });
       this.audio.down();
-      this.ui.logChat(`${unit.name}(이)가 쓰러졌습니다. 마을에서 회복됩니다.`, 'system');
+      this.ui.logChat(`${unit.name}(이)가 쓰러졌습니다. ${Math.round(DOWN_RECOVER_MS / 1000)}초 뒤 일어납니다.`, 'system');
+    });
+
+    // 쓰러진 채로 두면 경험치도 못 받고 영영 짐이 된다. 잠시 뒤 절반 체력으로 일어난다.
+    this.pm.partyUnits.forEach((unit) => {
+      if (!unit.downed) return;
+      unit.downTimer = (unit.downTimer === undefined ? DOWN_RECOVER_MS : unit.downTimer) - dt;
+      if (unit.downTimer > 0) return;
+      unit.downed = false;
+      unit.downTimer = 0;
+      unit.hp = Math.round(unit.maxHp * 0.5);
+      unit.mp = Math.round(unit.maxMp * 0.5);
+      changed = true;
+      this.ui.logChat(`${unit.name}(이)가 다시 일어났습니다.`, 'system');
     });
 
     const alive = this.pm.partyUnits.filter((u) => !u.downed);
@@ -889,7 +904,8 @@ class Game {
     }
     // 장비는 존 권장 레벨의 레벨대에서 등급을 굴린다. 보스는 반드시 한 점 떨어뜨린다.
     const zoneLevel = enemy.level || this.zm.def.level;
-    const equipId = rollEquipmentDrop(zoneLevel, { boss: enemy.boss });
+    const stances = [...new Set(this.pm.partyUnits.flatMap((u) => u.stanceIds))];
+    const equipId = rollEquipmentDrop(zoneLevel, { boss: enemy.boss, stances });
     if (equipId) this._spawnDrop({ kind: 'gear', itemId: equipId }, cx, cy);
     if (Math.random() < MESO_DROP_CHANCE) this._spawnDrop({ kind: 'meso', amount: mesoAmount(enemy) }, cx, cy);
     if (enemy.boss) {

@@ -263,8 +263,12 @@ function potentialLineText(line) {
 
 // ===== 메소(골드) 드랍 — 바닥에 떨어진 것을 줍는다 =====
 const MESO_DROP_CHANCE = 0.7;
+// 메소는 몹 레벨에서 바로 뽑는다.
+// 예전에는 경험치 보상에 비례했는데, 탑처럼 경험치가 폭증하는 곳에서 골드까지 같이 폭증해
+// 5분 만에 40만 골드가 쌓였다(제작·강화 비용이 의미를 잃는다).
 function mesoAmount(enemy) {
-  return Math.max(1, Math.round(enemy.xpReward * randRange(0.25, 0.45) * (enemy.boss ? 3 : 1)));
+  const base = 6 + (enemy.level || 1) * 4;
+  return Math.max(1, Math.round(base * randRange(0.7, 1.4) * (enemy.boss ? 6 : 1)));
 }
 
 // 장비 슬롯과 방어구 등급
