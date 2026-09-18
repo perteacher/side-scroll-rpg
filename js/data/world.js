@@ -231,7 +231,7 @@ const ZONE_DATA = [
     ],
     shopNpc: { name: '보급관 라우라', x: 700, floor: 2 },
     questBoard: { x: 980, name: '전초기지 의뢰 게시판' },
-    recruits: [],
+    recruits: makeRecruits(['sverna', 'kaltos', 'nivena', 'brandt', 'lucienne'], 6, 280, 230),
   },
   {
     id: 'field7a', theme: 'frost', type: 'field', name: '얼어붙은 고원', level: 50, width: 3800, groundColor: '#5b7285',
@@ -286,7 +286,7 @@ const ZONE_DATA = [
     ],
     shopNpc: { name: '구름 상인 미렐', x: 700, floor: 2 },
     questBoard: { x: 980, name: '아에리스 의뢰 게시판' },
-    recruits: [],
+    recruits: makeRecruits(['aeron', 'thalia', 'gorvain', 'seris', 'orwen'], 7, 280, 230),
   },
   {
     id: 'field9a', theme: 'sky_isle', type: 'field', name: '부유섬 외곽', level: 70, width: 4000, groundColor: '#5f8299',

@@ -81,4 +81,28 @@ const CHARACTER_DATA = [
     baseStats: { str: 6, agi: 13, vit: 12, skl: 10, int: 21, sen: 17 } },
   { id: 'clera', name: '클레라', attackType: 'ranged', stanceIds: ['musket', 'longbow'], color: '#45b39d',
     baseStats: { str: 12, agi: 17, vit: 13, skl: 20, int: 8, sen: 12 } },
+
+  // --- 6티어 (설원 전초기지 카르네비아, 50레벨) ---
+  { id: 'sverna', name: '스베르나', attackType: 'melee', stanceIds: ['spear', 'sword'], color: '#5dade2',
+    baseStats: { str: 21, agi: 15, vit: 19, skl: 13, int: 7, sen: 10 } },
+  { id: 'kaltos', name: '칼토스', attackType: 'melee', stanceIds: ['fist', 'dualblade'], color: '#85c1e9',
+    baseStats: { str: 20, agi: 18, vit: 17, skl: 14, int: 6, sen: 11 } },
+  { id: 'nivena', name: '니베나', attackType: 'magic', stanceIds: ['frost', 'spark'], color: '#a9cce3',
+    baseStats: { str: 7, agi: 13, vit: 13, skl: 11, int: 23, sen: 18 } },
+  { id: 'brandt', name: '브란트', attackType: 'ranged', stanceIds: ['crossbow', 'musket'], color: '#48c9b0',
+    baseStats: { str: 13, agi: 20, vit: 14, skl: 22, int: 8, sen: 14 } },
+  { id: 'lucienne', name: '루시엔', attackType: 'magic', stanceIds: ['flame', 'frost'], color: '#bb8fce',
+    baseStats: { str: 7, agi: 14, vit: 13, skl: 11, int: 22, sen: 19 } },
+
+  // --- 7티어 (부유 도시 아에리스, 70레벨) ---
+  { id: 'aeron', name: '아에론', attackType: 'ranged', stanceIds: ['longbow', 'crossbow'], color: '#f7dc6f',
+    baseStats: { str: 14, agi: 23, vit: 15, skl: 24, int: 9, sen: 16 } },
+  { id: 'thalia', name: '탈리아', attackType: 'magic', stanceIds: ['spark', 'flame'], color: '#f5b7b1',
+    baseStats: { str: 8, agi: 15, vit: 14, skl: 12, int: 25, sen: 20 } },
+  { id: 'gorvain', name: '고르베인', attackType: 'melee', stanceIds: ['sword', 'fist'], color: '#e59866',
+    baseStats: { str: 24, agi: 16, vit: 22, skl: 14, int: 7, sen: 11 } },
+  { id: 'seris', name: '세리스', attackType: 'melee', stanceIds: ['dualblade', 'spear'], color: '#f0b27a',
+    baseStats: { str: 20, agi: 24, vit: 16, skl: 17, int: 8, sen: 13 } },
+  { id: 'orwen', name: '오르웬', attackType: 'ranged', stanceIds: ['musket', 'longbow'], color: '#7fb3d5',
+    baseStats: { str: 15, agi: 20, vit: 16, skl: 25, int: 9, sen: 15 } },
 ];

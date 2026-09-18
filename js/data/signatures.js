@@ -80,6 +80,20 @@ const SIGNATURE_DATA = {
   darian: { traitId: 'marksman', skill: { id: 'sig_darian', name: '관통 볼트', kind: 'nuke', dmgMult: 4.0, manaCost: 32, cooldownMs: 10500 } },
   helenia: { traitId: 'tactician', skill: { id: 'sig_helenia', name: '생명의 성역', kind: 'heal', healPct: 0.35, manaCost: 40, cooldownMs: 25000 } },
   clera: { traitId: 'executioner', skill: { id: 'sig_clera', name: '작열 탄환', kind: 'nuke', dmgMult: 4.5, manaCost: 34, cooldownMs: 11000, element: 'fire' } },
+
+  // --- 6티어 영입 (카르네비아) ---
+  sverna: { traitId: 'guardian', skill: { id: 'sig_sverna', name: '설벽 창진', kind: 'buff', manaCost: 34, cooldownMs: 22000, durationMs: 13000, buff: { defPct: 0.3, hpPct: 0.12 } } },
+  kaltos: { traitId: 'berserk', skill: { id: 'sig_kaltos', name: '한파 난타', kind: 'barrage', dmgMult: 1.1, hits: 6, manaCost: 34, cooldownMs: 10500, element: 'ice' } },
+  nivena: { traitId: 'arcane', skill: { id: 'sig_nivena', name: '빙하 붕괴', kind: 'aoe', dmgMult: 3.0, aoeRadius: 200, manaCost: 40, cooldownMs: 13000, element: 'ice' } },
+  brandt: { traitId: 'marksman', skill: { id: 'sig_brandt', name: '서리 관통탄', kind: 'nuke', dmgMult: 4.6, manaCost: 34, cooldownMs: 10500, element: 'ice' } },
+  lucienne: { traitId: 'vampiric', skill: { id: 'sig_lucienne', name: '불꽃 고리', kind: 'drain', dmgMult: 3.0, healPct: 0.5, manaCost: 36, cooldownMs: 10500, element: 'fire' } },
+
+  // --- 7티어 영입 (아에리스) ---
+  aeron: { traitId: 'swift', skill: { id: 'sig_aeron', name: '질풍 연사', kind: 'barrage', dmgMult: 1.0, hits: 8, manaCost: 36, cooldownMs: 11000 } },
+  thalia: { traitId: 'executioner', skill: { id: 'sig_thalia', name: '뇌운 강림', kind: 'aoe', dmgMult: 3.2, aoeRadius: 210, manaCost: 42, cooldownMs: 13500, element: 'lightning' } },
+  gorvain: { traitId: 'ironwall', skill: { id: 'sig_gorvain', name: '거암 내려치기', kind: 'nuke', dmgMult: 5.0, manaCost: 36, cooldownMs: 11500 } },
+  seris: { traitId: 'duelist', skill: { id: 'sig_seris', name: '폭풍 쌍인', kind: 'chain', dmgMult: 2.4, count: 4, manaCost: 36, cooldownMs: 11000 } },
+  orwen: { traitId: 'tactician', skill: { id: 'sig_orwen', name: '전열 재정비', kind: 'heal', healPct: 0.4, manaCost: 44, cooldownMs: 24000 } },
 };
 
 // ===== 링크 스킬 (메이플스토리) =====

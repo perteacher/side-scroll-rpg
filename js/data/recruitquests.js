@@ -43,6 +43,25 @@ const RECRUIT_QUEST_TIERS = {
     { type: 'talk', npcId: 'bernard', text: '총사령관 베르나르에게 전황 보고' },
     { type: 'deliver', itemId: 'holy_banner', count: 1, text: '성화 군기 1개를 제작해 납품' },
   ],
+  6: (charName) => [
+    { type: 'hunt', zoneId: 'field7a', enemyName: '서리 늑대', count: 14,
+      text: '얼어붙은 고원에서 서리 늑대 14마리 처치' },
+    { type: 'talk', npcId: 'sigrid', text: '순찰대장 시그리드에게 실력을 보이기' },
+    { type: 'hunt', zoneId: 'field7b', enemyName: '빙결 거인', count: 12,
+      text: '서리 협곡에서 빙결 거인 12기 처치' },
+    { type: 'collect', itemId: 'frost_shard', count: 8, text: '서리 결정 8개 수집' },
+    { type: 'talk', npcId: 'anselm', text: '얼음 세공사 안셀름에게 장비 손질을 맡기기' },
+  ],
+  7: (charName) => [
+    { type: 'hunt', zoneId: 'field9a', enemyName: '하늘 사냥꾼', count: 16,
+      text: '부유섬 외곽에서 하늘 사냥꾼 16기 처치' },
+    { type: 'talk', npcId: 'thane', text: '풍력 기사 테인에게 비행 허가 받기' },
+    { type: 'hunt', zoneId: 'field9b', enemyName: '번개 정령', count: 14,
+      text: '폭풍의 섬에서 번개 정령 14기 처치' },
+    { type: 'collect', itemId: 'storm_feather', count: 10, text: '폭풍의 깃털 10개 수집' },
+    { type: 'collect', itemId: 'abyss_fragment', count: 6, text: '나락의 조각 6개 수집' },
+    { type: 'talk', npcId: 'elysia', text: '항공사 엘리시아에게 동행을 청하기' },
+  ],
 };
 
 function makeRecruitSteps(tier, charName) {

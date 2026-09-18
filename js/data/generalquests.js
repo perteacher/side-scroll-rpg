@@ -161,4 +161,110 @@ const GENERAL_QUEST_DATA = [
     ],
     reward: { gold: 8000000, items: [{ id: 'exp_card_master', count: 2 }] },
   },
+  // ================= 중반 구간 (50~95) =================
+  {
+    id: 'g7_wolf', town: 'town7', minLevel: 50, title: '고원의 이빨',
+    desc: '서리 늑대가 보급로를 끊고 있다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field7a', enemyName: '서리 늑대', count: 14, text: '얼어붙은 고원에서 서리 늑대 14마리 처치' },
+    ],
+    reward: { gold: 14000, items: [{ id: 'exp_card_basic', count: 2 }] },
+  },
+  {
+    id: 'g7_shard', town: 'town7', minLevel: 50, title: '서리 결정 수급',
+    desc: '세공사가 장비 손질에 쓸 결정을 모은다.',
+    steps: [
+      { type: 'collect', itemId: 'frost_shard', count: 12, text: '서리 결정 12개 수집' },
+    ],
+    reward: { gold: 16000, items: [{ id: 'stance_card_high', count: 1 }] },
+  },
+  {
+    id: 'g7_giant', town: 'town7', minLevel: 55, title: '협곡의 거인',
+    desc: '빙결 거인이 협곡 길을 막았다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field7b', enemyName: '빙결 거인', count: 12, text: '서리 협곡에서 빙결 거인 12기 처치' },
+      { type: 'hunt', zoneId: 'field7b', enemyName: '설산의 지배자 프로스타', count: 1, text: '설산의 지배자 프로스타 토벌' },
+    ],
+    reward: { gold: 30000, items: [{ id: 'craftsman_cube', count: 1 }] },
+  },
+  {
+    id: 'g7_lava', town: 'town7', minLevel: 60, title: '화산 기슭 정찰',
+    desc: '용암 도마뱀이 기슭까지 내려왔다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field8a', enemyName: '용암 도마뱀', count: 16, text: '화산 기슭에서 용암 도마뱀 16마리 처치' },
+      { type: 'collect', itemId: 'obsidian_chip', count: 10, text: '화산 흑요석 10개 수집' },
+    ],
+    reward: { gold: 34000, items: [{ id: 'exp_card_basic', count: 3 }] },
+  },
+  {
+    id: 'g7_ignis', town: 'town7', minLevel: 65, title: '용암 동굴의 주인',
+    desc: '동굴 깊은 곳에서 불길이 멈추지 않는다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field8b', enemyName: '불꽃 정령', count: 14, text: '용암 동굴에서 불꽃 정령 14기 처치' },
+      { type: 'hunt', zoneId: 'field8b', enemyName: '화산의 주인 이그니스', count: 1, text: '화산의 주인 이그니스 토벌' },
+    ],
+    reward: { gold: 46000, items: [{ id: 'craftsman_cube', count: 1 }, { id: 'stance_card_high', count: 1 }] },
+  },
+  {
+    id: 'g8_hunter', town: 'town8', minLevel: 70, title: '하늘길 청소',
+    desc: '섬 외곽의 사냥꾼들이 항로를 위협한다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field9a', enemyName: '하늘 사냥꾼', count: 16, text: '부유섬 외곽에서 하늘 사냥꾼 16기 처치' },
+    ],
+    reward: { gold: 56000, items: [{ id: 'exp_card_basic', count: 3 }] },
+  },
+  {
+    id: 'g8_feather', town: 'town8', minLevel: 70, title: '깃털 수집',
+    desc: '비행선 수리에 폭풍의 깃털이 필요하다.',
+    steps: [
+      { type: 'collect', itemId: 'storm_feather', count: 14, text: '폭풍의 깃털 14개 수집' },
+    ],
+    reward: { gold: 60000, items: [{ id: 'stance_card_high', count: 2 }] },
+  },
+  {
+    id: 'g8_storm', town: 'town8', minLevel: 75, title: '폭풍을 멈춰라',
+    desc: '섬을 뒤덮은 폭풍의 근원을 끊어야 한다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field9b', enemyName: '번개 정령', count: 14, text: '폭풍의 섬에서 번개 정령 14기 처치' },
+      { type: 'hunt', zoneId: 'field9b', enemyName: '폭풍왕 아에로스', count: 1, text: '폭풍왕 아에로스 토벌' },
+    ],
+    reward: { gold: 90000, items: [{ id: 'master_cube', count: 1 }] },
+  },
+  {
+    id: 'g8_abyss', town: 'town8', minLevel: 80, title: '관문의 사냥개',
+    desc: '마계 관문에서 사냥개들이 쏟아져 나온다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field10a', enemyName: '심연 사냥개', count: 18, text: '마계 관문에서 심연 사냥개 18기 처치' },
+      { type: 'collect', itemId: 'abyss_fragment', count: 12, text: '나락의 조각 12개 수집' },
+    ],
+    reward: { gold: 120000, items: [{ id: 'exp_card_veteran', count: 1 }] },
+  },
+  {
+    id: 'g8_morgan', town: 'town8', minLevel: 85, title: '타락한 성소',
+    desc: '성소를 차지한 대사제를 끌어내려야 한다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field10b', enemyName: '나락 사제', count: 16, text: '타락한 성소에서 나락 사제 16기 처치' },
+      { type: 'hunt', zoneId: 'field10b', enemyName: '나락의 대사제 모르간', count: 1, text: '나락의 대사제 모르간 토벌' },
+    ],
+    reward: { gold: 160000, items: [{ id: 'master_cube', count: 1 }, { id: 'exp_card_veteran', count: 1 }] },
+  },
+  {
+    id: 'g8_temple', town: 'town8', minLevel: 90, title: '잊힌 신전의 봉인',
+    desc: '수호상이 깨어나 신전을 헤집고 있다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field11a', enemyName: '신전 수호상', count: 18, text: '잊힌 신전에서 신전 수호상 18기 처치' },
+      { type: 'collect', itemId: 'divine_relic', count: 12, text: '신성 유물 12개 수집' },
+    ],
+    reward: { gold: 220000, items: [{ id: 'exp_card_veteran', count: 2 }] },
+  },
+  {
+    id: 'g8_asterion', town: 'town8', minLevel: 95, title: '신들의 무덤',
+    desc: '무덤 안쪽에서 무언가가 다시 일어섰다.',
+    steps: [
+      { type: 'hunt', zoneId: 'field11b', enemyName: '잊힌 신관', count: 16, text: '신들의 무덤에서 잊힌 신관 16기 처치' },
+      { type: 'hunt', zoneId: 'field11b', enemyName: '잊힌 신 아스테리온', count: 1, text: '잊힌 신 아스테리온 토벌' },
+      { type: 'collect', itemId: 'sealed_rune', count: 8, text: '봉인된 룬 8개 수집' },
+    ],
+    reward: { gold: 300000, items: [{ id: 'master_cube', count: 1 }, { id: 'exp_card_veteran', count: 2 }] },
+  },
 ];
