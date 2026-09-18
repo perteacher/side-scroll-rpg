@@ -5,6 +5,8 @@ const DEFAULT_SETTINGS = {
   autoPotion: true,   // HP/MP가 임계치 아래로 떨어지면 물약 자동 사용
   hpThreshold: 0.5,
   mpThreshold: 0.25,
+  autoSellGrade: 0,   // 이 등급 이하 장비는 주운 즉시 판다(0 = 끄기, 1 일반 ~ 4 영웅)
+  autoSellOldGear: false, // 지난 레벨대(파티 레벨대보다 낮은) 장비도 등급과 무관하게 판다
   showTracker: true,  // 화면 우측 퀘스트 목표 상시 표시
   showDamage: true,   // 데미지 숫자 표시
   resolution: 'fit',  // 화면 배율: 창에 맞춤 / 고정 해상도(display.js RESOLUTION_OPTIONS)

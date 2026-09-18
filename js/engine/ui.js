@@ -1079,6 +1079,21 @@ class UIManager {
         <span id="set-mp-val">${pct(v.mpThreshold)}% 이하</span>
       </div>
 
+      <div class="section-title">장비 자동 판매</div>
+      <div class="set-row">
+        <label>등급 기준</label>
+        <select id="set-autosell">
+          ${[[0, '끄기'], [1, '일반 등급만'], [2, '고급 이하'], [3, '희귀 이하'], [4, '영웅 이하']]
+    .map(([v2, label]) => `<option value="${v2}" ${v.autoSellGrade === v2 ? 'selected' : ''}>${label}</option>`).join('')}
+        </select>
+        <span style="opacity:0.6;font-size:11px;">주운 즉시 팔아 골드로 바꿉니다(장착 중인 장비는 대상이 아닙니다)</span>
+      </div>
+      <div class="set-row">
+        <label>지난 레벨대</label>
+        <input type="checkbox" id="set-autosell-old" ${v.autoSellOldGear ? 'checked' : ''}>
+        <span style="opacity:0.6;font-size:11px;">파티 레벨대보다 낮은 장비는 등급과 무관하게 팝니다</span>
+      </div>
+
       <div class="section-title">화면</div>
       <div class="set-row">
         <label>해상도</label>
@@ -1147,6 +1162,8 @@ class UIManager {
       this.refreshTracker();
     });
     bind('set-damage', 'change', (e) => SettingsManager.set('showDamage', e.target.checked));
+    bind('set-autosell', 'change', (e) => SettingsManager.set('autoSellGrade', Number(e.target.value)));
+    bind('set-autosell-old', 'change', (e) => SettingsManager.set('autoSellOldGear', e.target.checked));
     bind('set-resolution', 'change', (e) => { DisplayManager.setResolution(e.target.value); this.refreshSettings(); });
     bind('set-fullscreen', 'click', () => DisplayManager.toggleFullscreen());
     bind('set-window-reset', 'click', () => { this.resetWindowLayout(); this.logChat('창 위치를 초기화했습니다.', 'system'); });
@@ -1185,6 +1202,24 @@ class UIManager {
         this.refreshTeleport();
       });
     });
+  }
+
+  // 병영은 '캐릭터 교체'와 '승급' 두 탭으로 나눈다.
+  // 승급 요구 재료가 길어서 한 화면에 같이 두면 교체 목록이 아래로 밀려 안 보였다.
+  _renderBarracksTabs() {
+    const tabs = document.getElementById('barracks-tabs');
+    if (!tabs) return;
+    this.barracksTab = this.barracksTab || 'swap';
+    const show = (tab) => {
+      this.barracksTab = tab;
+      document.getElementById('barracks-swap').classList.toggle('hidden', tab !== 'swap');
+      document.getElementById('barracks-promote').classList.toggle('hidden', tab !== 'promote');
+      tabs.querySelectorAll('button[data-btab]').forEach((b) => b.classList.toggle('on', b.dataset.btab === tab));
+    };
+    tabs.querySelectorAll('button[data-btab]').forEach((b) => {
+      b.onclick = () => show(b.dataset.btab);
+    });
+    show(this.barracksTab);
   }
 
   // 승급 패널. 승급 대상(구간 끝에 닿았거나 곧 닿는 캐릭터)만 보여준다.
@@ -1247,6 +1282,7 @@ class UIManager {
     partyEl.innerHTML = slots.join('');
 
     this._renderPromotion();
+    this._renderBarracksTabs();
     this._renderBarracksCreate();
 
     const listEl = document.getElementById('barracks-list');

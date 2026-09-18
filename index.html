@@ -168,10 +168,16 @@
   <!-- 병영 창 -->
   <div id="barracks-window" class="game-window hidden">
     <div class="window-title-bar"><span>병영 — 캐릭터 교체</span><button class="close-btn" data-close="barracks-window">✕</button></div>
-    <div id="barracks-party"></div>
-    <div id="barracks-promote"></div>
-    <div id="barracks-create"></div>
-    <div id="barracks-list"></div>
+    <div id="barracks-tabs" class="win-tabs">
+      <button data-btab="swap" class="on">캐릭터 교체</button>
+      <button data-btab="promote">승급</button>
+    </div>
+    <div id="barracks-swap" class="tab-panel">
+      <div id="barracks-party"></div>
+      <div id="barracks-create"></div>
+      <div id="barracks-list"></div>
+    </div>
+    <div id="barracks-promote" class="tab-panel hidden"></div>
   </div>
 
   <!-- 아이템 설명 풍선 (목록 위에 마우스를 올리면 뜬다) -->

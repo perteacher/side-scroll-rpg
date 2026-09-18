@@ -935,6 +935,19 @@ class Game {
     }
   }
 
+  // 자동 판매 기준에 걸리는가. 설정(O)에서 등급 하한과 '지난 레벨대' 여부를 고른다.
+  _shouldAutoSell(gear) {
+    const cfg = SettingsManager.values;
+    const it = gear.item;
+    if (!it || !it.slot) return false;
+    if (cfg.autoSellGrade > 0 && gear.tier <= cfg.autoSellGrade) return true;
+    if (cfg.autoSellOldGear) {
+      const partyLevel = Math.max(1, ...this.pm.partyUnits.map((u) => u.level));
+      if ((it.bracket || 1) < bracketFromLevel(partyLevel).b) return true;
+    }
+    return false;
+  }
+
   _spawnDrop(payload, x, y) {
     if (this.drops.length >= MAX_GROUND_DROPS) this.drops.shift();
     const spot = this.zm.map.nearestFree(x + randRange(-20, 20), y + randRange(-16, 16));
@@ -983,6 +996,13 @@ class Game {
     }
     if (d.kind === 'gear') {
       const gear = this.pm.addGear(d.itemId);
+      // 자동 판매: 줍기는 그대로 두고, 기준에 걸리는 것만 바로 팔아 골드로 바꾼다.
+      // (안 줍게 하면 "뭐가 떨어졌는지"도 안 보여서, 줍고 파는 쪽으로 했다)
+      if (this._shouldAutoSell(gear)) {
+        const gold = this.pm.sellGear(gear.uid);
+        this.effects.loot(ux, uy, `+${(gold || 0).toLocaleString()} G`, '#b3b6b7');
+        return;
+      }
       this.effects.loot(ux, uy - 16, gear.item.name, TIER_COLOR[gear.tier], gear.itemId);
       this.ui.logChat(`[장비 획득] ${gear.displayName}`, 'system');
       // 티어 3 이상은 화면을 한 번 번쩍여 "지금 좋은 게 떴다"를 놓치지 않게 한다.
