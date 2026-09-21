@@ -124,7 +124,15 @@ class Game {
       this.ui.rebuildPartySlots();
       this.ui.refreshOpenWindows();
     };
-    this.ui.onSellGear = (gearUid) => { this.pm.sellGear(gearUid); this.ui.refreshOpenWindows(); };
+    // 판매는 상점 창이 열려 있을 때만. 가방에서 바로 파는 길은 막아 뒀다(버튼도 없다).
+    this.ui.onSellGear = (gearUid) => {
+      if (!this.ui.isWindowOpen('shop-window')) {
+        this.ui.logChat('[상점] 장비는 마을 상점에서만 팔 수 있습니다.', 'system');
+        return;
+      }
+      this.pm.sellGear(gearUid);
+      this.ui.refreshOpenWindows();
+    };
     this.ui.onStarforce = (gearUid, opts) => {
       const gear = this.pm.findGear(gearUid);
       if (!gear) return null;

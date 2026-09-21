@@ -1520,11 +1520,12 @@ class UIManager {
 
     grid.innerHTML = `
       <div class="section-title">장비 보관함 (${this.pm.gear.length})</div>
-      ${this._ownedEquipHtml(unit, { sell: true })}
+      ${this._ownedEquipHtml(unit)}
       <div class="section-title">잡템 · 소모품</div>
       ${itemsHtml}
       <div style="margin-top:8px;font-size:11px;opacity:0.75;">
-        잡템 판매가치 ${total}G · 소모품 사용 대상: <b>${unit ? unit.name : '-'}</b> (Tab으로 변경)
+        잡템 판매가치 ${total}G · 소모품 사용 대상: <b>${unit ? unit.name : '-'}</b> (Tab으로 변경)<br>
+        장비·잡템 판매는 마을 상점에서만 할 수 있습니다.
       </div>`;
 
     grid.querySelectorAll('button[data-use]').forEach((b) => {
@@ -1532,9 +1533,6 @@ class UIManager {
     });
     grid.querySelectorAll('button[data-equip]').forEach((b) => {
       b.addEventListener('click', () => this.onEquip && this.onEquip(b.dataset.equip, b.dataset.slot || null));
-    });
-    grid.querySelectorAll('button[data-sellgear]').forEach((b) => {
-      b.addEventListener('click', () => this.onSellGear && this.onSellGear(b.dataset.sellgear));
     });
   }
 
