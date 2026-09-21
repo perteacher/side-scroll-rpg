@@ -32,6 +32,12 @@ const ENEMY_SCALE_POINTS = [
   [120, 0.3, 0.25, 6, 0.2],
 ];
 
+// 파티 구성이 '딜러 3'에서 '딜러 2 + 힐러 1'로 바뀌면서 처치 속도가 그만큼 느려졌다.
+// 위 표의 성장 곡선(Lv1→10 약 3분 / 10→20 약 6분)은 딜러 3 기준으로 잰 값이라,
+// 처치 속도가 줄어든 만큼 마리당 경험치를 올려 같은 속도를 유지한다.
+// 힐러를 빼고 딜러만 세 명으로 다니면 그만큼 더 빨리 크는 대신 회복을 스스로 감당해야 한다.
+const PARTY_XP_MULT = 1.4;
+
 function enemyScaleFor(level) {
   const pts = ENEMY_SCALE_POINTS;
   const lv = clamp(level || 1, pts[0][0], pts[pts.length - 1][0]);
@@ -43,5 +49,5 @@ function enemyScaleFor(level) {
   const span = b[0] - a[0];
   const t = span === 0 ? 0 : (lv - a[0]) / span;
   const mix = (i) => a[i] + (b[i] - a[i]) * t;
-  return { hp: mix(1), atk: mix(2), xp: mix(3), def: mix(4) };
+  return { hp: mix(1), atk: mix(2), xp: mix(3) * PARTY_XP_MULT, def: mix(4) };
 }

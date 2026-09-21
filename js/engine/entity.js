@@ -95,7 +95,11 @@ class PartyUnit {
     const familyBonus = (this.bonus || EMPTY_FAMILY_BONUS).hpPct;
     return Math.round(base * (1 + gearBonus + synergyBonus + familyBonus));
   }
-  _calcMaxMp() { return 30 + this.stats.int * 3 + this.stats.sen * 2; }
+  // 힐러는 평타부터 스킬까지 전부 MP를 쓴다. 밑천을 더 준다.
+  _calcMaxMp() {
+    const base = 30 + this.stats.int * 3 + this.stats.sen * 2;
+    return Math.round(base * (this.attackType === 'support' ? 1.6 : 1));
+  }
 
   // equipment.weapon1/weapon2를 '현재 든 세트'로 연결한다.
   // 이렇게 해두면 세트를 바꾸는 것만으로 장비창·스탠스·전투 계산이 전부 따라온다.
@@ -121,11 +125,16 @@ class PartyUnit {
     Object.entries(set).forEach(([slot, itemId]) => { this.equipment[slot] = new Gear(itemId); });
   }
 
-  // 세트에 등록된 무기가 주는 스탠스(빈 세트는 맨손)
+  // 세트에 등록된 무기로 쓸 수 있는 스탠스(빈 세트는 맨손).
+  // 무기가 주는 것은 '계열'이라, 그 계열을 쓰는 내 스탠스들을 돌려준다.
+  // 힐러의 기본 자세는 무기 없이도 되므로(weaponless) 빈 세트에서도 나온다.
   setStances(index) {
-    const ids = this.weaponSets[index].filter(Boolean).map((g) => g.stanceId);
-    const unique = [...new Set(ids)];
-    return unique.length ? unique : ['bare'];
+    const weapons = new Set(this.weaponSets[index].filter(Boolean).map((g) => g.stanceId));
+    const ids = this.unlockedStanceIds.filter((sid) => {
+      const s = STANCE_DATA[sid];
+      return s.weaponless || weapons.has(s.weapon);
+    });
+    return ids.length ? ids : ['bare'];
   }
 
   get swapReady() { return this.setSwapCooldown <= 0; }
@@ -215,15 +224,22 @@ class PartyUnit {
     return [...this.stanceIds, ...upper];
   }
 
-  // 실제로 쓸 수 있는 스탠스 = 해금된 스탠스 중 장착 무기와 계열이 맞는 것. 무기가 없으면 맨손뿐.
-  get availableStances() {
-    const weapons = new Set(['weapon1', 'weapon2']
-      .map((slot) => this.equipment[slot])
-      .filter(Boolean)
-      .map((gear) => gear.stanceId));
-    const list = this.unlockedStanceIds.filter((sid) => weapons.has(STANCE_DATA[sid].weapon));
-    return list.length ? list : ['bare'];
+  // 이 캐릭터가 쓸 수 있는 무기 계열. 스탠스가 요구하는 무기 종류들이다.
+  // 힐러의 퍼스트 에이드/포르티투도는 둘 다 로자리오를 요구하므로 계열이 하나로 모인다.
+  get weaponFamilies() {
+    const out = new Set();
+    [...this.stanceIds, ...this.tierStances.map((t) => t.stanceId)].forEach((sid) => {
+      const s = STANCE_DATA[sid];
+      if (s && s.weapon) out.add(s.weapon);
+    });
+    return out;
   }
+
+  // 실제로 쓸 수 있는 스탠스 = 해금된 스탠스 중 장착 무기와 계열이 맞는 것. 무기가 없으면 맨손뿐.
+  // 단, 힐러의 기본 자세(퍼스트 에이드·포르티투도)는 원작처럼 맨손으로도 쓴다(weaponless).
+  get availableStances() { return this.setStances(this.activeSet); }
+
+  get isSupport() { return this.attackType === 'support'; }
 
   get currentStanceId() {
     const list = this.availableStances;
@@ -240,7 +256,7 @@ class PartyUnit {
     const item = ITEM_DATA[itemId];
     if (!item || !item.slot) return false;
     if ((item.reqLevel || 1) > this.level) return false; // 레벨대 장비는 착용 제한이 있다
-    if (item.slot === 'weapon') return this.stanceIds.includes(item.stanceId);
+    if (item.slot === 'weapon') return this.weaponFamilies.has(item.stanceId);
     if (item.slot === 'accessory') return true;          // 장신구는 누구나 낀다
     return item.armorClass === this.armorClass;
   }
@@ -311,7 +327,9 @@ class PartyUnit {
     const gearPct = {
       atkPct: p.atkPct || 0, defPct: p.defPct || 0, critDmg: p.critDmg || 0, bossDmg: p.bossDmg || 0, pierce: p.pierce || 0,
     };
-    return mergeBonuses(this.trait ? this.trait.bonus : null, gearPct, ...this.buffs.map((b) => b.bonus));
+    // 스탠스 자체가 주는 보정(익스퍼트 스탠스의 면역·관통 등)도 여기서 합쳐진다.
+    return mergeBonuses(this.trait ? this.trait.bonus : null, gearPct,
+      stanceBonusOf(this.currentStanceId), ...this.buffs.map((b) => b.bonus));
   }
 
   get stanceState() { return this.stanceProgress[this.currentStanceId]; }

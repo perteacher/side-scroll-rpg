@@ -34,6 +34,70 @@ const ROLE_SKILLS_DATA = {
   },
 };
 
+// ===== 힐러 계열(지원) 스킬 =====
+// 원작 퍼스트 에이드 / 포르티투도 / 택티컬 어시스턴스 / 인캔테이션 / 인핸스 택틱스 / 이노켄티오의
+// 스킬 이름과 역할을 가져왔다. 공격 스킬과 달리 dmgMult 대신 kind로 하는 일이 갈린다.
+//   heal     … 가장 많이 다친 동료 한 명을 회복
+//   healAll  … 파티 전원 회복
+//   buff     … 파티 전원에게 durationMs 동안 보정을 건다
+//   cleanse  … 파티 전원의 상태이상을 해제(+소폭 회복)
+//   refresh  … 파티 전원의 스킬 재사용 대기를 초기화 (원작 리프래쉬 마인드)
+//   revive   … 쓰러진 동료를 즉시 일으킨다 (원작 리서시테이션)
+// healPct는 '시전자 공격력 대비'가 아니라 '대상 최대 HP 대비'다. 레벨이 올라도 쓸모가 유지된다.
+ROLE_SKILLS_DATA.support = {
+  // --- 퍼스트 에이드 (기본) ---
+  treatment: { id: 'treatment', name: '트리트먼트', type: 'single', kind: 'heal', reqLevel: 1,
+    healPct: 0.22, cooldownMs: 2600, manaCost: 10 },
+  healing_hands: { id: 'healing_hands', name: '힐링 핸즈', type: 'party', kind: 'healAll', reqLevel: 3,
+    healPct: 0.16, cooldownMs: 7000, manaCost: 22 },
+  recovery: { id: 'recovery', name: '리커버', type: 'party', kind: 'cleanse', reqLevel: 5,
+    healPct: 0.08, cooldownMs: 13000, manaCost: 20 },
+
+  // --- 포르티투도 (기본 · 버프) ---
+  // 힐러는 평타로 때리지 않는다. 파티에서 빠진 딜 한 자리를 이 버프들이 대신해야 해서
+  // 수치를 넉넉하게 잡았다(힐러를 안 데려가면 이 보정도 통째로 없다).
+  fortitude: { id: 'fortitude', name: '포르티투도', type: 'party', kind: 'buff', reqLevel: 1,
+    buff: { defPct: 0.15, hpPct: 0.08 }, durationMs: 40000, cooldownMs: 22000, manaCost: 16 },
+  meditation: { id: 'meditation', name: '메디테이션', type: 'party', kind: 'buff', reqLevel: 3,
+    buff: { atkPct: 0.18 }, durationMs: 40000, cooldownMs: 22000, manaCost: 18 },
+  haste: { id: 'haste', name: '헤이스트', type: 'party', kind: 'buff', reqLevel: 5,
+    buff: { atkSpeed: 0.18, moveSpeed: 0.12 }, durationMs: 40000, cooldownMs: 24000, manaCost: 20 },
+
+  // --- 택티컬 어시스턴스 (베테랑) ---
+  ignore_harm: { id: 'ignore_harm', name: '이그노어 함', type: 'party', kind: 'buff', reqLevel: 1,
+    buff: { resist: 0.15, defPct: 0.08 }, durationMs: 45000, cooldownMs: 24000, manaCost: 24 },
+  penetration_aid: { id: 'penetration_aid', name: '페네트레이션', type: 'party', kind: 'buff', reqLevel: 3,
+    buff: { pierce: 0.10, accuracy: 0.08 }, durationMs: 45000, cooldownMs: 24000, manaCost: 26 },
+  refresh_mind: { id: 'refresh_mind', name: '리프래쉬 마인드', type: 'party', kind: 'refresh', reqLevel: 5,
+    cooldownMs: 30000, manaCost: 34 },
+
+  // --- 인캔테이션 (익스퍼트) ---
+  protection_field: { id: 'protection_field', name: '프로텍션 필드', type: 'party', kind: 'buff', reqLevel: 1,
+    buff: { defPct: 0.20 }, durationMs: 45000, cooldownMs: 24000, manaCost: 26 },
+  magic_barrier: { id: 'magic_barrier', name: '매직 배리어', type: 'party', kind: 'buff', reqLevel: 3,
+    buff: { resist: 0.20, hpPct: 0.10 }, durationMs: 45000, cooldownMs: 26000, manaCost: 30 },
+  invulnerable: { id: 'invulnerable', name: '인버러너블', type: 'party', kind: 'buff', reqLevel: 5,
+    buff: { defPct: 0.30, hpPct: 0.15 }, durationMs: 30000, cooldownMs: 40000, manaCost: 40 },
+
+  // --- 인핸스 택틱스 (마스터) ---
+  // 원작 1번 스킬 프랜스펄. 포르티투도 + 택티컬 어시스턴스의 버프를 한 방에 대신한다.
+  fransfer: { id: 'fransfer', name: '프랜스펄', type: 'party', kind: 'buff', reqLevel: 1,
+    buff: { atkPct: 0.18, defPct: 0.15, atkSpeed: 0.12, moveSpeed: 0.10, resist: 0.15, accuracy: 0.10 },
+    durationMs: 60000, cooldownMs: 30000, manaCost: 46 },
+  enhancement: { id: 'enhancement', name: '인핸스먼트', type: 'party', kind: 'buff', reqLevel: 3,
+    buff: { atkPct: 0.15, crit: 8, pierce: 0.08 }, durationMs: 45000, cooldownMs: 26000, manaCost: 38 },
+  escape_artist: { id: 'escape_artist', name: '에스킵 아티스트', type: 'party', kind: 'cleanse', reqLevel: 5,
+    healPct: 0.20, cooldownMs: 16000, manaCost: 32 },
+
+  // --- 이노켄티오 (마스터 · 퍼스트 에이드의 진화형) ---
+  divine_bless: { id: 'divine_bless', name: '디바인 블레스', type: 'party', kind: 'buff', reqLevel: 1,
+    buff: { defPct: 0.22, resist: 0.18, hpPct: 0.12 }, durationMs: 60000, cooldownMs: 30000, manaCost: 44 },
+  sacred_heal: { id: 'sacred_heal', name: '세이크리드 힐', type: 'party', kind: 'healAll', reqLevel: 3,
+    healPct: 0.45, cooldownMs: 12000, manaCost: 40 },
+  resuscitation: { id: 'resuscitation', name: '리서시테이션', type: 'party', kind: 'revive', reqLevel: 5,
+    healPct: 0.50, cooldownMs: 45000, manaCost: 50 },
+};
+
 // ===== 상급·마스터 스탠스 전용 스킬 =====
 Object.assign(ROLE_SKILLS_DATA.melee, {
   crushing_blow: { id: 'crushing_blow', name: '파쇄일격', type: 'single', reqLevel: 1, dmgMult: 2.4, cooldownMs: 3200, manaCost: 18 },

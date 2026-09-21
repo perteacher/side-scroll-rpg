@@ -85,7 +85,7 @@ function updateKeepAI(unit, enemies, dt, spawnProjectile, map = null, tryCastSki
     unit.vx = 0; unit.vy = 0;
     unit._stuckMs = 0; unit._sideMs = 0;
     setFacing(unit, d.x, d.y);
-    tryAutoAttack(unit, target, spawnProjectile, tryCastSkill);
+    tryAutoAttack(unit, target, spawnProjectile, tryCastSkill, enemies);
   }
 }
 
@@ -97,17 +97,17 @@ function updateHoldAI(unit, enemies, dt, spawnProjectile, tryCastSkill = null) {
   const d = dirTo(unit, nearest);
   if (d.dist > unit.stance.range) return;
   setFacing(unit, d.x, d.y);
-  tryAutoAttack(unit, nearest, spawnProjectile, tryCastSkill);
+  tryAutoAttack(unit, nearest, spawnProjectile, tryCastSkill, enemies);
 }
 
 // 습득한 스킬이 준비돼 있으면 스킬을 먼저 쓰고, 없으면 기본공격.
-function tryAutoAttack(unit, target, spawnProjectile, tryCastSkill) {
+function tryAutoAttack(unit, target, spawnProjectile, tryCastSkill, enemies = null) {
   if (unit.basicAtkCooldown > 0) return;
   if (tryCastSkill && tryCastSkill(unit, target)) {
     unit.basicAtkCooldown = 500;
     return;
   }
-  performBasicAttack(unit, target, spawnProjectile);
+  performBasicAttack(unit, target, spawnProjectile, enemies);
   unit.basicAtkCooldown = 700 / (1 + ((unit.bonus || EMPTY_FAMILY_BONUS).atkSpeed));
 }
 
@@ -368,29 +368,124 @@ function updateWander(enemy, dt) {
   if (enemy.vx || enemy.vy) setFacing(enemy, enemy.vx, enemy.vy);
 }
 
-function performBasicAttack(unit, target, spawnProjectile) {
+// 평타. 스탠스마다 타수(hits)와 스플래시(splash)가 달라서, 같은 무기라도 자세에 따라 체감이 다르다.
+// 원작의 "평타가 2히트", "양손으로 두 방씩 4번", "평타도 스플래시"를 옮긴 것.
+function performBasicAttack(unit, target, spawnProjectile, enemies = null) {
   const stance = unit.stance;
-  const roll = rollDamage(unit, target, stance.basicAtkMult);
-  const { dmg, isCrit } = roll;
   const d = dirTo(unit, target);
   unit.attackAnim = 260;
   setFacing(unit, d.x, d.y);
-  if (stance.attackType === 'melee') {
-    if (EFFECTS) EFFECTS.slash(unit);
-    if (d.dist <= stance.range) {
-      applyDamageToEnemy(target, dmg, isCrit, roll.miss);
-      if (!roll.miss) {
-        applyLifesteal(unit, dmg);
-        rollStatuses(target, basicAttackStatuses(stance), { hitDmg: dmg, source: unit });
+
+  // 스플래시 평타(폴암 계열): 주 대상 주변도 같이 맞는다.
+  const victims = [target];
+  if (stance.splash && enemies) {
+    enemies.forEach((e) => {
+      if (e === target || !e.alive || !sameHeight(unit, e)) return;
+      if (planeDist(target, e) <= stance.splash) victims.push(e);
+    });
+  }
+
+  for (let h = 0; h < (stance.hits || 1); h++) {
+    victims.forEach((v) => {
+      if (!v.alive) return;
+      const roll = rollDamage(unit, v, stance.basicAtkMult);
+      const { dmg, isCrit } = roll;
+      if (stance.attackType === 'melee') {
+        if (EFFECTS && h === 0 && v === target) EFFECTS.slash(unit);
+        if (v !== target || d.dist <= stance.range) {
+          applyDamageToEnemy(v, dmg, isCrit, roll.miss);
+          if (!roll.miss) {
+            applyLifesteal(unit, dmg);
+            rollStatuses(v, basicAttackStatuses(stance), { hitDmg: dmg, source: unit });
+          }
+        }
+      } else if (roll.miss) {
+        applyDamageToEnemy(v, 0, false, true);
+      } else {
+        const p = spawnProjectile(unit, v, dmg, isCrit, elementColor(stance.element));
+        if (p) p.statuses = basicAttackStatuses(stance);
       }
-    }
-  } else if (roll.miss) {
-    applyDamageToEnemy(target, 0, false, true);
-  } else {
-    const p = spawnProjectile(unit, target, dmg, isCrit, elementColor(stance.element));
-    if (p) p.statuses = basicAttackStatuses(stance);
+    });
   }
 }
+
+// ===== 힐러 계열 =====
+// 평타 치료 1회에 드는 MP. 무한 힐이 되지 않게 최소한의 밑천을 요구한다.
+const SUPPORT_HEAL_MP = 4;
+
+// 원작 퍼스트 에이드처럼, 힐러는 평타 자리에 치료가 들어간다. 때리지 않는다.
+// 가장 많이 다친 동료(자기 포함)를 사거리 안에서 고른다. 아무도 안 다쳤으면 아무 일도 안 한다.
+function findHealTarget(unit, partyUnits) {
+  let best = null;
+  let worst = 1;
+  partyUnits.forEach((u) => {
+    if (u.downed || u.hp <= 0 || u.maxHp <= 0) return;
+    if (u !== unit && planeDist(unit, u) > unit.stance.range) return;
+    const ratio = u.hp / u.maxHp;
+    if (ratio < worst) { worst = ratio; best = u; }
+  });
+  return worst < 0.999 ? best : null;
+}
+
+function performHeal(unit, target) {
+  const amount = healAmount(unit, target);
+  target.hp = clamp(target.hp + amount, 0, target.maxHp);
+  unit.attackAnim = 260;
+  if (target !== unit) {
+    const d = dirTo(unit, target);
+    setFacing(unit, d.x, d.y);
+  }
+  if (EFFECTS) {
+    EFFECTS.cast(unit, '#2ecc71');
+    EFFECTS.damage(target.x + target.width / 2, target.y - 8, amount, { text: '+' + amount, color: '#2ecc71' });
+  }
+  if (SOUND) SOUND.heal();
+  return amount;
+}
+
+// 힐러 자동전투. 사냥감을 쫓지 않고 파티 곁에 붙어 치료와 버프만 한다.
+// keep = 위험한 동료 곁으로 따라붙으며, hold = 제자리에서 사거리 안만.
+function updateSupportAI(unit, partyUnits, dt, tryCastSkill, map = null, hold = false) {
+  const mates = partyUnits.filter((u) => u !== unit && !u.downed);
+  if (!hold && mates.length) {
+    // 가장 위험한 동료(HP 비율이 낮은 쪽) 곁으로 간다. 모두 멀쩡하면 앞에 선 동료 곁으로.
+    const hurt = mates.reduce((a, b) => (a.hp / a.maxHp <= b.hp / b.maxHp ? a : b));
+    const anchor = hurt.hp / hurt.maxHp < 0.9 ? hurt : mates[0];
+    const gap = planeDist(unit, anchor);
+    if (gap > unit.stance.range * 0.6) {
+      const a = entityCenter(unit);
+      const b = sameHeight(unit, anchor, map) ? entityCenter(anchor)
+        : ((map && map.nearestRamp(a.x, a.y)) || entityCenter(anchor));
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const s = avoidStuck(unit, (b.x - a.x) / len, (b.y - a.y) / len, dt);
+      unit.vx = s.x * AI_SPEED;
+      unit.vy = s.y * AI_SPEED;
+      setFacing(unit, unit.vx, unit.vy);
+      return;
+    }
+  }
+  unit.vx = 0; unit.vy = 0;
+  unit._stanceRotateMs = (unit._stanceRotateMs || 0) - dt;
+  if (unit.basicAtkCooldown > 0) return;
+  // 버프·해제·부활 같은 지원 스킬이 먼저다. 쓸 게 없을 때만 평타 치료.
+  if (tryCastSkill && tryCastSkill(unit, null)) { unit.basicAtkCooldown = 600; return; }
+  const target = findHealTarget(unit, partyUnits);
+  if (target && unit.mp >= SUPPORT_HEAL_MP) {
+    unit.mp -= SUPPORT_HEAL_MP;
+    performHeal(unit, target);
+    unit.basicAtkCooldown = 900 / (1 + ((unit.bonus || EMPTY_FAMILY_BONUS).atkSpeed));
+    return;
+  }
+  // 할 일이 없으면 자세를 돌린다. 원작처럼 버프는 자세마다 따로 달려 있어서,
+  // 한 자세만 붙들고 있으면 다른 자세의 파티 버프가 영영 안 걸린다.
+  if (unit._stanceRotateMs <= 0 && unit.availableStances.length > 1) {
+    unit.cycleStance();
+    unit._stanceRotateMs = SUPPORT_STANCE_ROTATE_MS;
+  }
+}
+
+// 힐러가 자세를 바꿔 다른 버프를 마저 거는 주기.
+const SUPPORT_STANCE_ROTATE_MS = 3500;
 
 // 흡혈 특성: 준 피해의 일정 비율을 시전자 HP로 돌려준다.
 function applyLifesteal(unit, dmg) {

@@ -123,7 +123,13 @@ const SaveManager = {
       unit.xp = ud.xp;
       unit.currentStanceIndex = ud.currentStanceIndex || 0;
       unit.downed = !!ud.downed;
-      if (ud.stanceProgress) Object.assign(unit.stanceProgress, ud.stanceProgress);
+      // 이 캐릭터가 실제로 가진 스탠스만 되살린다. 클래스 구성이 바뀌면(스카우트가 힐러가 된 것처럼)
+      // 옛 세이브에 남은 스탠스 기록이 스탯 합산에 계속 끼어들기 때문이다.
+      if (ud.stanceProgress) {
+        Object.keys(unit.stanceProgress).forEach((sid) => {
+          if (ud.stanceProgress[sid]) unit.stanceProgress[sid] = ud.stanceProgress[sid];
+        });
+      }
       unit.invalidateStats();
       // 무기 세트가 저장돼 있으면 그쪽을 쓰고, 구버전 세이브는 장비 슬롯을 세트1로 옮겨 담는다.
       if (ud.weaponSets) {

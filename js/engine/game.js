@@ -494,9 +494,21 @@ class Game {
 
     if (this.input.wasPressed(' ') && this._tryInteract()) return;
     if (this.input.wasPressed(' ') && unit.basicAtkCooldown <= 0) {
+      // 힐러는 평타 자리가 치료다. 때릴 대상이 아니라 다친 동료를 고른다.
+      if (unit.isSupport) {
+        const hurt = findHealTarget(unit, this.pm.partyUnits);
+        if (!hurt) this.ui.logChat(`${unit.name}: 치료할 동료가 없습니다.`, 'system');
+        else if (unit.mp < SUPPORT_HEAL_MP) this.ui.logChat(`${unit.name}: MP가 부족합니다.`, 'system');
+        else {
+          unit.mp -= SUPPORT_HEAL_MP;
+          performHeal(unit, hurt);
+          unit.basicAtkCooldown = 600 / (1 + (unit.bonus || EMPTY_FAMILY_BONUS).atkSpeed);
+        }
+        return;
+      }
       const target = this._getAttackTarget(unit);
       if (target) {
-        performBasicAttack(unit, target, (u, t, dmg, crit, color) => this._spawnProjectile(u, t, dmg, crit, color));
+        performBasicAttack(unit, target, (u, t, dmg, crit, color) => this._spawnProjectile(u, t, dmg, crit, color), this.zm.enemies);
         unit.basicAtkCooldown = 450 / (1 + (unit.bonus || EMPTY_FAMILY_BONUS).atkSpeed);
         this._checkEnemyDeath(target, unit);
       }
@@ -669,6 +681,11 @@ class Game {
     const aliveBefore = this.zm.enemies.filter((e) => e.alive);
     const spawn = (u, t, dmg, crit, color) => this._spawnProjectile(u, t, dmg, crit, color);
     const cast = (u, t) => this._tryAutoSkill(u, t);
+    // 힐러는 몹을 쫓지 않는다. 파티 곁에서 치료·버프만 돌린다.
+    if (unit.isSupport) {
+      updateSupportAI(unit, this.pm.partyUnits, dt, cast, this.zm.map, unit.autoMode === 'hold');
+      return;
+    }
     if (unit.autoMode === 'keep') updateKeepAI(unit, this.zm.enemies, dt, spawn, this.zm.map, cast);
     else updateHoldAI(unit, this.zm.enemies, dt, spawn, cast);
     aliveBefore.forEach((e) => { if (!e.alive) this._checkEnemyDeath(e, unit); });
@@ -728,8 +745,9 @@ class Game {
       this.ui.logChat(`[${skillDef.name}] 미습득 — 스탠스 Lv.${skillDef.reqLevel} 이상에서 스킬포인트로 습득하세요.`, 'system');
       return;
     }
-    const target = this._getAttackTarget(unit);
-    if (!target) {
+    // 지원 스킬은 대상이 적이 아니라 파티다.
+    const target = unit.isSupport ? null : this._getAttackTarget(unit);
+    if (!unit.isSupport && !target) {
       this.ui.logChat(`${unit.name}: 사거리 안에 적이 없습니다.`, 'system');
       return;
     }
@@ -748,6 +766,110 @@ class Game {
       if (unit.skillLevel(skillId) === 0) return false;
       return this._castSkill(unit, skillId, target, false);
     });
+  }
+
+  // 힐러(지원) 스킬. 공격 스킬과 달리 하는 일이 kind로 갈리고, 할 일이 없으면 시전하지 않는다
+  // (false를 돌려주면 자동전투가 다음 스킬 · 평타 치료로 자연스럽게 넘어간다).
+  _castSupportSkill(unit, def, lv, verbose) {
+    const party = this.pm.partyUnits;
+    const scale = 1 + 0.15 * (lv - 1);
+    const cx = unit.x + unit.width / 2;
+    const pay = () => {
+      unit.mp -= def.manaCost;
+      unit.skillCooldowns[def.id] = def.cooldownMs;
+      unit.attackAnim = 320;
+      this.effects.cast(unit, '#2ecc71');
+      this.audio.heal();
+    };
+    const healOne = (u, pct) => {
+      const amount = healAmount(unit, u, { pct: pct * scale, flatMult: 0.6 * scale });
+      u.hp = clamp(u.hp + amount, 0, u.maxHp);
+      this.effects.damage(u.x + u.width / 2, u.y - 8, amount, { text: `+${amount}`, color: '#2ecc71' });
+    };
+
+    if (def.kind === 'heal') {
+      const t = findHealTarget(unit, party);
+      if (!t) return false;
+      pay(); healOne(t, def.healPct);
+      if (verbose) this.ui.logChat(`${unit.name}의 [${def.name} Lv.${lv}] — ${t.name} 회복`, 'system');
+      return true;
+    }
+
+    if (def.kind === 'healAll') {
+      const hurt = party.filter((u) => !u.downed && u.hp < u.maxHp * 0.9);
+      if (hurt.length === 0) return false;
+      pay();
+      this.effects.burst(cx, unit.y + unit.height / 2, 140, '#2ecc71');
+      party.forEach((u) => { if (!u.downed) healOne(u, def.healPct); });
+      if (verbose) this.ui.logChat(`${unit.name}의 [${def.name} Lv.${lv}] — 파티 회복`, 'party');
+      return true;
+    }
+
+    if (def.kind === 'cleanse') {
+      const afflicted = party.filter((u) => Object.keys(u.statuses || {}).length > 0);
+      if (afflicted.length === 0) return false;
+      pay();
+      this.effects.burst(cx, unit.y + unit.height / 2, 140, '#f7dc6f');
+      party.forEach((u) => {
+        clearStatuses(u);
+        if (!u.downed && def.healPct) healOne(u, def.healPct);
+      });
+      if (verbose) this.ui.logChat(`${unit.name}의 [${def.name} Lv.${lv}] — 파티 상태이상 해제`, 'party');
+      return true;
+    }
+
+    if (def.kind === 'buff') {
+      // 이미 넉넉히 남아 있으면 다시 걸지 않는다(MP를 흘리지 않게).
+      const fresh = party.every((u) => {
+        const b = (u.buffs || []).find((x) => x.name === def.name);
+        return b && b.remain > def.durationMs * 0.4;
+      });
+      if (fresh) return false;
+      pay();
+      const bonus = {};
+      Object.entries(def.buff).forEach(([k, v]) => { bonus[k] = v * scale; });
+      this.effects.burst(cx, unit.y + unit.height / 2, 130, '#f7dc6f');
+      party.forEach((u) => {
+        u.addBuff(def.name, bonus, def.durationMs);
+        this.effects.damage(u.x + u.width / 2, u.y - 8, 0, { text: def.name, color: '#f7dc6f' });
+      });
+      if (verbose) this.ui.logChat(`${unit.name}의 [${def.name} Lv.${lv}]! 파티 강화 ${def.durationMs / 1000}초`, 'party');
+      this.ui.rebuildPartySlots();
+      return true;
+    }
+
+    // 리프래쉬 마인드: 파티 전원의 스킬·전용기 재사용 대기를 걷어낸다.
+    if (def.kind === 'refresh') {
+      const waiting = party.some((u) => u !== unit
+        && (u.sigCooldown > 0 || Object.values(u.skillCooldowns || {}).some((c) => c > 0)));
+      if (!waiting) return false;
+      pay();
+      party.forEach((u) => {
+        if (u === unit) return;
+        u.sigCooldown = 0;
+        Object.keys(u.skillCooldowns || {}).forEach((k) => { u.skillCooldowns[k] = 0; });
+      });
+      this.effects.burst(cx, unit.y + unit.height / 2, 150, '#5dade2');
+      if (verbose) this.ui.logChat(`${unit.name}의 [${def.name} Lv.${lv}]! 파티 재사용 대기 초기화`, 'party');
+      return true;
+    }
+
+    // 리서시테이션: 쓰러진 동료를 그 자리에서 일으킨다.
+    if (def.kind === 'revive') {
+      const down = party.filter((u) => u.downed);
+      if (down.length === 0) return false;
+      pay();
+      down.forEach((u) => {
+        u.downed = false;
+        u.downTimer = 0;
+        u.hp = Math.max(1, Math.round(u.maxHp * def.healPct * scale));
+        this.effects.damage(u.x + u.width / 2, u.y - 8, 0, { text: '부활', color: '#f7dc6f' });
+      });
+      this.ui.logChat(`${unit.name}의 [${def.name} Lv.${lv}]! ${down.length}명을 일으켰습니다.`, 'party');
+      this.ui.rebuildPartySlots();
+      return true;
+    }
+    return false;
   }
 
   // 전용기. 캐릭터마다 다른 한 방이고, 강화·회복형은 적이 없어도 쓸 수 있다.
@@ -867,6 +989,7 @@ class Game {
     const lv = unit.skillLevel(skillId);
     if (lv === 0) return false;
     if ((unit.skillCooldowns[skillId] || 0) > 0 || unit.mp < skillDef.manaCost) return false;
+    if (unit.isSupport) return this._castSupportSkill(unit, skillDef, lv, verbose);
 
     const mult = skillDamageMult(skillDef, lv);
     const color = elementColor(skillDef.element || unit.stance.element);
@@ -932,7 +1055,8 @@ class Game {
     }
     // 장비는 존 권장 레벨의 레벨대에서 등급을 굴린다. 보스는 반드시 한 점 떨어뜨린다.
     const zoneLevel = enemy.level || this.zm.def.level;
-    const stances = [...new Set(this.pm.partyUnits.flatMap((u) => u.stanceIds))];
+    // 파티가 실제로 착용할 수 있는 무기 계열(스탠스 id가 아니라 무기 종류)로 편향시킨다.
+    const stances = [...new Set(this.pm.partyUnits.flatMap((u) => [...u.weaponFamilies]))];
     const equipId = rollEquipmentDrop(zoneLevel, { boss: enemy.boss, stances });
     if (equipId) this._spawnDrop({ kind: 'gear', itemId: equipId }, cx, cy);
     if (Math.random() < GOLD_DROP_CHANCE) this._spawnDrop({ kind: 'gold', amount: goldAmount(enemy) }, cx, cy);

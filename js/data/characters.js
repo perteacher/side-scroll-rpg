@@ -1,6 +1,8 @@
 // 영입 가능한 캐릭터 로스터. 나무위키 "그라나도 에스파다/캐릭터" 영입 목록을 참고해 이름을 변형해 사용.
 // 플레이어 캐릭터는 CLASS_DATA로 직접 생성하고, 이 로스터는 마을 퀘스트로 영입한다.
 // baseStats: 힘/민첩/체력/기술/지능/감각
+// attackType 'support' = 힐러 계열. 평타가 치료이고 로자리오를 낀다(원작 스카우트 계열).
+// 티어마다 한 명씩 두어, 파티를 어떻게 짜든 힐러를 구할 수 있게 했다.
 const CHARACTER_DATA = [
   // --- 1티어 (마을 1) ---
   { id: 'paion', name: '파이온', attackType: 'melee', stanceIds: ['sword', 'spear'], color: '#c0392b',
@@ -27,8 +29,8 @@ const CHARACTER_DATA = [
     baseStats: { str: 6, agi: 11, vit: 9, skl: 9, int: 20, sen: 13 } },
   { id: 'sohoa', name: '소호아', attackType: 'melee', stanceIds: ['dualblade', 'fist'], color: '#cb4335',
     baseStats: { str: 15, agi: 19, vit: 12, skl: 13, int: 6, sen: 11 } },
-  { id: 'vernelia', name: '베르넬리아', attackType: 'magic', stanceIds: ['frost', 'spark'], color: '#7d3c98',
-    baseStats: { str: 6, agi: 11, vit: 10, skl: 9, int: 18, sen: 15 } },
+  { id: 'vernelia', name: '베르넬리아', attackType: 'support', stanceIds: ['firstaid', 'fortitudo'], color: '#7d3c98',
+    baseStats: { str: 6, agi: 11, vit: 13, skl: 9, int: 18, sen: 17 } },
   { id: 'mbomar', name: '음보마르', attackType: 'melee', stanceIds: ['fist', 'sword'], color: '#922b21',
     baseStats: { str: 20, agi: 12, vit: 18, skl: 9, int: 5, sen: 7 } },
   { id: 'risael', name: '리사엘', attackType: 'melee', stanceIds: ['fist', 'dualblade'], color: '#b03a2e',
@@ -51,7 +53,7 @@ const CHARACTER_DATA = [
     baseStats: { str: 16, agi: 18, vit: 13, skl: 14, int: 6, sen: 10 } },
 
   // --- 4티어 (마을 4) ---
-  { id: 'catrenne', name: '까뜨렌느', attackType: 'magic', stanceIds: ['frost', 'flame'], color: '#5b2c6f',
+  { id: 'catrenne', name: '까뜨렌느', attackType: 'support', stanceIds: ['fortitudo', 'firstaid'], color: '#5b2c6f',
     baseStats: { str: 5, agi: 10, vit: 9, skl: 8, int: 19, sen: 16 } },
   { id: 'granmar', name: '그랑마르', attackType: 'magic', stanceIds: ['frost', 'flame'], color: '#6c3483',
     baseStats: { str: 6, agi: 10, vit: 11, skl: 9, int: 20, sen: 15 } },
@@ -77,7 +79,7 @@ const CHARACTER_DATA = [
     baseStats: { str: 19, agi: 16, vit: 17, skl: 14, int: 7, sen: 10 } },
   { id: 'darian', name: '다리안', attackType: 'ranged', stanceIds: ['crossbow', 'longbow'], color: '#52be80',
     baseStats: { str: 11, agi: 19, vit: 13, skl: 20, int: 8, sen: 13 } },
-  { id: 'helenia', name: '헬레니아', attackType: 'magic', stanceIds: ['frost', 'spark'], color: '#a569bd',
+  { id: 'helenia', name: '헬레니아', attackType: 'support', stanceIds: ['firstaid', 'fortitudo'], color: '#a569bd',
     baseStats: { str: 6, agi: 13, vit: 12, skl: 10, int: 21, sen: 17 } },
   { id: 'clera', name: '클레라', attackType: 'ranged', stanceIds: ['musket', 'longbow'], color: '#45b39d',
     baseStats: { str: 12, agi: 17, vit: 13, skl: 20, int: 8, sen: 12 } },
@@ -91,13 +93,13 @@ const CHARACTER_DATA = [
     baseStats: { str: 7, agi: 13, vit: 13, skl: 11, int: 23, sen: 18 } },
   { id: 'brandt', name: '브란트', attackType: 'ranged', stanceIds: ['crossbow', 'musket'], color: '#48c9b0',
     baseStats: { str: 13, agi: 20, vit: 14, skl: 22, int: 8, sen: 14 } },
-  { id: 'lucienne', name: '루시엔', attackType: 'magic', stanceIds: ['flame', 'frost'], color: '#bb8fce',
+  { id: 'lucienne', name: '루시엔', attackType: 'support', stanceIds: ['firstaid', 'fortitudo'], color: '#bb8fce',
     baseStats: { str: 7, agi: 14, vit: 13, skl: 11, int: 22, sen: 19 } },
 
   // --- 7티어 (부유 도시 아에리스, 70레벨) ---
   { id: 'aeron', name: '아에론', attackType: 'ranged', stanceIds: ['longbow', 'crossbow'], color: '#f7dc6f',
     baseStats: { str: 14, agi: 23, vit: 15, skl: 24, int: 9, sen: 16 } },
-  { id: 'thalia', name: '탈리아', attackType: 'magic', stanceIds: ['spark', 'flame'], color: '#f5b7b1',
+  { id: 'thalia', name: '탈리아', attackType: 'support', stanceIds: ['fortitudo', 'firstaid'], color: '#f5b7b1',
     baseStats: { str: 8, agi: 15, vit: 14, skl: 12, int: 25, sen: 20 } },
   { id: 'gorvain', name: '고르베인', attackType: 'melee', stanceIds: ['sword', 'fist'], color: '#e59866',
     baseStats: { str: 24, agi: 16, vit: 22, skl: 14, int: 7, sen: 11 } },

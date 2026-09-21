@@ -40,7 +40,8 @@ function statusList(target) {
 // 파티원의 상태이상 저항 확률. 캐릭터 정보창의 "상태이상 저항" 수치를 실제로 쓴다.
 function statusResistChance(unit) {
   if (!unit.stats) return 0;
-  return clamp(computeFullSheet(unit).defense.statusResist / 400, 0, 0.6);
+  const bon = unit.bonus || EMPTY_FAMILY_BONUS;
+  return clamp(computeFullSheet(unit).defense.statusResist / 400 + bon.resist, 0, 0.75);
 }
 
 function _statusFloat(target, text, color) {

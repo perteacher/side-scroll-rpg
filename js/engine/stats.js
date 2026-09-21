@@ -79,7 +79,8 @@ function computeFullSheet(unit) {
   const syn = unit.synergy || EMPTY_SYNERGY;
   // bon = 가문 특성 + 캐릭터 고유 특성 + 전용기 버프를 합산한 값
   const bon = unit.bonus || EMPTY_FAMILY_BONUS;
-  const isMagic = unit.attackType === 'magic';
+  // 힐러(지원)도 지능형이다. 치료량이 공격력에서 나오므로 계산식을 마법과 같이 쓴다.
+  const isMagic = unit.attackType === 'magic' || unit.attackType === 'support';
   const physicalAtk = s.str * 2 + s.skl * 1;
   const magicAtk = s.int * 2 + s.sen * 1;
   const attackPower = Math.round(((isMagic ? magicAtk : physicalAtk) + gear.atk + bon.atk) * (1 + syn.atkPct + bon.atkPct));
@@ -113,6 +114,17 @@ function computeFullSheet(unit) {
       elementalResist: { fire: 0, ice: 0, lightning: 0, psychic: 0 },
     },
   };
+}
+
+// 치료량. 대상 최대 HP의 일정 비율 + 시전자 공격력.
+// 비율이 섞여 있어야 레벨이 올라도 초반 힐이 무의미해지지 않고,
+// 공격력이 섞여 있어야 힐러도 장비를 맞출 이유가 생긴다.
+function healAmount(unit, target, opts = {}) {
+  const stancePower = unit.stance ? (unit.stance.power || 1) : 1;
+  const pct = opts.pct !== undefined ? opts.pct : 0.05 * stancePower;
+  const flatMult = opts.flatMult !== undefined ? opts.flatMult : 0.8 * stancePower;
+  const atk = computeFullSheet(unit).attack.attackPower;
+  return Math.max(1, Math.round(target.maxHp * pct + atk * flatMult));
 }
 
 function elementalAtkBonus(unit) {

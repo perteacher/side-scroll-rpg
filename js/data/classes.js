@@ -21,9 +21,11 @@ const CLASS_DATA = [
     desc: '전격과 저주를 쓰는 술사. 감각이 높다.',
     baseStats: { str: 6, agi: 10, vit: 10, skl: 8, int: 19, sen: 16 },
   },
+  // 원작 그라나도 에스파다의 스카우트를 그대로 따랐다. 평타가 공격이 아니라 치료이고,
+  // 퍼스트 에이드(치료)와 포르티투도(버프)를 맨손으로도 쓴다. 무기는 로자리오.
   {
-    id: 'scout', name: '스카우트', attackType: 'ranged', stanceIds: ['longbow', 'crossbow'], color: '#27ae60',
-    desc: '활을 쓰는 정찰병. 민첩과 기술이 높다.',
-    baseStats: { str: 9, agi: 18, vit: 11, skl: 17, int: 7, sen: 12 },
+    id: 'scout', name: '스카우트', attackType: 'support', stanceIds: ['firstaid', 'fortitudo'], color: '#27ae60',
+    desc: '치료와 버프를 맡는 힐러. 기본 공격 대신 동료를 회복시킨다. 무기는 로자리오.',
+    baseStats: { str: 7, agi: 13, vit: 13, skl: 11, int: 18, sen: 17 },
   },
 ];

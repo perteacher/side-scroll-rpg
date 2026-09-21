@@ -29,7 +29,32 @@ const KEY_GUIDE = [
 ];
 
 // 실제로 쓰는 태그만 남긴다(빈 탭이 여섯 개 있으면 눌러볼 이유가 없다).
-const ATTACK_TYPE_LABEL = { melee: '근접', ranged: '원거리', magic: '마법' };
+const ATTACK_TYPE_LABEL = { melee: '근접', ranged: '원거리', magic: '마법', support: '지원(힐러)' };
+// 캐릭터 생성 시 파티에 반드시 한 명 있어야 하는 클래스(힐러).
+const REQUIRED_CLASS_ID = 'scout';
+
+// 힐러(지원) 스킬은 위력 배율이 없다. 무엇을 하는 스킬인지로 대신 보여 준다.
+const SUPPORT_KIND_LABEL = {
+  heal: '치료', healAll: '파티 치료', buff: '버프', cleanse: '해제', refresh: '재사용', revive: '부활',
+};
+
+function supportSkillText(sk, lv) {
+  const scale = 1 + 0.15 * (lv - 1);
+  if (sk.kind === 'heal') return `대상 HP ${Math.round(sk.healPct * scale * 100)}% + 공격력 회복`;
+  if (sk.kind === 'healAll') return `파티 HP ${Math.round(sk.healPct * scale * 100)}% + 공격력 회복`;
+  if (sk.kind === 'cleanse') return `파티 상태이상 해제 · HP ${Math.round(sk.healPct * scale * 100)}% 회복`;
+  if (sk.kind === 'refresh') return '파티 스킬 재사용 대기 초기화';
+  if (sk.kind === 'revive') return `쓰러진 동료 부활 (HP ${Math.round(sk.healPct * scale * 100)}%)`;
+  if (sk.kind === 'buff') {
+    const parts = Object.entries(sk.buff).map(([k, v]) => {
+      const label = BONUS_LABEL[k];
+      if (!label) return null;
+      return label[1] === 'point' ? `${label[0]} +${(v * scale).toFixed(0)}%p` : `${label[0]} +${Math.round(v * scale * 100)}%`;
+    }).filter(Boolean);
+    return `파티 ${parts.join(' · ')} — ${sk.durationMs / 1000}초`;
+  }
+  return '';
+}
 
 const CHAT_TABS = [
   { id: 'all', label: '전체' }, { id: 'system', label: '시스템' },
@@ -257,16 +282,19 @@ class UIManager {
   }
 
   // ---------- 캐릭터 생성 ----------
+  // 파티에는 힐러가 반드시 한 명 있어야 한다. 힐러 없이 시작하면 초반 사냥이 회복 대기로
+  // 끊기고, 승급 구간에서는 버프 없이 버티기 어렵다.
   _initCreateScreen() {
     const listEl = document.getElementById('class-list');
     listEl.innerHTML = CLASS_DATA.map((c) => {
-      const role = { melee: '근접', ranged: '원거리', magic: '마법' }[c.attackType];
+      const role = ATTACK_TYPE_LABEL[c.attackType];
       const stances = c.stanceIds.map((s) => STANCE_DATA[s].name).join(' / ');
       const upper = tierStancesFor(c.stanceIds).map((t) => STANCE_DATA[t.stanceId].name).join(' → ');
+      const must = c.id === REQUIRED_CLASS_ID ? '<span class="class-must">필수</span>' : '';
       return `
         <div class="class-card" data-class="${c.id}">
           <div class="class-icon" style="background:${c.color}"></div>
-          <div class="class-name">${c.name}</div>
+          <div class="class-name">${c.name}${must}</div>
           <div class="class-role">${role} · ${stances}</div>
           <div class="class-desc">${c.desc}</div>
           <div class="class-upper">승급 스탠스: ${upper}</div>
@@ -292,6 +320,14 @@ class UIManager {
       if (!nickname) { errEl.textContent = '닉네임을 입력하세요.'; return; }
       if (this.pendingChars.length >= MAX_PLAYER_CHARS) { errEl.textContent = `${MAX_PLAYER_CHARS}명을 모두 만들었습니다.`; return; }
       if (this.pendingChars.some((c) => c.nickname === nickname)) { errEl.textContent = '이미 쓴 닉네임입니다.'; return; }
+      // 마지막 한 자리까지 힐러가 없으면 그 자리는 힐러여야 한다.
+      const healerName = CLASS_DATA.find((c) => c.id === REQUIRED_CLASS_ID).name;
+      const lastSlot = this.pendingChars.length === MAX_PLAYER_CHARS - 1;
+      const hasHealer = this.pendingChars.some((c) => c.classId === REQUIRED_CLASS_ID);
+      if (lastSlot && !hasHealer && this.selectedClassId !== REQUIRED_CLASS_ID) {
+        errEl.textContent = `파티에는 힐러가 한 명 필요합니다. 남은 한 자리는 힐러(${healerName})여야 합니다.`;
+        return;
+      }
       errEl.textContent = '';
       this.pendingChars.push({ classId: this.selectedClassId, nickname });
       input.value = '';
@@ -302,6 +338,10 @@ class UIManager {
     document.getElementById('start-btn').addEventListener('click', () => {
       if (this.pendingChars.length < MAX_PLAYER_CHARS) {
         errEl.textContent = `${MAX_PLAYER_CHARS}명을 모두 만들어야 시작할 수 있습니다.`;
+        return;
+      }
+      if (!this.pendingChars.some((c) => c.classId === REQUIRED_CLASS_ID)) {
+        errEl.textContent = '파티에 힐러(스카우트)가 한 명 있어야 시작할 수 있습니다.';
         return;
       }
       document.getElementById('create-screen').classList.add('hidden');
@@ -318,10 +358,14 @@ class UIManager {
     const el = document.getElementById('created-list');
     const startBtn = document.getElementById('start-btn');
     const left = MAX_PLAYER_CHARS - this.pendingChars.length;
-    startBtn.disabled = left > 0;
-    startBtn.textContent = left > 0 ? `모험 시작 (${left}명 더 필요)` : '모험 시작';
+    const healerName = CLASS_DATA.find((c) => c.id === REQUIRED_CLASS_ID).name;
+    const needHealer = !this.pendingChars.some((c) => c.classId === REQUIRED_CLASS_ID);
+    startBtn.disabled = left > 0 || needHealer;
+    startBtn.textContent = left > 0 ? `모험 시작 (${left}명 더 필요)`
+      : (needHealer ? `모험 시작 (${healerName} 필요)` : '모험 시작');
     if (this.pendingChars.length === 0) {
-      el.innerHTML = `<span style="opacity:0.5;font-size:11px;">${MAX_PLAYER_CHARS}명을 모두 만들어야 시작할 수 있습니다.</span>`;
+      el.innerHTML = `<span style="opacity:0.5;font-size:11px;">${MAX_PLAYER_CHARS}명을 모두 만들어야 시작할 수 있습니다.`
+        + ` 그중 한 명은 힐러(${healerName})여야 합니다.</span>`;
       return;
     }
     el.innerHTML = this.pendingChars.map((c, i) => {
@@ -566,7 +610,9 @@ class UIManager {
           const cdText = document.createElement('span');
           cdText.className = 'cd-text';
           b.appendChild(cdText);
-          const tag = skillDef.type === 'aoe' ? '범위기' : '단일기';
+          // 지원 스킬은 단일/범위가 아니라 하는 일로 적는다.
+          const tag = skillDef.kind ? (SUPPORT_KIND_LABEL[skillDef.kind] || '지원')
+            : (skillDef.type === 'aoe' ? '범위기' : '단일기');
           const sts = skillStatuses(skillId);
           const stText = sts.length ? ` · ${statusListText(sts.map((s) => ({ ...s, chance: s.chance + STATUS_CHANCE_PER_SKILL_LV * (Math.max(1, lv) - 1) })))}` : '';
           b.title = lv > 0
@@ -772,7 +818,7 @@ class UIManager {
   _equipFailReason(unit, gear) {
     const it = gear.item || ITEM_DATA[gear.itemId];
     if ((it.reqLevel || 1) > unit.level) return `${rankLabel(it.reqLevel)} 이상 필요`;
-    if (it.slot === 'weapon') return `${STANCE_DATA[it.stanceId].name} 스탠스 필요`;
+    if (it.slot === 'weapon') return `${weaponNoun(it.stanceId)} 계열 전용`;
     if (it.slot === 'accessory') return '';
     return `${ARMOR_CLASS_LABEL[it.armorClass] || ''} 전용`;
   }
@@ -822,7 +868,9 @@ class UIManager {
       const s = STANCE_DATA[sid];
       const p = unit.stanceProgress[sid];
       const max = p.level >= stanceMaxLevel(sid) ? ' MAX' : '';
-      return `<div class="stance-chip ${sid === unit.currentStanceId ? 'current' : ''}" data-stance="${sid}">${gradeBadge(sid)}${s.name} Lv.${p.level}${max}${p.points > 0 ? ` (SP${p.points})` : ''}</div>`;
+      return `<div class="stance-chip ${sid === unit.currentStanceId ? 'current' : ''}" data-stance="${sid}"`
+        + ` title="${s.origin ? `원작 ${s.origin} 계열 · ` : ''}${stanceTraitText(sid)}">`
+        + `${gradeBadge(sid)}${s.name} Lv.${p.level}${max}${p.points > 0 ? ` (SP${p.points})` : ''}</div>`;
     }).join('');
     const needWeapon = unlocked.filter((sid) => !available.includes(sid)).map((sid) => {
       const s = STANCE_DATA[sid];
@@ -840,6 +888,7 @@ class UIManager {
     const isMax = st.level >= maxLv;
     const need = stanceXpToNext(st.level, sid);
     const xpPct = isMax ? 100 : clamp(st.xp / need, 0, 1) * 100;
+    const stanceTrait = stanceTraitText(sid);
     const totalBonus = statBonusText(unit.stanceGrowthBonus()) || '아직 없음 — 스탠스 레벨을 올리면 스탯이 오릅니다';
     const perLevel = statBonusText(stanceGrowthPerLevel(sid), 1) || '없음';
 
@@ -847,9 +896,11 @@ class UIManager {
       const sk = ROLE_SKILLS_DATA[unit.attackType][skid];
       const lv = unit.skillLevel(skid);
       const canUp = unit.canUpgradeSkill(skid);
-      const tag = sk.type === 'aoe' ? '<span class="tag aoe">범위기</span>' : '<span class="tag single">단일기</span>';
+      const tag = sk.kind ? `<span class="tag support">${SUPPORT_KIND_LABEL[sk.kind] || '지원'}</span>`
+        : (sk.type === 'aoe' ? '<span class="tag aoe">범위기</span>' : '<span class="tag single">단일기</span>');
       const locked = st.level < sk.reqLevel;
-      const power = lv > 0 ? `${skillDamageMult(sk, lv).toFixed(2)}x` : `${sk.dmgMult}x`;
+      const power = sk.kind ? supportSkillText(sk, Math.max(1, lv))
+        : (lv > 0 ? `${skillDamageMult(sk, lv).toFixed(2)}x` : `${sk.dmgMult}x`);
       const btnLabel = lv === 0 ? '습득' : (lv >= MAX_SKILL_LEVEL ? 'MAX' : '레벨업');
       const sts = skillStatuses(skid);
       const lvForChance = Math.max(1, lv);
@@ -862,7 +913,7 @@ class UIManager {
         <div class="skill-row ${locked ? 'locked' : ''}">
           <div class="skill-main">
             <div>${tag} ${sk.name} ${lv > 0 ? `<b>Lv.${lv}</b>` : '<span style="opacity:0.6">미습득</span>'}</div>
-            <div class="skill-meta">위력 ${power} · MP ${sk.manaCost} · 쿨 ${(sk.cooldownMs / 1000).toFixed(1)}s · 요구 스탠스 Lv.${sk.reqLevel}</div>
+            <div class="skill-meta">${sk.kind ? '' : '위력 '}${power} · MP ${sk.manaCost} · 쿨 ${(sk.cooldownMs / 1000).toFixed(1)}s · 요구 스탠스 Lv.${sk.reqLevel}</div>
             ${statusHtml}
           </div>
           <button data-skill="${skid}" ${canUp ? '' : 'disabled'}>${btnLabel}</button>
@@ -876,6 +927,7 @@ class UIManager {
       <div class="section-title">스탠스 성장 보너스 (모든 스탠스 레벨 합산)</div>
       <div class="growth-box">${totalBonus}</div>
       <div class="section-title">${gradeBadge(sid)}${unit.stance.name} 스탠스 Lv.${st.level} / ${maxLv} · 스킬포인트 ${st.points}</div>
+      <div style="font-size:10px;opacity:0.8;margin-bottom:4px;">${unit.stance.origin ? `원작 ${unit.stance.origin} 계열 · ` : ''}${stanceTrait}</div>
       <div class="bar-bg" style="height:10px;margin-bottom:4px;"><div class="bar-fill sxp" style="width:${xpPct}%"></div></div>
       <div style="font-size:10px;opacity:0.7;margin-bottom:8px;">
         ${isMax ? '최고 레벨 달성' : `스탠스 EXP ${Math.floor(st.xp).toLocaleString()} / ${need.toLocaleString()}`} — 레벨업마다 스킬포인트 +1, ${perLevel}
@@ -1884,7 +1936,7 @@ class UIManager {
     const textEl = document.getElementById('npc-dialogue-text');
     const actionsEl = document.getElementById('npc-dialogue-actions');
     const def = npc.charDef;
-    const role = { melee: '근접', ranged: '원거리', magic: '마법' }[def.attackType];
+    const role = ATTACK_TYPE_LABEL[def.attackType];
     const upper = tierStancesFor(def.stanceIds)
       .map((t) => `${LEVEL_TIERS.find((x) => x.id === t.tier).name} ${STANCE_DATA[t.stanceId].name}`).join(' · ');
     const stances = `${def.stanceIds.map((s) => STANCE_DATA[s].name).join(' / ')}<br><span style="opacity:0.75">승급 스탠스: ${upper}</span>`;

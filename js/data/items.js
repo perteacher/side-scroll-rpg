@@ -48,6 +48,8 @@ const ITEM_DATA = {
   w_flame: { name: '화염 지팡이', slot: 'weapon', stanceId: 'flame', atk: 14, price: 105, tier: 1 },
   w_frost: { name: '서리 지팡이', slot: 'weapon', stanceId: 'frost', atk: 14, price: 105, tier: 1 },
   w_spark: { name: '전격 지팡이', slot: 'weapon', stanceId: 'spark', atk: 14, price: 105, tier: 1 },
+  // 힐러 계열 전용. 공격력 수치가 곧 치료량이 된다.
+  w_rosario: { name: '나무 로자리오', slot: 'weapon', stanceId: 'rosario', atk: 12, price: 100, tier: 1 },
 
   // --- 방어구 (중갑/경갑/연갑) ---
   a_heavy_body: { name: '사슬 갑옷', slot: 'armor', armorClass: 'heavy', def: 18, price: 120, tier: 1 },
@@ -180,6 +182,8 @@ const WEAPON_BASES = [
   { stanceId: 'flame', key: 'w_flame', noun: '화염 지팡이' },
   { stanceId: 'frost', key: 'w_frost', noun: '서리 지팡이' },
   { stanceId: 'spark', key: 'w_spark', noun: '전격 지팡이' },
+  // 힐러 계열 전용. 원작에서도 택티컬 어시스턴스·인핸스 택틱스는 로자리오를 껴야 쓴다.
+  { stanceId: 'rosario', key: 'w_rosario', noun: '로자리오' },
 ];
 
 const ARMOR_BASES = [
@@ -323,13 +327,14 @@ const SLOT_LABEL = { weapon1: '주무기', weapon2: '보조무기', armor: '갑�
 const ARMOR_CLASS_LABEL = { heavy: '중갑', light: '경갑', cloth: '연갑' };
 
 // 공격 타입별 방어구 등급: 근접=중갑 / 원거리=경갑 / 마법=연갑
-const ARMOR_CLASS_BY_TYPE = { melee: 'heavy', ranged: 'light', magic: 'cloth' };
+const ARMOR_CLASS_BY_TYPE = { melee: 'heavy', ranged: 'light', magic: 'cloth', support: 'cloth' };
 
 // 스탠스별 기본 지급 무기
 const STARTER_WEAPON_BY_STANCE = {
   sword: 'w_sword', dualblade: 'w_dualblade', spear: 'w_spear', fist: 'w_fist',
   longbow: 'w_longbow', crossbow: 'w_crossbow', musket: 'w_musket',
   flame: 'w_flame', frost: 'w_frost', spark: 'w_spark',
+  firstaid: 'w_rosario', fortitudo: 'w_rosario',
 };
 
 // 방어구 등급별 기본 지급 세트

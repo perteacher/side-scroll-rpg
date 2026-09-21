@@ -54,6 +54,8 @@ const FAMILY_TIER_LABEL = { 1: '1단계 — 기초', 2: '2단계 — 숙련', 3:
 const EMPTY_FAMILY_BONUS = {
   atk: 0, def: 0, hpPct: 0, atkSpeed: 0, moveSpeed: 0, accuracy: 0, pierce: 0, atkPct: 0,
   defPct: 0, crit: 0, critDmg: 0, lifesteal: 0, bossDmg: 0,
+  // 저항력(원작의 '면역'). 상태이상에 걸릴 확률을 깎는다. 힐러 버프와 익스퍼트 스탠스가 올려 준다.
+  resist: 0,
 };
 
 // 보너스 항목 표시 이름. frac=비율(0.03→3%), point=퍼센트포인트(3→3%), flat=고정 수치
@@ -63,6 +65,7 @@ const BONUS_LABEL = {
   atkSpeed: ['공격속도', 'frac'], moveSpeed: ['이동속도', 'frac'], accuracy: ['명중률', 'frac'],
   pierce: ['방어율 무시', 'frac'], lifesteal: ['흡혈', 'frac'], bossDmg: ['보스 공격 시 데미지', 'frac'],
   crit: ['크리티컬 확률', 'point'], critDmg: ['크리티컬 데미지', 'point'],
+  resist: ['저항력', 'frac'],
 };
 
 function bonusText(bonus) {

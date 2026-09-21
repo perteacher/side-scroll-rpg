@@ -80,6 +80,13 @@ const ITEM_SHAPES = {
     'kjjjhkkkkkkkkkk.', '.kkkkgk.........', '.....k..........', '................',
     '................', '................', '................', '................',
   ],
+  // 힐러의 로자리오. 구슬 두 알에 십자가가 걸린 모양.
+  rosario: [
+    '..kk........kk..', '.kwmk......kwmk.', '.kmdk......kmdk.', '..kk..kkkk..kk..',
+    '......kwmk......', '......kmdk......', '.....kkkkkk.....', '..kkkkwmmwkkkk..',
+    '..kwwmmmmmmwwk..', '..kkkkmmmmkkkk..', '.....kkmmkk.....', '......kmmk......',
+    '......kmmk......', '......kwmk......', '......kddk......', '.......kk.......',
+  ],
   staff: [
     '.........kkkk...', '........kowwok..', '........kooook..', '........kdoodk..',
     '.........kkkk...', '.........kgk....', '........khk.....', '.......khk......',
@@ -290,6 +297,7 @@ const STANCE_SHAPE = {
   sword: 'sword', dualblade: 'dualblade', spear: 'spear', fist: 'knuckle',
   longbow: 'longbow', crossbow: 'crossbow', musket: 'musket',
   flame: 'staff', frost: 'staff', spark: 'staff',
+  rosario: 'rosario',
 };
 
 const MATERIAL_SPRITES = {
@@ -350,6 +358,7 @@ const WEAPON_GRIP = {
   crossbow: { gx: 6, gy: 7, angle: 0, swing: 0 },
   musket: { gx: 6, gy: 7, angle: 0, swing: 0 },
   staff: { gx: 6, gy: 9, angle: 0, swing: 0.5 },
+  rosario: { gx: 7, gy: 3, angle: 0, swing: 0.3 },
 };
 
 // 아이템 id → { shape, pal } (팔레트 키도 함께 돌려 캐시에 쓴다)

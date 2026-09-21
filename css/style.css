@@ -549,3 +549,17 @@ html, body {
   background: #1b2430; border: 1px solid #2f3b46; color: #aab4be; border-radius: 4px;
 }
 .win-tabs button.on { background: #2b3a4a; color: #f4f4f4; border-color: #4a6076; font-weight: bold; }
+
+/* 캐릭터 생성 화면에서 파티에 꼭 필요한 클래스 표시 */
+.class-must {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #27ae60;
+  color: #0d1b10;
+  font-size: 9px;
+  vertical-align: middle;
+}
+
+/* 힐러(지원) 스킬 태그 */
+.tag.support { background: #1e8449; color: #eafaf1; }
