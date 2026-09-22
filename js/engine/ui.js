@@ -606,8 +606,11 @@ class UIManager {
         const skillDef = skillId ? ROLE_SKILLS_DATA[unit.attackType][skillId] : null;
         const lv = skillId ? unit.skillLevel(skillId) : 0;
         b.className = 'skill-btn' + (skillDef ? (lv > 0 ? '' : ' locked') : ' empty');
+        // 이름 두 글자 대신 도트 아이콘을 쓴다. 이름은 툴팁에 그대로 있다.
         b.innerHTML = skillDef
-          ? `<span class="key-label">${key.toUpperCase()}</span>${lv > 0 ? skillDef.name.slice(0, 2) : '🔒'}${lv > 0 ? `<span class="lv-label">${lv}</span>` : ''}`
+          ? `<span class="key-label">${key.toUpperCase()}</span>`
+            + (lv > 0 ? skillIconHtml(skillDef, unit.attackType, unit.stance.element, 18) : '<span class="lock-mark">🔒</span>')
+            + (lv > 0 ? `<span class="lv-label">${lv}</span>` : '')
           : `<span class="key-label">${key.toUpperCase()}</span>`;
         if (skillDef) {
           b.dataset.skill = skillId;
@@ -635,7 +638,8 @@ class UIManager {
         const sb = document.createElement('button');
         const open = unit.signatureUnlocked;
         sb.className = 'skill-btn sig-btn' + (open ? '' : ' locked');
-        sb.innerHTML = `<span class="key-label">R</span>${open ? unit.signature.name.slice(0, 2) : '🔒'}`;
+        sb.innerHTML = `<span class="key-label">R</span>`
+          + (open ? signatureIconHtml(unit.signature, 18) : '<span class="lock-mark">🔒</span>');
         sb.dataset.sig = '1';
         const mask = document.createElement('span');
         mask.className = 'cd-mask';
@@ -921,7 +925,7 @@ class UIManager {
       return `
         <div class="skill-row ${locked ? 'locked' : ''}">
           <div class="skill-main">
-            <div>${tag} ${sk.name} ${lv > 0 ? `<b>Lv.${lv}</b>` : '<span style="opacity:0.6">미습득</span>'}</div>
+            <div>${skillIconHtml(sk, unit.attackType, unit.stance.element, 16)} ${tag} ${sk.name} ${lv > 0 ? `<b>Lv.${lv}</b>` : '<span style="opacity:0.6">미습득</span>'}</div>
             <div class="skill-meta">${sk.kind ? '' : '위력 '}${power} · MP ${sk.manaCost} · 쿨 ${(sk.cooldownMs / 1000).toFixed(1)}s · 요구 스탠스 Lv.${sk.reqLevel}</div>
             ${statusHtml}
           </div>
@@ -2225,8 +2229,9 @@ class UIManager {
     el.dataset.key = key;
     const buffHtml = buffs.map((b) => {
       const detail = bonusText(b.bonus) || '';
+      const icon = b.icon ? iconHtmlByShape(b.icon.shape, b.icon.color, 12) : '';
       return `<span class="eff-chip buff" title="${b.name}${detail ? ` — ${detail}` : ''}">`
-        + `${b.name}<i>${Math.ceil(b.remain / 1000)}s</i></span>`;
+        + `${icon}${b.name}<i>${Math.ceil(b.remain / 1000)}s</i></span>`;
     }).join('');
     const stHtml = statuses.map((s) => `<span class="eff-chip debuff" title="${s.def.name} — ${s.def.desc}">`
       + `${statusIconHtml(s.id, 12)}${s.stacks > 1 ? `<b>x${s.stacks}</b>` : ''}`

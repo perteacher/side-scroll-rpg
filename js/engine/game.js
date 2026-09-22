@@ -853,8 +853,9 @@ class Game {
       const bonus = {};
       Object.entries(def.buff).forEach(([k, v]) => { bonus[k] = v * scale; });
       this.effects.burst(cx, unit.y + unit.height / 2, 130, '#f7dc6f');
+      const icon = skillIconSpec(def, 'support');
       party.forEach((u) => {
-        u.addBuff(def.name, bonus, def.durationMs);
+        u.addBuff(def.name, bonus, def.durationMs, icon);
         this.effects.damage(u.x + u.width / 2, u.y - 8, 0, { text: def.name, color: '#f7dc6f' });
       });
       if (verbose) this.ui.logChat(`${unit.name}의 [${def.name} Lv.${lv}]! 파티 강화 ${def.durationMs / 1000}초`, 'party');
@@ -935,8 +936,9 @@ class Game {
 
     if (sig.kind === 'buff') {
       this.effects.burst(cx, unit.y + unit.height / 2, 120, color);
+      const sigIcon = signatureIconSpec(sig);
       this.pm.partyUnits.forEach((u) => {
-        u.addBuff(sig.name, sig.buff, sig.durationMs);
+        u.addBuff(sig.name, sig.buff, sig.durationMs, sigIcon);
         this.effects.damage(u.x + u.width / 2, u.y - 8, 0, { text: sig.name, color: '#f7dc6f' });
       });
       this.ui.logChat(`${unit.name}의 [${sig.name}]! 파티 강화 ${sig.durationMs / 1000}초`, 'party');
@@ -1081,7 +1083,17 @@ class Game {
     const zoneLevel = enemy.level || this.zm.def.level;
     // 파티가 실제로 착용할 수 있는 무기 계열(스탠스 id가 아니라 무기 종류)로 편향시킨다.
     const stances = [...new Set(this.pm.partyUnits.flatMap((u) => [...u.weaponFamilies]))];
-    const equipId = rollEquipmentDrop(zoneLevel, { boss: enemy.boss, stances });
+    let equipId = rollEquipmentDrop(zoneLevel, { boss: enemy.boss, stances });
+    // 길잡이가 "장비를 갈아입어 보라"고 시켰는데 손에 쥔 게 하나도 없으면 진행이 막힌다.
+    // 드랍률이 6%라 운이 나쁘면 한참 걸리고, 떨어져도 조작 캐릭터가 못 끼는 물건이면 헛일이다.
+    // 그 단계 동안만, 지금 조작 중인 캐릭터가 바로 낄 수 있는 한 점을 확정으로 떨어뜨린다.
+    if (!equipId && this.journey && !this.journey.done.has('equip') && this.pm.gear.length === 0) {
+      const me = this.pm.activeUnit;
+      for (let i = 0; i < 20 && !equipId; i++) {
+        const id = rollEquipmentDrop(zoneLevel, { boss: true, stances });
+        if (id && (!me || me.canEquip(id))) equipId = id;
+      }
+    }
     if (equipId) this._spawnDrop({ kind: 'gear', itemId: equipId }, cx, cy);
     if (Math.random() < GOLD_DROP_CHANCE) this._spawnDrop({ kind: 'gold', amount: goldAmount(enemy) }, cx, cy);
     if (enemy.boss) {

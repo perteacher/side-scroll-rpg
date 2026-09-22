@@ -102,7 +102,9 @@ class PartyManager {
       this.log(`[강화 실패] ${gear.item.name} ★${from} 유지`, 'system');
     }
     this.units.forEach((u) => u.invalidateStats());
-    return { ok: true, result, from, to: gear.star, caught: catchStar };
+    // chanceTime: 이번 시도가 '두 번 연속 하락 → 100% 성공' 보정을 쓴 것인지.
+    // (예전엔 여기서 정의된 적 없는 이름을 돌려줘서, 강화를 누를 때마다 골드만 빠지고 예외가 났다)
+    return { ok: true, result, from, to: gear.star, chanceTime };
   }
 
   // 보관함이든 착용 중이든(무기 세트 포함) 그 장비를 없앤다.

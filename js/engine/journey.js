@@ -90,7 +90,8 @@ class JourneyManager {
     const maxLevel = units.length ? Math.max(...units.map((u) => u.level)) : 1;
     const maxRank = units.length ? Math.max(...units.map((u) => u.rank || 0)) : 0;
     const allGear = units.flatMap((u) => u.allGear());
-    const stars = allGear.length ? Math.max(0, ...allGear.map((x) => x.stars || 0)) : 0;
+    // Gear의 강화 수치 필드는 star(단수)다. stars로 읽으면 늘 0이 나온다.
+    const stars = allGear.length ? Math.max(0, ...allGear.map((x) => x.star || 0)) : 0;
     const gearTier = allGear.length ? Math.max(0, ...allGear.map((x) => x.tier || 1)) : 0;
     // '합계'로 재면 시작부터 차 있어 의미가 없다. 가장 많이 키운 자세 하나를 본다.
     const stanceLevel = party.reduce(

@@ -655,3 +655,12 @@ html, body {
   background: #e74c3c; border-radius: 50%; box-shadow: 0 0 5px #e74c3c;
 }
 .menu-dot.hidden { display: none; }
+
+/* ---------- 스킬 아이콘 ---------- */
+.skill-icon { image-rendering: pixelated; vertical-align: middle; }
+/* 스킬 버튼 안에서는 가운데에 놓고, 키·레벨 글자가 위로 오게 한다. */
+.hotbar .skill-btn .skill-icon { position: absolute; inset: 0; margin: auto; z-index: 1; }
+.hotbar .skill-btn .lock-mark { font-size: 10px; opacity: 0.8; }
+.hotbar .skill-btn .key-label, .hotbar .skill-btn .lv-label { z-index: 4; }
+.eff-chip .skill-icon { margin-right: 2px; }
+.skill-row .skill-icon { margin-right: 3px; }

@@ -197,6 +197,40 @@ function statusIconSprite(id) {
   return cachedSprite(`status:${id}`, STATUS_ICONS[id], { c: def.color, l: shadeHex(def.color, 1.4), d: shadeHex(def.color, 0.55) });
 }
 
+// 스킬 아이콘. 모양은 SKILL_ICONS에서, 색은 속성·역할에서 가져온다.
+// 같은 모양·색이면 한 번만 그려 캐시한다(스킬이 100개가 넘어도 캔버스는 몇 개뿐이다).
+function skillIconSpriteBySpec(spec) {
+  const rows = SKILL_ICONS[spec.shape] || SKILL_ICONS.bolt;
+  return cachedSprite(`skill:${spec.key}`, rows, {
+    c: spec.color, l: shadeHex(spec.color, 1.45), d: shadeHex(spec.color, 0.5),
+  });
+}
+
+function skillIconUrl(spec) {
+  const key = `skill:${spec.key}`;
+  let url = _iconUrlCache.get(key);
+  if (!url) { url = skillIconSpriteBySpec(spec).toDataURL(); _iconUrlCache.set(key, url); }
+  return url;
+}
+
+// 스킬 정의로 바로 <img>를 만든다.
+function skillIconHtml(def, attackType = null, element = null, size = 16) {
+  return iconImgHtml(skillIconUrl(skillIconSpec(def, attackType, element)), size);
+}
+
+function signatureIconHtml(sig, size = 16) {
+  return iconImgHtml(skillIconUrl(signatureIconSpec(sig)), size);
+}
+
+// 버프 칩처럼 '어떤 스킬에서 나왔는지'만 남아 있는 곳에서 쓴다.
+function iconHtmlByShape(shape, color, size = 12) {
+  return iconImgHtml(skillIconUrl({ shape, color, key: `${shape}:${color}` }), size);
+}
+
+function iconImgHtml(url, size) {
+  return `<img class="status-icon skill-icon" src="${url}" width="${size}" height="${size}" alt="">`;
+}
+
 function statusIconHtml(id, size = 14) {
   const key = `status:${id}`;
   let url = _iconUrlCache.get(key);

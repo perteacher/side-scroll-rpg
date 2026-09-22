@@ -306,10 +306,11 @@ class PartyUnit {
   // ---------- 고유 특성 / 전용기 ----------
   get signatureUnlocked() { return !!this.signature && this.level >= SIGNATURE_REQ_LEVEL; }
 
-  addBuff(name, bonus, durationMs) {
+  // icon: { shape, color } — 이 버프를 건 스킬의 아이콘. 슬롯 칩을 글자 대신 그림으로 그린다.
+  addBuff(name, bonus, durationMs, icon = null) {
     const existing = this.buffs.find((b) => b.name === name);
     if (existing) { existing.remain = durationMs; return; }
-    this.buffs.push({ name, bonus, remain: durationMs });
+    this.buffs.push({ name, bonus, remain: durationMs, icon });
   }
 
   tickBuffs(dt) {
