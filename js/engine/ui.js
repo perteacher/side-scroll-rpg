@@ -1388,7 +1388,8 @@ class UIManager {
           <div class="tp-row ${isCurrent ? 'current' : ''}">
             <span class="tp-type ${z.type}">${z.type === 'town' ? '마을' : (z.type === 'training' ? '수련장' : '사냥터')}</span>
             <span class="tp-name">${z.name}${z.type === 'training' ? ' <span class="tp-note">병작 · 파티 최고 레벨 · 광역 평타 추천</span>' : ''}</span>
-            <span class="tp-lv">${z.type === 'training' ? '파티 레벨' : `${rankLabel(z.level)}+`}</span>
+            <span class="tp-lv">${z.type === 'training' ? '파티 레벨' : `${rankLabel(z.level)}+`}`
+        + `${z.type === 'field' && gateOfZoneLevel(z.level) ? `<span class="gate-badge" title="${gateOfZoneLevel(z.level).name} — ${gateOfZoneLevel(z.level).advice}">관문</span>` : ''}</span>
             <button data-zone="${i}" ${isCurrent ? 'disabled' : ''}>${isCurrent ? '현재' : '이동'}</button>
           </div>`;
       }).join('');

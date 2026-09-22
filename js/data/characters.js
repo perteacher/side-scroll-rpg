@@ -49,6 +49,9 @@ const CHARACTER_DATA = [
     baseStats: { str: 17, agi: 14, vit: 17, skl: 12, int: 6, sen: 9 } },
   { id: 'rorken', name: '로르켄', attackType: 'melee', stanceIds: ['spear', 'sword'], color: '#943126',
     baseStats: { str: 18, agi: 11, vit: 18, skl: 11, int: 5, sen: 7 } },
+  // 원작 그레이스 — 샷건으로 쩔을 맡는 대명사. 이 게임에서도 광역 평타가 가장 넓다.
+  { id: 'gracia', name: '그레이시아', attackType: 'ranged', stanceIds: ['shotgun', 'longbow'], color: '#d4ac0d',
+    baseStats: { str: 12, agi: 14, vit: 14, skl: 17, int: 6, sen: 11 } },
   { id: 'tiburan', name: '티뷰란', attackType: 'melee', stanceIds: ['dualblade', 'sword'], color: '#e74c3c',
     baseStats: { str: 16, agi: 18, vit: 13, skl: 14, int: 6, sen: 10 } },
 
@@ -81,6 +84,9 @@ const CHARACTER_DATA = [
     baseStats: { str: 11, agi: 19, vit: 13, skl: 20, int: 8, sen: 13 } },
   { id: 'helenia', name: '헬레니아', attackType: 'support', stanceIds: ['firstaid', 'fortitudo'], color: '#a569bd',
     baseStats: { str: 6, agi: 13, vit: 12, skl: 10, int: 21, sen: 17 } },
+  // 원작 마리(스위퍼) — 혼자서도 사냥터를 쓸어 담는 샷건잡이.
+  { id: 'marien', name: '마리엔', attackType: 'ranged', stanceIds: ['shotgun', 'crossbow'], color: '#e59866',
+    baseStats: { str: 13, agi: 15, vit: 15, skl: 18, int: 6, sen: 10 } },
   { id: 'clera', name: '클레라', attackType: 'ranged', stanceIds: ['musket', 'longbow'], color: '#45b39d',
     baseStats: { str: 12, agi: 17, vit: 13, skl: 20, int: 8, sen: 12 } },
 

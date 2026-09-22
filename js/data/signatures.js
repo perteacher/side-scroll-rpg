@@ -59,6 +59,8 @@ const SIGNATURE_DATA = {
 
   // --- 3티어 영입 ---
   musketya: { traitId: 'marksman', skill: { id: 'sig_musketya', name: '일제 사격', kind: 'aoe', dmgMult: 2.2, aoeRadius: 160, manaCost: 32, cooldownMs: 12000 } },
+  gracia: { traitId: 'tactician', skill: { id: 'sig_gracia', name: '클레이모어', kind: 'aoe', dmgMult: 2.3, aoeRadius: 220, manaCost: 32, cooldownMs: 11000 } },
+  marien: { traitId: 'hunter', skill: { id: 'sig_marien', name: '스위핑 파이어', kind: 'aoe', dmgMult: 2.6, aoeRadius: 240, manaCost: 34, cooldownMs: 11500 } },
   cortasal: { traitId: 'executioner', skill: { id: 'sig_cortasal', name: '급소 저격', kind: 'nuke', dmgMult: 4.2, manaCost: 32, cooldownMs: 11000 } },
   andrei: { traitId: 'tactician', skill: { id: 'sig_andrei', name: '전열 지휘', kind: 'buff', manaCost: 32, cooldownMs: 20000, durationMs: 12000, buff: { atkPct: 0.22, accuracy: 0.08 } } },
   alejandr: { traitId: 'vampiric', skill: { id: 'sig_alejandr', name: '흑염 흡수', kind: 'drain', dmgMult: 2.6, healPct: 0.45, manaCost: 30, cooldownMs: 10000, element: 'fire' } },

@@ -169,6 +169,14 @@ const RECRUIT_QUESTS = {
       { type: 'hunt', zoneId: 'field2b', enemyName: '채석장의 폭군 골모', count: 1, text: '채석장의 폭군 골모를 단독 토벌' },
     ],
   },
+  gracia: {
+    intro: '"한 발에 하나씩 맞히는 건 나도 해. 나는 한 발로 여럿을 눕히지. 그게 되는지 보자."',
+    steps: [
+      { type: 'hunt', zoneId: 'field3a', enemyName: '해적 약탈자', count: 14, text: '해적의 은신처에서 약탈자 14마리 처치' },
+      { type: 'collect', itemId: 'wet_timber', count: 5, text: '개머리판에 쓸 젖은 선재 5개 수집' },
+      { type: 'pay', gold: 4000, text: '산탄 값 4,000G 지불' },
+    ],
+  },
   rorken: {
     intro: '"창은 물속에서 무겁다. 그래도 들고 들어갈 배짱이 있나?"',
     steps: [
@@ -282,6 +290,14 @@ const RECRUIT_QUESTS = {
       { type: 'reach', zoneId: 'field5b', text: '마족의 진지까지 진격' },
       { type: 'hunt', zoneId: 'field5b', enemyName: '마족 전사', count: 16, text: '마족 전사 16기 격파' },
       { type: 'pay', gold: 30000, text: '용병 선금 30,000G 지불' },
+    ],
+  },
+  marien: {
+    intro: '"나는 혼자 다니는 게 편해. 그래도 뒤를 맡길 사람이라면… 진지 한복판을 쓸어 봐."',
+    steps: [
+      { type: 'reach', zoneId: 'field5b', text: '마족의 진지 한복판까지 들어가기' },
+      { type: 'hunt', zoneId: 'field5b', enemyName: '마족 전사', count: 18, text: '마족 전사 18기를 쓸어내기' },
+      { type: 'collect', itemId: 'demon_horn', count: 8, text: '마족의 뿔 8개 수집' },
     ],
   },
   helenia: {

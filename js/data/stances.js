@@ -7,9 +7,12 @@
 //   power   … 평타 한 번(모든 타수 합)의 공격력 배율. 실제 계산에 쓰는 basicAtkMult = power / hits
 //   hits    … 평타 타수. 원작의 "평타가 2히트", "양손으로 두방씩 날려 4번" 같은 특징
 //   splash  … 평타 스플래시 반경(px). 0이면 단일. 폴암 계열의 "평타도 스플래시"
+//   splashMax … 한 번에 휘말릴 수 있는 최대 마릿수(주 대상 제외). 상한이 없으면 몹이 몰린 자리에서
+//             마스터 자세가 단일 계열의 7배까지 갔다. 샷건이 가장 많이 쓸어 담는다
 //             광역 평타는 원작에서 '쩔(병작)'을 맡는 자리다 — 스킬을 쓰지 않고 평타만 돌려도
 //             몹이 뭉텅이로 녹아서, 세워 둔 저레벨에게 경험치가 계속 들어간다.
-//             지금 그 자리에 있는 계열: 폴암(전 단계) · 장궁(상급부터) · 속성 팔찌(마스터)
+//             지금 그 자리에 있는 계열: 샷건(전 단계·가장 넓다) · 폴암(전 단계) ·
+//             장궁(상급부터) · 속성 팔찌(마스터)
 //             반경은 눈대중이 아니라 실제 몹 간격을 재서 잡았다 — 사냥터에서 한 마리 주변
 //             70px 안에는 평균 0.5마리, 150px 1.3마리, 190px 3마리가 있다. 70px짜리 '광역'은
 //             단일 계열과 잡은 수가 같아서 의미가 없었다.
@@ -23,6 +26,7 @@
 //   너클   → 무경오서    대지의 장 → 바람의 장 → 마샬 아츠
 //   장궁   → 석궁        아발리스터 → 새지터 → 섀도우 스팅
 //   석궁   → 권총(속사)  에이밍 샷 → 아웃레이지 샷 → 언리미티드 샷
+//   샷건   → 샷건        샷건 블래스터 → 기간틱 블래스터 → 슈페리어 블래스터
 //   머스킷 → 장총        스탠딩 샷 → 인카운터 샷 → 플린트락
 //   지팡이 → 속성 팔찌   포제션 → 도미네이션 → 로드 오브 (엘리멘탈)
 //   로자리오 → 힐러 계열 퍼스트 에이드 → 택티컬 어시스턴스 → 인핸스 택틱스
@@ -70,11 +74,11 @@ const STANCE_LINES = {
     attackType: 'melee', origin: '폴암',
     growth: { str: 0.8, vit: 0.8, skl: 0.4 },
     // 원작 블란디르 크루스 계열의 특징: 평타부터 스플래시다.
-    base: { name: '블란디르 크루스', power: 1.1, hits: 1, range: 72, speed: 0.95, splash: 130,
+    base: { name: '블란디르 크루스', power: 1.1, hits: 1, range: 72, speed: 0.95, splash: 130, splashMax: 3,
       bonus: {}, skills: ['thrust_line', 'guard_break', 'sweep'] },
-    advanced: { name: '마이티 크루스', power: 1.38, hits: 1, range: 79, speed: 1.0, splash: 165,
+    advanced: { name: '마이티 크루스', power: 1.38, hits: 1, range: 79, speed: 1.0, splash: 165, splashMax: 4,
       bonus: { atkPct: 0.08 }, skills: ['crushing_blow', 'guard_break', 'blade_storm'] },
-    master: { name: '트로나다 크루스', power: 1.65, hits: 1, range: 86, speed: 1.03, splash: 200,
+    master: { name: '트로나다 크루스', power: 1.65, hits: 1, range: 86, speed: 1.03, splash: 200, splashMax: 5,
       bonus: { atkPct: 0.12, pierce: 0.10, resist: 0.06 }, skills: ['crushing_blow', 'dragon_fury', 'divine_slash'] },
   },
   fist: {
@@ -93,9 +97,9 @@ const STANCE_LINES = {
     base: { name: '아발리스터', power: 1.0, hits: 1, range: 260, speed: 1.0,
       bonus: { accuracy: 0.05 }, skills: ['power_shot', 'snipe', 'arrow_rain'] },
     // 원작 새지터는 "평타가 광역이라는 장점이 있어 병사작에서도 딜러로 쓰인다". 그대로 옮겼다.
-    advanced: { name: '새지터', power: 1.25, hits: 1, range: 286, speed: 1.05, splash: 150,
+    advanced: { name: '새지터', power: 1.25, hits: 1, range: 286, speed: 1.05, splash: 150, splashMax: 3,
       bonus: { pierce: 0.06, crit: 4 }, skills: ['piercing_shot', 'snipe', 'storm_volley'] },
-    master: { name: '섀도우 스팅', power: 1.5, hits: 2, range: 312, speed: 1.08, splash: 185,
+    master: { name: '섀도우 스팅', power: 1.5, hits: 2, range: 312, speed: 1.08, splash: 185, splashMax: 4,
       bonus: { pierce: 0.14, crit: 8, resist: 0.06 }, skills: ['piercing_shot', 'heaven_arrow', 'hail_of_fire'] },
   },
   crossbow: {
@@ -108,6 +112,21 @@ const STANCE_LINES = {
       bonus: { atkSpeed: 0.15 }, skills: ['piercing_shot', 'suppress', 'storm_volley'] },
     master: { name: '언리미티드 샷', power: 1.58, hits: 4, range: 276, speed: 1.03,
       bonus: { atkSpeed: 0.20, pierce: 0.08, resist: 0.06 }, skills: ['piercing_shot', 'heaven_arrow', 'hail_of_fire'] },
+  },
+  // 원작에서 쩔(병작)의 대명사. 기간틱 블래스터는 "모든 스킬이 범위스킬이며 … 이 스탠스의 진정한
+  // 용도로는 누가뭐라 해도 쩔용이다", 슈페리어 블래스터는 "레이드에서도 쩔을 해주는 그레이스"로 통한다.
+  // 그래서 이 계열은 기본 자세부터 광역이고 반경도 게임에서 가장 넓다.
+  // 대신 사거리가 짧고 한 대 위력은 다른 원거리보다 낮다 — 몹이 뭉쳐 있어야 값을 한다.
+  shotgun: {
+    attackType: 'ranged', origin: '샷건',
+    growth: { skl: 0.9, str: 0.6, vit: 0.5 },
+    base: { name: '샷건 블래스터', power: 0.95, hits: 1, range: 150, speed: 0.95, splash: 140, splashMax: 4,
+      bonus: {}, skills: ['multi_shot', 'suppress', 'scatter_shot'] },
+    // 원작 그대로 "샷건을 2발씩 발사한다".
+    advanced: { name: '기간틱 블래스터', power: 1.2, hits: 2, range: 165, speed: 1.0, splash: 190, splashMax: 6,
+      bonus: { atkSpeed: 0.08 }, skills: ['piercing_shot', 'suppress', 'storm_volley'] },
+    master: { name: '슈페리어 블래스터', power: 1.45, hits: 2, range: 180, speed: 1.03, splash: 220, splashMax: 8,
+      bonus: { pierce: 0.08, resist: 0.06, atkSpeed: 0.10 }, skills: ['piercing_shot', 'heaven_arrow', 'hail_of_fire'] },
   },
   musket: {
     attackType: 'ranged', origin: '장총',
@@ -128,7 +147,7 @@ const STANCE_LINES = {
     advanced: { name: '도미네이션 파이어', power: 1.25, hits: 1, range: 242, speed: 0.95,
       bonus: { atkPct: 0.10 }, skills: ['fireball', 'ignite', 'inferno'] },
     // 로드 오브 계열은 원작에서도 "압도적으로 넓은 범위에 즉시시전". 평타부터 번진다.
-    master: { name: '로드 오브 플레임', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170,
+    master: { name: '로드 오브 플레임', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170, splashMax: 4,
       bonus: { atkPct: 0.15, pierce: 0.10, resist: 0.06 }, skills: ['fireball', 'solar_flare', 'meteor'] },
   },
   frost: {
@@ -138,7 +157,7 @@ const STANCE_LINES = {
       bonus: { atkPct: 0.05 }, skills: ['frostbolt', 'freeze', 'ice_nova'] },
     advanced: { name: '도미네이션 아이스', power: 1.25, hits: 1, range: 242, speed: 0.95,
       bonus: { atkPct: 0.10 }, skills: ['frostbolt', 'freeze', 'glacier'] },
-    master: { name: '로드 오브 프로스트', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170,
+    master: { name: '로드 오브 프로스트', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170, splashMax: 4,
       bonus: { atkPct: 0.15, pierce: 0.10, resist: 0.06 }, skills: ['frostbolt', 'eternal_ice', 'blizzard'] },
   },
   spark: {
@@ -148,7 +167,7 @@ const STANCE_LINES = {
       bonus: { atkPct: 0.05 }, skills: ['sparkbolt', 'shock', 'chain_lightning'] },
     advanced: { name: '도미네이션 라이트닝', power: 1.25, hits: 1, range: 242, speed: 0.95,
       bonus: { atkPct: 0.10 }, skills: ['sparkbolt', 'shock', 'thunderstorm'] },
-    master: { name: '로드 오브 엘리멘탈', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170,
+    master: { name: '로드 오브 엘리멘탈', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170, splashMax: 4,
       bonus: { atkPct: 0.15, pierce: 0.10, resist: 0.06 }, skills: ['sparkbolt', 'judgment_bolt', 'heaven_storm'] },
   },
 
@@ -208,6 +227,7 @@ Object.entries(STANCE_LINES).forEach(([line, def]) => {
       hits: s.hits,
       basicAtkMult: +(s.power / s.hits).toFixed(3),
       splash: s.splash || 0,
+      splashMax: s.splashMax || 0,
       bonus: s.bonus || {},
       skillIds: s.skills,
     };
@@ -255,7 +275,7 @@ function stanceTraitText(stanceId) {
   const parts = [];
   if (s.attackType === 'support') parts.push(`평타 = 치료 (공격력 ${Math.round(s.power * 100)}%)`);
   else parts.push(s.hits > 1 ? `평타 ${s.hits}타` : '평타 1타');
-  if (s.splash) parts.push(`평타 스플래시 ${s.splash}`);
+  if (s.splash) parts.push(`평타 스플래시 ${s.splash}${s.splashMax ? ` (최대 ${s.splashMax}체)` : ''}`);
   const b = bonusText(s.bonus);
   if (b) parts.push(b);
   return parts.join(' · ');

@@ -80,6 +80,13 @@ const ITEM_SHAPES = {
     'kjjjhkkkkkkkkkk.', '.kkkkgk.........', '.....k..........', '................',
     '................', '................', '................', '................',
   ],
+  // 산탄총 — 총열이 짧고 굵다. 아래위로 두 발(over-under).
+  shotgun: [
+    '................', '................', '................', '................',
+    '......kkkkkkkkkk', '.....khhhhmmmmwk', 'kkkkkhhhhhmmmmwk', 'khhhhhkkkkkkkkkk',
+    'khhhhhhmmmmmmwk.', 'kjjhhkkkkkkkkk..', '.kjjkgk.........', '..kkkk..........',
+    '................', '................', '................', '................',
+  ],
   // 힐러의 로자리오. 구슬 두 알에 십자가가 걸린 모양.
   rosario: [
     '..kk........kk..', '.kwmk......kwmk.', '.kmdk......kmdk.', '..kk..kkkk..kk..',
@@ -295,7 +302,7 @@ const ITEM_SHAPES = {
 // ---------- 아이템 → 모양 + 팔레트 ----------
 const STANCE_SHAPE = {
   sword: 'sword', dualblade: 'dualblade', spear: 'spear', fist: 'knuckle',
-  longbow: 'longbow', crossbow: 'crossbow', musket: 'musket',
+  longbow: 'longbow', crossbow: 'crossbow', musket: 'musket', shotgun: 'shotgun',
   flame: 'staff', frost: 'staff', spark: 'staff',
   rosario: 'rosario',
 };
@@ -357,6 +364,7 @@ const WEAPON_GRIP = {
   longbow: { gx: 5, gy: 8, angle: 0, swing: 0 },
   crossbow: { gx: 6, gy: 7, angle: 0, swing: 0 },
   musket: { gx: 6, gy: 7, angle: 0, swing: 0 },
+  shotgun: { gx: 5, gy: 7, angle: 0, swing: 0 },
   staff: { gx: 6, gy: 9, angle: 0, swing: 0.5 },
   rosario: { gx: 7, gy: 3, angle: 0, swing: 0.3 },
 };

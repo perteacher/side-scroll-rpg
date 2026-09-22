@@ -49,6 +49,7 @@ const ITEM_DATA = {
   w_frost: { name: '서리 지팡이', slot: 'weapon', stanceId: 'frost', atk: 14, price: 105, tier: 1 },
   w_spark: { name: '전격 지팡이', slot: 'weapon', stanceId: 'spark', atk: 14, price: 105, tier: 1 },
   // 힐러 계열 전용. 공격력 수치가 곧 치료량이 된다.
+  w_shotgun: { name: '수렵용 산탄총', slot: 'weapon', stanceId: 'shotgun', atk: 13, price: 100, tier: 1 },
   w_rosario: { name: '나무 로자리오', slot: 'weapon', stanceId: 'rosario', atk: 12, price: 100, tier: 1 },
 
   // --- 방어구 (중갑/경갑/연갑) ---
@@ -179,6 +180,7 @@ const WEAPON_BASES = [
   { stanceId: 'longbow', key: 'w_longbow', noun: '장궁' },
   { stanceId: 'crossbow', key: 'w_crossbow', noun: '석궁' },
   { stanceId: 'musket', key: 'w_musket', noun: '머스킷' },
+  { stanceId: 'shotgun', key: 'w_shotgun', noun: '산탄총' },
   { stanceId: 'flame', key: 'w_flame', noun: '화염 지팡이' },
   { stanceId: 'frost', key: 'w_frost', noun: '서리 지팡이' },
   { stanceId: 'spark', key: 'w_spark', noun: '전격 지팡이' },
@@ -334,6 +336,7 @@ const STARTER_WEAPON_BY_STANCE = {
   sword: 'w_sword', dualblade: 'w_dualblade', spear: 'w_spear', fist: 'w_fist',
   longbow: 'w_longbow', crossbow: 'w_crossbow', musket: 'w_musket',
   flame: 'w_flame', frost: 'w_frost', spark: 'w_spark',
+  shotgun: 'w_shotgun',
   firstaid: 'w_rosario', fortitudo: 'w_rosario',
 };
 

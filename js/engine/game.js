@@ -351,6 +351,7 @@ class Game {
     this.audio.warp();
     this.sm.onZoneEnter(this.zm.def.id);
     this.qm.onZoneEnter(this.zm.def.id);
+    this._warnGate();
     if (this.zm.isTown) this._reviveAll();
     this.journey.notify('teleport');
     if (this.zm.def.type === 'training') {
@@ -1437,6 +1438,20 @@ class Game {
     if (this.zm.storyNpcs.includes(target)) { this.ui.showStoryDialogue(target); return true; }
     if (this.zm.recruitNpcs.includes(target)) { this.ui.showNpcDialogue(target); return true; }
     return false;
+  }
+
+  // 관문 사냥터에 처음 들어서면 한 번만 알려 준다. 무엇을 하면 되는지까지 같이 적는다.
+  _warnGate() {
+    const def = this.zm.def;
+    if (def.type !== 'field') return;
+    const gate = gateOfZoneLevel(def.level);
+    if (!gate) return;
+    this._gateSeen = this._gateSeen || new Set();
+    if (this._gateSeen.has(gate.level)) return;
+    this._gateSeen.add(gate.level);
+    this.ui.logChat(`[관문 · ${gate.name}] 여기서부터 몹이 한 단계 강해집니다. 대신 경험치도 더 줍니다.`, 'party');
+    this.ui.logChat(`↳ ${gate.advice}`, 'npc');
+    this.ui.celebrate('관문', gate.name, '몹이 한 단계 강해집니다');
   }
 
   // 영입 NPC 머리 위 표시를 진행 상태에 맞춘다.

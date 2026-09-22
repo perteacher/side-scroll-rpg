@@ -116,7 +116,7 @@ const ZONE_DATA = [
     ],
     shopNpc: { name: '항구 잡화상 마리', x: 700, floor: 2 },
     questBoard: { x: 980, name: '의뢰 게시판' },
-    recruits: makeRecruits(['musketya', 'cortasal', 'andrei', 'alejandr', 'graciel', 'rorken', 'tiburan'], 3, 250, 210),
+    recruits: makeRecruits(['musketya', 'cortasal', 'andrei', 'alejandr', 'graciel', 'gracia', 'rorken', 'tiburan'], 3, 230, 185),
   },
   {
     id: 'field3a', theme: 'port', type: 'field', name: '해적의 은신처', level: 20, width: 3400, groundColor: '#3a4a52',
@@ -192,7 +192,7 @@ const ZONE_DATA = [
     ],
     shopNpc: { name: '군납 상인 오르텐', x: 700, floor: 2 },
     questBoard: { x: 980, name: '의뢰 게시판' },
-    recruits: makeRecruits(['wolak', 'valerian', 'beatria', 'lionello', 'darian', 'helenia', 'clera'], 5, 250, 210),
+    recruits: makeRecruits(['wolak', 'valerian', 'beatria', 'lionello', 'darian', 'marien', 'helenia', 'clera'], 5, 230, 185),
   },
   {
     id: 'field5a', theme: 'warfront', type: 'field', name: '성벽 앞 전선', level: 40, width: 3800, groundColor: '#3a3a4d',

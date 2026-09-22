@@ -671,3 +671,9 @@ html, body {
   background: #6c3483; color: #e8daef; font-size: 9px; vertical-align: middle;
 }
 .leech-badge.later { background: #3d2a46; color: #b39ac2; }
+
+/* 난이도 관문 사냥터 표시 */
+.gate-badge {
+  display: inline-block; margin-left: 5px; padding: 0 4px; border-radius: 3px;
+  background: #922b21; color: #fadbd8; font-size: 9px; vertical-align: middle;
+}

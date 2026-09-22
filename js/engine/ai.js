@@ -381,13 +381,19 @@ function performBasicAttack(unit, target, spawnProjectile, enemies = null) {
   unit.attackAnim = 260;
   setFacing(unit, d.x, d.y);
 
-  // 스플래시 평타(폴암 계열): 주 대상 주변도 같이 맞는다.
+  // 스플래시 평타: 주 대상 주변도 같이 맞는다. 가까운 순으로 splashMax 마리까지.
+  // 상한이 없으면 몹이 몰린 자리에서 마스터 자세가 단일 계열의 7배까지 간다.
   const victims = [target];
   if (stance.splash && enemies) {
+    const near = [];
     enemies.forEach((e) => {
       if (e === target || !e.alive || !sameHeight(unit, e)) return;
-      if (planeDist(target, e) <= stance.splash) victims.push(e);
+      const d = planeDist(target, e);
+      if (d <= stance.splash) near.push({ e, d });
     });
+    near.sort((a, b) => a.d - b.d);
+    const cap = stance.splashMax || near.length;
+    near.slice(0, cap).forEach((x) => victims.push(x.e));
   }
 
   // 몇이 휘말렸는지 보이게 한 번 터뜨린다(스킬 범위기와 같은 연출).

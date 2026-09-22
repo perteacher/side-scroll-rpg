@@ -38,6 +38,46 @@ const ENEMY_SCALE_POINTS = [
 // 힐러를 빼고 딜러만 세 명으로 다니면 그만큼 더 빨리 크는 대신 회복을 스스로 감당해야 한다.
 const PARTY_XP_MULT = 1.4;
 
+// ===== 난이도 관문 =====
+// 곡선이 끝까지 완만하면 "언제 세졌는지" 기억에 남는 순간이 없다. 네 자리에 벽을 세웠다.
+// 벽은 그 구간 '입구'에서 가장 높고, 레벨을 올리면 span에 걸쳐 원래 곡선으로 돌아온다.
+// 그래서 막히면 → 갖추고 → 뚫린다 는 리듬이 생기고, 영구 세금이 되지는 않는다.
+//
+// 자리를 고른 기준: 그 순간 플레이어가 '새로 쓸 수 있게 된 수단'이 있어야 한다.
+// 벽에 막혔을 때 할 일이 없으면 그냥 짜증이다.
+//   Lv20 항구   … 길잡이가 끝나는 자리. 여기서 처음 막혀야 강화·스킬·영입을 실제로 쓴다
+//   Lv40 성벽   … 시나리오 마지막 챕터 앞. 가문 특성과 잠재능력이 이미 열려 있다
+//   Lv50 설원   … 시나리오가 끝나고 안내 없이 혼자 가는 중반 구간의 입구
+//   Lv95 무덤   … 레벨이 아니라 승급이 답이라는 걸 알려주는 자리(100에서 베테랑)
+const DIFFICULTY_GATES = [
+  { level: 20, name: '항구의 벽', hp: 1.35, atk: 1.22, span: 10,
+    advice: '잡화상에서 장비를 강화하고, 스킬포인트를 남겨 두지 마세요. 동료를 한 명 더 영입하면 훨씬 수월합니다.' },
+  { level: 40, name: '성벽의 벽', hp: 1.40, atk: 1.25, span: 10,
+    advice: '가문 특성(F)과 큐브로 붙이는 잠재능력을 아직 안 봤다면 지금입니다.' },
+  { level: 50, name: '설원의 벽', hp: 1.45, atk: 1.25, span: 15,
+    advice: '레벨대 장비로 갈아입고 파티 구성을 점검하세요. 힐러 버프와 시너지가 여기서부터 값을 합니다.' },
+  { level: 95, name: '신들의 벽', hp: 1.45, atk: 1.28, span: 10,
+    advice: '여기서 막히면 레벨이 아니라 승급이 답입니다. Lv100에서 베테랑으로 올리세요.' },
+];
+
+// 이 레벨에 걸리는 관문 보정. { hp, atk, gate, t } — t는 입구에서 1, 벽이 끝나면 0.
+function gateFactorFor(level) {
+  let out = { hp: 1, atk: 1, gate: null, t: 0 };
+  DIFFICULTY_GATES.forEach((g) => {
+    if (level < g.level || level >= g.level + g.span) return;
+    const t = 1 - (level - g.level) / g.span; // 입구 1 → 끝 0
+    out = { hp: 1 + (g.hp - 1) * t, atk: 1 + (g.atk - 1) * t, gate: g, t };
+  });
+  return out;
+}
+
+// 이 사냥터가 '벽'이라고 알릴 만한가. 입구 한 곳만 표시한다 —
+// 여운이 남는 다음 사냥터까지 '관문'이라고 붙이면 어디가 진짜 벽인지 흐려진다.
+function gateOfZoneLevel(level) {
+  const f = gateFactorFor(level);
+  return f.gate && f.gate.level === level ? f.gate : null;
+}
+
 function enemyScaleFor(level) {
   const pts = ENEMY_SCALE_POINTS;
   const lv = clamp(level || 1, pts[0][0], pts[pts.length - 1][0]);
@@ -49,5 +89,12 @@ function enemyScaleFor(level) {
   const span = b[0] - a[0];
   const t = span === 0 ? 0 : (lv - a[0]) / span;
   const mix = (i) => a[i] + (b[i] - a[i]) * t;
-  return { hp: mix(1), atk: mix(2), xp: mix(3) * PARTY_XP_MULT, def: mix(4) };
+  // 관문 구간은 몹이 세지는 만큼 경험치도 얹어 준다. 벽이 손해이기만 하면 돌아가 버린다.
+  const gate = gateFactorFor(lv);
+  return {
+    hp: mix(1) * gate.hp,
+    atk: mix(2) * gate.atk,
+    xp: mix(3) * PARTY_XP_MULT * (1 + (gate.hp - 1) * 0.6),
+    def: mix(4),
+  };
 }
