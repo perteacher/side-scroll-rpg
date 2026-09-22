@@ -14,6 +14,14 @@ class PartyManager {
   }
 
   // 골드 획득은 전부 여기를 거친다(플레이 기록 집계용).
+  // 골드를 실제로 쓴다. 모자라면 아무것도 하지 않고 false.
+  spendGold(amount) {
+    if (this.gold < amount) return false;
+    this.gold -= amount;
+    this.log(`${amount.toLocaleString()}G 지불`, 'system');
+    return true;
+  }
+
   addGold(amount) {
     if (amount <= 0) return;
     this.gold += amount;

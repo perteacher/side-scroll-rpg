@@ -17,7 +17,7 @@
         <button data-open="inventory"><span class="mi-icon">🎒</span>인벤토리 <span class="mi-key">I</span></button>
         <button data-open="charinfo"><span class="mi-icon">📜</span>캐릭터 정보 <span class="mi-key">Alt+E</span></button>
         <button data-open="barracks"><span class="mi-icon">🏕️</span>병영 <span class="mi-key">B</span></button>
-        <button data-open="quest"><span class="mi-icon">📖</span>퀘스트 <span class="mi-key">J</span></button>
+        <button data-open="quest"><span class="mi-icon">📖</span>여정·퀘스트 <span class="mi-key">J</span><span id="journey-dot" class="menu-dot hidden"></span></button>
         <button data-open="teleport"><span class="mi-icon">🌀</span>텔레포트 <span class="mi-key">T</span></button>
         <button data-open="family"><span class="mi-icon">🏰</span>가문 특성 <span class="mi-key">F</span></button>
         <button data-open="tower"><span class="mi-icon">🗼</span>심연의 탑 <span class="mi-key">G</span></button>
@@ -38,7 +38,9 @@
     <div id="minimap-wrap"><canvas id="minimap-canvas" width="120" height="120"></canvas></div>
   </div>
 
+  <div id="tutorial-panel" class="hidden"></div>
   <div id="quest-tracker"></div>
+  <div id="celebrate-toast" class="hidden"></div>
 
   <div id="boss-bar" class="hidden">
     <div id="boss-name"></div>
@@ -48,7 +50,6 @@
   </div>
 
   <div id="bottom-bar">
-    <div id="gold-display">💰 <span id="gold-amount">0</span></div>
     <div id="party-slots"></div>
   </div>
 
@@ -106,8 +107,13 @@
 
   <!-- 퀘스트 창 -->
   <div id="quest-window" class="game-window hidden">
-    <div class="window-title-bar"><span>퀘스트</span><button class="close-btn" data-close="quest-window">✕</button></div>
-    <div id="quest-content"></div>
+    <div class="window-title-bar"><span>여정과 퀘스트</span><button class="close-btn" data-close="quest-window">✕</button></div>
+    <div id="quest-tabs" class="win-tabs">
+      <button data-qtab="journey" class="on">여정</button>
+      <button data-qtab="active">진행 중</button>
+    </div>
+    <div id="quest-journey" class="tab-panel"></div>
+    <div id="quest-content" class="tab-panel hidden"></div>
   </div>
 
   <!-- 텔레포트 창 -->
@@ -217,6 +223,7 @@
 <script src="js/data/balance.js"></script>
 <script src="js/data/promotion.js"></script>
 <script src="js/data/training.js"></script>
+<script src="js/data/journey.js"></script>
 <script src="js/engine/utils.js"></script>
 <script src="js/engine/pixelart.js"></script>
 <script src="js/engine/iso.js"></script>
@@ -232,6 +239,7 @@
 <script src="js/engine/tower.js"></script>
 <script src="js/engine/collection.js"></script>
 <script src="js/engine/quest.js"></script>
+<script src="js/engine/journey.js"></script>
 <script src="js/engine/save.js"></script>
 <script src="js/engine/scenario.js"></script>
 <script src="js/engine/family.js"></script>

@@ -25,6 +25,11 @@ class Game {
     this.zm = new ZoneManager(log);
     this.qm = new QuestManager(log, this.pm);
     this.sm = new ScenarioManager(log, this.pm);
+    this.qm.sm = this.sm; // 영입 퀘스트의 시나리오 게이트 판정에 쓴다
+    this.journey = new JourneyManager(log);
+    this.journey.attach(this);
+    this.ui.journey = this.journey;
+    this.sm.onStepAdvance = () => this.journey.notify('scenarioStep');
     this.fm = new FamilyManager(log);
     this.gq = new GeneralQuestManager(log, this.pm);
     this.tower = new TowerManager(log);
@@ -61,6 +66,9 @@ class Game {
     this.ui.logChat('클래스를 고르고 닉네임을 정하세요.', 'system');
 
     this.ui.onCreateCharacter = (specs) => this._startGame(specs);
+    this.journey.onCelebrate = (kind, title, reward) => this.ui.celebrate(kind, title, reward);
+    this.ui.onJourneyClaim = (taskId) => { if (this.journey.claim(taskId)) this.ui.refreshJourney(); };
+    this.ui.onTutorialSkip = () => { this.journey.skipTutorial(); this.ui.refreshTutorial(true); };
     this.ui.onStoryTalk = (npcId) => {
       if (this.sm.isDeliverNpc(npcId)) this.sm.tryDeliver();
       else this.sm.onTalk(npcId);
@@ -75,6 +83,7 @@ class Game {
       if (!result.ok) { this.pm.gear.push(gear); return; }
       if (result.previous) this.pm.gear.push(result.previous);
       this.ui.logChat(`${unit.name} ${gear.displayName} 장착`, 'system');
+      this.journey.notify('equip');
       this.ui.rebuildPartySlots();
       this.ui.refreshOpenWindows();
     };
@@ -131,6 +140,7 @@ class Game {
         return;
       }
       this.pm.sellGear(gearUid);
+      this.journey.notify('sell');
       this.ui.refreshOpenWindows();
     };
     this.ui.onStarforce = (gearUid, opts) => {
@@ -138,6 +148,7 @@ class Game {
       if (!gear) return null;
       const r = this.pm.starforceGear(gear, opts);
       if (r.ok) {
+        this.journey.notify('enhance');
         if (r.result === 'success') this.audio.levelUp();
         else if (r.result === 'destroy') this.audio.kill(true);
         else this.audio.miss();
@@ -155,7 +166,7 @@ class Game {
       this.ui.refreshOpenWindows();
       return r;
     };
-    this.ui.onSell = (itemId, count) => { this.pm.sellItem(itemId, count); this.ui.refreshShop(); };
+    this.ui.onSell = (itemId, count) => { this.pm.sellItem(itemId, count); this.journey.notify('sell'); this.ui.refreshShop(); };
     this.ui.onBuy = (itemId) => { this.pm.buyItem(itemId, 1); this.qm.checkItemSteps(); this.gq.checkItemSteps(); this.sm.checkItemSteps(); this.ui.refreshShop(); };
     this.ui.onCraft = (recipeId) => {
       const recipe = RECIPE_DATA.find((r) => r.id === recipeId);
@@ -179,6 +190,7 @@ class Game {
     };
     this.ui.onAutoModeChange = (unitId, mode) => {
       this.pm.setAutoMode(unitId, mode);
+      if (mode !== 'off') this.journey.notify('automode');
       this.ui.rebuildPartySlots();
     };
     this.ui.onTeleport = (zoneIndex) => this._teleport(zoneIndex);
@@ -189,6 +201,7 @@ class Game {
       if (!unit.upgradeSkill(skillId)) return;
       const def = ROLE_SKILLS_DATA[unit.attackType][skillId];
       this.ui.logChat(`${unit.name} [${def.name}] 스킬 Lv.${unit.skillLevel(skillId)}`, 'system');
+      this.journey.notify('learnSkill');
       this.ui.rebuildPartySlots();
       this.ui.refreshCharInfo();
     };
@@ -199,7 +212,15 @@ class Game {
     this.ui.onFamilyInvest = (id) => { if (this.fm.invest(id)) this.ui.refreshFamily(); };
     this.ui.onFamilyRefund = (id) => { if (this.fm.refund(id)) this.ui.refreshFamily(); };
     this.ui.onFamilyReset = () => { this.fm.resetAll(); this.ui.refreshFamily(); };
-    this.ui.onQuestAccept = (npc) => { this.qm.accept(npc); this.ui.refreshQuest(); };
+    this.ui.onQuestAccept = (npc) => {
+      this.qm.accept(npc);
+      if (this.qm.isActive(npc.charId)) this.journey.notify('recruitAccept');
+      this.ui.refreshQuest();
+    };
+    this.ui.onQuestPay = (charId) => {
+      const quest = this.qm.find(charId);
+      if (quest && this.qm.tryPay(quest)) { this.audio.pickup(); this.ui.refreshOpenWindows(); }
+    };
     this.ui.onQuestComplete = (charId) => this._completeRecruit(charId);
 
     this.ui.onUsePotion = (itemId) => {
@@ -329,7 +350,9 @@ class Game {
     this.warpCooldown = 900;
     this.audio.warp();
     this.sm.onZoneEnter(this.zm.def.id);
+    this.qm.onZoneEnter(this.zm.def.id);
     if (this.zm.isTown) this._reviveAll();
+    this.journey.notify('teleport');
     if (this.zm.def.type === 'training') {
       this.ui.logChat('[수련장] 파티 최고 레벨에 맞춘 몹이 나옵니다. 키우고 싶은 캐릭터를 [정지]로 두면'
         + ' 몹이 그 캐릭터를 노리지 않고, 경험치는 그대로 받습니다(병작).', 'npc');
@@ -482,6 +505,7 @@ class Game {
     if (input.isDown('arrowright')) { dx += 1; dy -= 1; }
 
     if (dx || dy) {
+      this.journey.notify('move');
       const len = Math.hypot(dx, dy) || 1;
       const speed = MOVE_SPEED * unit.stance.moveSpeedMult * (1 + (unit.bonus || EMPTY_FAMILY_BONUS).moveSpeed);
       unit.vx = (dx / len) * speed;
@@ -751,7 +775,7 @@ class Game {
       this.ui.logChat(`${unit.name}: 사거리 안에 적이 없습니다.`, 'system');
       return;
     }
-    if (!this._castSkill(unit, skillId, target, true)) {
+    if (this._castSkill(unit, skillId, target, true)) { this.journey.notify('useSkill'); } else {
       const cd = Math.ceil((unit.skillCooldowns[skillId] || 0) / 1000);
       const why = cd > 0 ? `재사용까지 ${cd}초` : (unit.mp < skillDef.manaCost ? 'MP 부족' : '조건 불충족');
       this.ui.logChat(`${unit.name}: [${skillDef.name}] 사용 불가 (${why})`, 'system');
@@ -1117,6 +1141,7 @@ class Game {
 
   _collectDrop(d, unit) {
     d.collected = true;
+    this.journey.notify('pickup');
     const c = entityCenter(unit);
     const ux = c.x;
     const uy = c.y;
@@ -1186,6 +1211,7 @@ class Game {
     enemy.rewarded = true;
     this.stats.kills += 1;
     if (enemy.boss) this.stats.bossKills += 1;
+    this.journey.notify('kill');
     // 처음 잡아보는 몬스터인지 컬렉션 기록으로 판단한다(onKill이 세기 전에 확인해야 한다).
     const firstKill = (this.collection.kills[enemy.name] || 0) === 0;
     if (this.collection.onKill(enemy)) this.pm.units.forEach((u) => u.invalidateStats());

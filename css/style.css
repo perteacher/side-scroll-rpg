@@ -60,7 +60,7 @@ html, body {
 .bar-fill.mp { background: linear-gradient(#3498db, #21618c); }
 .bar-fill.xp { background: linear-gradient(#f1c40f, #b7950b); }
 .bar-text { position: absolute; inset: 0; font-size: 9px; line-height: 12px; text-align: center; text-shadow: 1px 1px 1px #000; }
-.bar-bg.xp-bg { height: 5px; }
+.bar-bg.xp-bg { height: 6px; }
 .bar-bg.sxp-bg { height: 11px; }
 .bar-bg.sxp-bg .bar-text { line-height: 11px; font-size: 8px; }
 
@@ -81,8 +81,6 @@ html, body {
 .status-chip i { font-style: normal; margin-left: 1px; opacity: 0.85; }
 #target-status, #boss-status { margin-top: 2px; }
 .party-slot .portrait { position: relative; }
-.slot-status { position: absolute; left: 0; bottom: -2px; flex-direction: column; gap: 1px; }
-.slot-status .status-chip i { display: none; }
 .skill-status { font-size: 10px; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 6px; }
 .skill-status span { display: inline-flex; align-items: center; gap: 2px; }
 #boss-warn { font-size: 12px; font-weight: bold; color: #f1c40f; text-shadow: 1px 1px 3px #000; height: 16px; margin-top: 2px; }
@@ -109,8 +107,22 @@ html, body {
   display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; color: #fff;
   border: 1px solid rgba(255,255,255,0.3);
 }
-.slot-info { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 90px; }
+.slot-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 120px; }
 .name-lv { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 버프·디버프 줄. 남은 시간을 초 단위로 붙여 준다. */
+.slot-effects { display: flex; flex-wrap: wrap; gap: 3px; min-height: 12px; }
+.eff-chip {
+  display: inline-flex; align-items: center; gap: 1px; padding: 0 3px; border-radius: 2px;
+  font-size: 9px; line-height: 12px; background: rgba(0,0,0,0.55); position: relative;
+}
+.eff-chip.buff { color: #f7dc6f; border: 1px solid rgba(247,220,111,0.45); }
+.eff-chip.debuff { color: #ec7063; border: 1px solid rgba(236,112,99,0.45); }
+.eff-chip i { font-style: normal; opacity: 0.85; margin-left: 3px; }
+.eff-chip b { font-size: 8px; color: #fff; }
+/* 자동전투 버튼(정지/킵/홀드)과 스킬 줄을 오른쪽에 위아래로 쌓는다.
+   예전처럼 옆에 세로로 세워 두면 그 폭만큼 HP/MP/경험치 바가 좁아졌다. */
+.slot-right { display: flex; flex-direction: column; gap: 3px; justify-content: center; flex-shrink: 0; }
+
 /* 스킬 3개 + 전용기(R) 1개가 한 줄에 들어가야 한다. */
 .hotbar { display: grid; grid-template-columns: repeat(4, 22px); grid-template-rows: 22px; gap: 2px; align-content: center; }
 .hotbar .skill-btn {
@@ -267,7 +279,8 @@ html, body {
 }
 
 /* ---------- 자동전투 모드 버튼 ---------- */
-.auto-modes { display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+.auto-modes { display: flex; flex-direction: row; gap: 2px; justify-content: stretch; }
+.auto-modes button { flex: 1; }
 .auto-modes button {
   font-size: 9px; padding: 2px 4px; background: rgba(0,0,0,0.5); border: 1px solid #555;
   color: #bbb; border-radius: 3px; cursor: pointer; width: 30px;
@@ -563,3 +576,82 @@ html, body {
 
 /* 힐러(지원) 스킬 태그 */
 .tag.support { background: #1e8449; color: #eafaf1; }
+
+/* 시나리오 진행이 모자라 아직 못 받는 영입 퀘스트 */
+.quest-locked {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid #6b4f1d;
+  border-radius: 4px;
+  background: #241d10;
+  color: #e0b354;
+  font-size: 11px;
+}
+
+/* ---------- 길잡이(튜토리얼) 패널 ---------- */
+/* 추적 패널 바로 위. 지금 할 일 하나만 띄운다. */
+#tutorial-panel {
+  position: absolute; right: 8px; top: 140px; width: 232px; z-index: 5;
+  background: rgba(12, 16, 26, 0.92); border: 1px solid #4a7fb5; border-left: 3px solid #5dade2;
+  border-radius: 4px; padding: 6px 8px 7px; color: #e8eef5; text-shadow: 1px 1px 2px #000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+#tutorial-panel.hidden { display: none; }
+#tutorial-panel .tut-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 9px; font-weight: bold; color: #8ad6ff; letter-spacing: 0.4px; margin-bottom: 3px;
+}
+#tutorial-panel .tut-head button {
+  background: none; border: none; color: #7c8a99; font-size: 11px; cursor: pointer; padding: 0 2px;
+}
+#tutorial-panel .tut-head button:hover { color: #e74c3c; }
+#tutorial-panel .tut-title { font-size: 12px; font-weight: bold; color: #f7dc6f; margin-bottom: 3px; }
+#tutorial-panel .tut-desc { font-size: 10.5px; line-height: 1.45; }
+#tutorial-panel .tut-why { font-size: 9.5px; line-height: 1.4; color: #9fb4c7; margin-top: 4px; }
+#tutorial-panel .tut-reward { font-size: 9.5px; color: #f1c40f; margin-top: 5px; }
+/* 길잡이가 떠 있으면 추적 패널을 아래로 민다 */
+#tutorial-panel:not(.hidden) ~ #quest-tracker { top: 258px; }
+
+/* ---------- 달성 연출 ---------- */
+#celebrate-toast {
+  position: absolute; left: 50%; top: 96px; transform: translate(-50%, -14px);
+  z-index: 60; pointer-events: none; text-align: center;
+  padding: 8px 20px; border-radius: 6px;
+  background: linear-gradient(rgba(26, 21, 8, 0.96), rgba(16, 13, 6, 0.96));
+  border: 1px solid #c9a227; box-shadow: 0 0 18px rgba(241, 196, 15, 0.35);
+  opacity: 0; transition: opacity 0.22s ease, transform 0.22s ease;
+}
+#celebrate-toast.hidden { display: none; }
+#celebrate-toast.show { opacity: 1; transform: translate(-50%, 0); }
+#celebrate-toast .cel-kind { font-size: 9.5px; letter-spacing: 1px; color: #c9a227; }
+#celebrate-toast .cel-title { font-size: 15px; font-weight: bold; color: #f7dc6f; margin: 2px 0 3px; text-shadow: 1px 1px 3px #000; }
+#celebrate-toast .cel-reward { font-size: 11px; color: #ecf0f1; }
+
+/* ---------- 여정 ---------- */
+#quest-window { width: 420px; max-height: 420px; }
+#quest-journey, #quest-content { overflow-y: auto; max-height: 340px; padding: 6px 10px 10px; }
+.jr-row {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px; margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.03); border: 1px solid #3a3a4a; border-radius: 4px;
+}
+.jr-row.ready { border-color: #c9a227; background: rgba(241, 196, 15, 0.08); }
+.jr-row.claimed { opacity: 0.5; }
+.jr-main { flex: 1; min-width: 0; }
+.jr-title { font-size: 11px; margin-bottom: 3px; }
+.bar-bg.jr-bar { height: 10px; }
+.bar-bg.jr-bar .bar-text { line-height: 10px; font-size: 8px; }
+.jr-reward { font-size: 9.5px; color: #f1c40f; margin-top: 3px; }
+.jr-claim {
+  flex-shrink: 0; min-width: 52px; font-size: 10px; padding: 4px 8px; border-radius: 3px;
+  background: #2c2c44; border: 1px solid #555; color: #fff; cursor: pointer;
+}
+.jr-claim:not(:disabled) { background: #c9a227; border-color: #f1c40f; color: #17130a; font-weight: bold; }
+.jr-claim:disabled { opacity: 0.45; cursor: default; }
+.jr-done { flex-shrink: 0; min-width: 52px; text-align: center; font-size: 10px; color: #2ecc71; }
+
+/* 메뉴 항목의 '받을 게 있음' 표시 */
+.menu-dot {
+  display: inline-block; width: 7px; height: 7px; margin-left: 5px;
+  background: #e74c3c; border-radius: 50%; box-shadow: 0 0 5px #e74c3c;
+}
+.menu-dot.hidden { display: none; }

@@ -8,6 +8,7 @@ class ScenarioManager {
     this.huntCount = 0;
     this.finished = false;
     this.onChapterComplete = null; // game.js가 보상 지급을 연결한다
+    this.onStepAdvance = null;     // 길잡이가 '이야기를 한 단계 진행했다'를 세는 데 쓴다
   }
 
   get chapter() { return SCENARIO_DATA[this.chapterIndex]; }
@@ -77,6 +78,7 @@ class ScenarioManager {
   _advance() {
     this.huntCount = 0;
     this.stepIndex += 1;
+    if (this.onStepAdvance) this.onStepAdvance();
     // 이미 재료를 갖고 있으면 수집 단계는 건너뛴다.
     while (this.stepIndex < this.chapter.steps.length) {
       const next = this.chapter.steps[this.stepIndex];

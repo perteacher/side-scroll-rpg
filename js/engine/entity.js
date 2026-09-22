@@ -370,9 +370,9 @@ class PartyUnit {
     if (st.level >= max) st.xp = 0;
     if (!leveled) return;
     this.invalidateStats();
+    // 채팅에는 레벨만 알린다. 오른 스탯은 캐릭터 정보창(스탠스 탭)에서 본다.
     if (logFn) {
-      const growth = statBonusText(stanceGrowthPerLevel(sid), 1);
-      logFn(`${this.name} [${this.stance.name}] 스탠스 Lv.${st.level}${st.level >= max ? ' (MAX)' : ''}! 스킬포인트 +1 · ${growth}`, 'system');
+      logFn(`${this.name} [${this.stance.name}] 스탠스 Lv.${st.level}${st.level >= max ? ' (MAX)' : ''}! 스킬포인트 +1`, 'system');
     }
   }
 

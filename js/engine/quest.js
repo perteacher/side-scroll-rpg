@@ -3,10 +3,27 @@ class QuestManager {
   constructor(logFn, partyManager) {
     this.log = logFn;
     this.pm = partyManager;
+    this.sm = null; // 시나리오 진행도(게이트 판정용). game.js가 연결한다
     this.totalKills = 0;
     this.active = []; // [{charId, charName, tier, steps, stepIndex, huntCount}]
     this.completed = new Set();
   }
+
+  // 완료한 시나리오 챕터 수
+  get clearedChapters() {
+    if (!this.sm) return 99;
+    return this.sm.finished ? SCENARIO_DATA.length : this.sm.chapterIndex;
+  }
+
+  // 이야기와 얽힌 인물은 그 대목을 지나야 따라나선다.
+  lockReason(charId) {
+    const need = recruitReqChapter(charId);
+    if (!need || this.clearedChapters >= need) return null;
+    const ch = SCENARIO_DATA.find((c) => c.chapter === need);
+    return `시나리오 챕터 ${need} "${ch ? ch.title : ''}"을(를) 마쳐야 합니다`;
+  }
+
+  canAccept(charId) { return !this.lockReason(charId); }
 
   isActive(charId) { return this.active.some((q) => q.charId === charId); }
   isCompleted(charId) { return this.completed.has(charId); }
@@ -21,16 +38,19 @@ class QuestManager {
     if (s.type === 'hunt') return `${s.text} (${quest.huntCount}/${s.count})`;
     if (s.type === 'collect') return `${s.text} (${this.pm.itemCount(s.itemId)}/${s.count})`;
     if (s.type === 'deliver') return `${s.text} (${this.pm.itemCount(s.itemId)}/${s.count})`;
+    if (s.type === 'pay') return `${s.text} (보유 ${this.pm.gold.toLocaleString()}G)`;
     return s.text;
   }
 
   accept(npc) {
     if (this.isActive(npc.charId) || this.isCompleted(npc.charId)) return;
+    const locked = this.lockReason(npc.charId);
+    if (locked) { this.log(`[영입 불가] ${npc.charDef.name} — ${locked}`, 'system'); return; }
     this.active.push({
       charId: npc.charId,
       charName: npc.charDef.name,
       tier: npc.tier,
-      steps: makeRecruitSteps(npc.tier, npc.charDef.name),
+      steps: makeRecruitSteps(npc.charId),
       stepIndex: 0,
       huntCount: 0,
     });
@@ -56,6 +76,24 @@ class QuestManager {
       if (!s || s.type !== 'collect') return;
       if (this.pm.itemCount(s.itemId) >= s.count) this._advance(q);
     });
+  }
+
+  // 정찰 단계: 그 사냥터에 발을 들이면 통과한다.
+  onZoneEnter(zoneId) {
+    this.active.forEach((q) => {
+      const s = this.currentStep(q);
+      if (!s || s.type !== 'reach' || s.zoneId !== zoneId) return;
+      this._advance(q);
+    });
+  }
+
+  // 지불 단계: 골드를 실제로 깎는다.
+  tryPay(quest) {
+    const s = this.currentStep(quest);
+    if (!s || s.type !== 'pay') return false;
+    if (!this.pm.spendGold(s.gold)) return false;
+    this._advance(quest);
+    return true;
   }
 
   onTalk(npcId) {

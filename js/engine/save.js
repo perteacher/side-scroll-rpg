@@ -78,6 +78,7 @@ const SaveManager = {
       seenLevels: [...(game._seenLevels || new Map())],
       tower: { bestFloor: game.tower.bestFloor },
       levelRewards: [...game.claimedLevelRewards],
+      journey: game.journey ? game.journey.serialize() : null,
       stats: game.stats.serialize(),
       collection: game.collection.serialize(),
       scenario: {
@@ -186,6 +187,7 @@ const SaveManager = {
 
     if (data.tower) game.tower.bestFloor = data.tower.bestFloor || 0;
     game.claimedLevelRewards = new Set(data.levelRewards || []);
+    if (game.journey) game.journey.restore(data.journey);
     game.stats.restore(data.stats);
     game.collection.restore(data.collection);
     pm.units.forEach((u) => u.invalidateStats());

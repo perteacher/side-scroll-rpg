@@ -81,6 +81,10 @@ class UIManager {
     this.onTeleport = null;
     this.onCreateCharacter = null;
     this.onQuestAccept = null;
+    this.onQuestPay = null;
+    this.onJourneyClaim = null;
+    this.onTutorialSkip = null;
+    this.journey = null;
     this.onQuestComplete = null;
     this.onSkillUpgrade = null;
     this.onSignaturePress = null;
@@ -514,7 +518,7 @@ class UIManager {
     if (SOUND) SOUND.ui();
     if (id === 'char-info-window') this.refreshCharInfo();
     if (id === 'barracks-window') this.refreshBarracks();
-    if (id === 'quest-window') this.refreshQuest();
+    if (id === 'quest-window') { this.refreshQuest(); this.refreshJourney(); }
     if (id === 'teleport-window') this.refreshTeleport();
     if (id === 'family-window') this.refreshFamily();
     if (id === 'tower-window') this.refreshTower();
@@ -541,6 +545,8 @@ class UIManager {
     if (this.isWindowOpen('settings-window')) this.refreshSettings();
     if (this.isWindowOpen('collection-window')) this.refreshCollection();
     if (this.isWindowOpen('board-window')) this.refreshBoard();
+    if (this.isWindowOpen('quest-window')) { this.refreshQuest(); this.refreshJourney(); }
+    this.refreshJourneyDot();
   }
 
   closeWindow(id) { document.getElementById(id).classList.add('hidden'); }
@@ -576,6 +582,7 @@ class UIManager {
         <div class="bar-bg"><div class="bar-fill mp"></div><span class="bar-text mp-text"></span></div>
         <div class="bar-bg xp-bg"><div class="bar-fill xp"></div></div>
         <div class="bar-bg sxp-bg"><div class="bar-fill sxp"></div><span class="bar-text sxp-text"></span></div>
+        <div class="slot-effects"></div>
       `;
 
       const modes = document.createElement('div');
@@ -644,10 +651,12 @@ class UIManager {
         hotbar.appendChild(sb);
       }
 
-      const statusRow = document.createElement('div');
-      statusRow.className = 'slot-status status-row';
-      portrait.appendChild(statusRow);
-      slot.appendChild(portrait); slot.appendChild(info); slot.appendChild(modes); slot.appendChild(hotbar);
+      // 자동전투 버튼을 스킬 칸 위로 올린다. 옆에 세로로 세워 두면 그만큼 HP/MP/경험치 바가 좁아졌다.
+      const right = document.createElement('div');
+      right.className = 'slot-right';
+      right.appendChild(modes);
+      right.appendChild(hotbar);
+      slot.appendChild(portrait); slot.appendChild(info); slot.appendChild(right);
       wrap.appendChild(slot);
     });
     this.refreshPartyHUD();
@@ -681,7 +690,7 @@ class UIManager {
         b.classList.toggle('on', b.dataset.mode === unit.autoMode);
       });
       slot.classList.toggle('downed', !!unit.downed);
-      this._setStatusRow(slot.querySelector('.slot-status'), unit);
+      this._setEffectRow(slot.querySelector('.slot-effects'), unit);
 
       // 전용기 쿨다운
       const sigBtn = slot.querySelector('.skill-btn[data-sig]');
@@ -706,7 +715,7 @@ class UIManager {
       });
     });
     this.refreshTracker(this._hudDt || 16);
-    document.getElementById('gold-amount').textContent = this.pm.gold;
+    this.refreshTutorial();
     document.getElementById('zone-label').textContent = this.tower && this.tower.active
       ? `${this.zm.name} ${this.tower.floor}층 (최고 ${this.tower.bestFloor}층)`
       : `${this.zm.name} (권장 ${rankLabel(this.zm.def.level)})`;
@@ -1085,6 +1094,16 @@ class UIManager {
     if (this.sm && !this.sm.finished) {
       lines.push({ tag: '시나리오', text: this.sm.objectiveText() });
     }
+    if (this.journey) {
+      const nt = this.journey.nextTask();
+      if (nt) {
+        const p = this.journey.progressOf(nt);
+        const text = p.cur >= p.need
+          ? `${nt.title} — 🎁 수령 가능 (J)`
+          : `${nt.title} (${Math.min(p.cur, p.need).toLocaleString()}/${p.need.toLocaleString()})`;
+        lines.push({ tag: '여정', text });
+      }
+    }
     const recruit = this.qm.active[0];
     if (recruit) {
       lines.push({ tag: '영입', text: `${recruit.charName} — ${this.qm.stepText(recruit)}` });
@@ -1099,6 +1118,114 @@ class UIManager {
     this._trackerKey = key;
     el.classList.toggle('hidden', lines.length === 0);
     el.innerHTML = lines.map((l) => `<div class="tr-row"><span class="tr-tag ${l.tag}">${l.tag}</span>${l.text}</div>`).join('');
+  }
+
+  // ---------- 길잡이(튜토리얼) ----------
+  // 화면 오른쪽에 지금 할 일 하나만 띄운다. 여러 개를 한꺼번에 띄우면 아무것도 안 읽는다.
+  refreshTutorial(force = false) {
+    const el = document.getElementById('tutorial-panel');
+    if (!el || !this.journey) return;
+    this._tutTimer = (this._tutTimer || 0) - (this._hudDt || 16);
+    if (!force && this._tutTimer > 0) return;
+    this._tutTimer = 300;
+    const s = this.journey.step;
+    if (!s) { el.classList.add('hidden'); this._tutKey = null; return; }
+    const key = `${s.id}:${this.journey.stepCount}`;
+    if (!force && key === this._tutKey) { el.classList.remove('hidden'); return; }
+    this._tutKey = key;
+    el.classList.remove('hidden');
+    const no = this.journey.stepIndex + 1;
+    el.innerHTML = `
+      <div class="tut-head">길잡이 ${no}/${TUTORIAL_STEPS.length}<button id="tut-skip" title="안내 끄기">✕</button></div>
+      <div class="tut-title">${s.title}${this.journey.progressText}</div>
+      <div class="tut-desc">${s.desc}</div>
+      <div class="tut-why">${s.why}</div>
+      <div class="tut-reward">보상 ${rewardText(s.reward)}</div>`;
+    const skip = document.getElementById('tut-skip');
+    if (skip) skip.addEventListener('click', () => this.onTutorialSkip && this.onTutorialSkip());
+  }
+
+  // 달성 연출. 짧게 떴다 사라지는 띠 하나면 충분하다.
+  celebrate(kind, title, reward) {
+    const el = document.getElementById('celebrate-toast');
+    if (!el) return;
+    el.innerHTML = `<div class="cel-kind">${kind}</div><div class="cel-title">${title}</div>`
+      + `<div class="cel-reward">${reward}</div>`;
+    el.classList.remove('hidden');
+    el.classList.remove('show');
+    // 리플로우를 한 번 일으켜야 같은 연출이 연달아 떠도 다시 재생된다.
+    void el.offsetWidth;
+    el.classList.add('show');
+    clearTimeout(this._celTimer);
+    this._celTimer = setTimeout(() => { el.classList.remove('show'); el.classList.add('hidden'); }, 2600);
+  }
+
+  // ---------- 여정 ----------
+  _renderQuestTabs() {
+    const tabs = document.getElementById('quest-tabs');
+    if (!tabs) return;
+    this.questTab = this.questTab || 'journey';
+    const show = (tab) => {
+      this.questTab = tab;
+      document.getElementById('quest-journey').classList.toggle('hidden', tab !== 'journey');
+      document.getElementById('quest-content').classList.toggle('hidden', tab !== 'active');
+      tabs.querySelectorAll('button[data-qtab]').forEach((b) => b.classList.toggle('on', b.dataset.qtab === tab));
+    };
+    tabs.querySelectorAll('button[data-qtab]').forEach((b) => { b.onclick = () => show(b.dataset.qtab); });
+    show(this.questTab);
+  }
+
+  refreshJourney() {
+    const el = document.getElementById('quest-journey');
+    if (!el || !this.journey) return;
+    const j = this.journey;
+    const m = j.metrics();
+    const done = JOURNEY_TASKS.filter((t) => j.isClaimed(t.id)).length;
+    const next = j.nextTask(m);
+
+    const chapters = JOURNEY_CHAPTERS.map((c) => {
+      const rows = c.tasks.map((t) => {
+        const p = j.progressOf(t, m);
+        const claimed = j.isClaimed(t.id);
+        const ready = !claimed && p.cur >= t.need;
+        const pct = Math.round(p.ratio * 100);
+        const btn = claimed
+          ? '<span class="jr-done">받음</span>'
+          : `<button class="jr-claim" data-claim="${t.id}" ${ready ? '' : 'disabled'}>${ready ? '수령' : '진행 중'}</button>`;
+        return `
+          <div class="jr-row ${claimed ? 'claimed' : ''} ${ready ? 'ready' : ''}">
+            <div class="jr-main">
+              <div class="jr-title">${ready ? '🎁 ' : ''}${t.title}</div>
+              <div class="bar-bg jr-bar"><div class="bar-fill ${ready ? 'xp' : 'mp'}" style="width:${pct}%"></div>
+                <span class="bar-text">${Math.min(p.cur, t.need).toLocaleString()} / ${t.need.toLocaleString()}</span></div>
+              <div class="jr-reward">${rewardText(t.reward)}</div>
+            </div>
+            ${btn}
+          </div>`;
+      }).join('');
+      const cDone = c.tasks.filter((t) => j.isClaimed(t.id)).length;
+      return `<div class="section-title">${c.name} <span style="opacity:0.6">${cDone}/${c.tasks.length}</span></div>${rows}`;
+    }).join('');
+
+    el.innerHTML = `
+      <p class="hint-text">과제를 채우면 직접 [수령]을 눌러 보상을 받습니다. 지금 가장 가까운 목표부터 따라가면 됩니다.</p>
+      <div class="tower-stat">
+        <div><span>달성</span><b>${done} / ${JOURNEY_TASKS.length}</b></div>
+        <div><span>지금 목표</span><b>${next ? next.title : '전부 달성!'}</b></div>
+      </div>
+      ${chapters}`;
+    el.querySelectorAll('button[data-claim]').forEach((b) => {
+      b.addEventListener('click', () => this.onJourneyClaim && this.onJourneyClaim(b.dataset.claim));
+    });
+    this._renderQuestTabs();
+    this.refreshJourneyDot();
+  }
+
+  // 받을 게 있으면 메뉴에 빨간 점을 띄운다.
+  refreshJourneyDot() {
+    const dot = document.getElementById('journey-dot');
+    if (!dot || !this.journey) return;
+    dot.classList.toggle('hidden', this.journey.claimableCount() === 0);
   }
 
   // ---------- 설정 ----------
@@ -1129,6 +1256,15 @@ class UIManager {
         <label>MP 기준</label>
         <input type="range" id="set-mp" min="0" max="90" step="5" value="${pct(v.mpThreshold)}" ${v.autoPotion ? '' : 'disabled'}>
         <span id="set-mp-val">${pct(v.mpThreshold)}% 이하</span>
+      </div>
+
+      <div class="section-title">안내</div>
+      <div class="set-row">
+        <label>길잡이 표시</label>
+        <input type="checkbox" id="set-tutorial" ${this.journey && !this.journey.hidden ? 'checked' : ''}
+          ${this.journey && this.journey.tutorialDone ? 'disabled' : ''}>
+        <span style="opacity:0.6;font-size:11px;">${this.journey && this.journey.tutorialDone
+    ? '길잡이를 모두 마쳤습니다' : '화면 오른쪽에 지금 할 일을 하나씩 안내합니다'}</span>
       </div>
 
       <div class="section-title">장비 자동 판매</div>
@@ -1214,6 +1350,11 @@ class UIManager {
       this.refreshTracker();
     });
     bind('set-damage', 'change', (e) => SettingsManager.set('showDamage', e.target.checked));
+    bind('set-tutorial', 'change', (e) => {
+      if (!this.journey) return;
+      if (e.target.checked) this.journey.resumeTutorial(); else this.journey.skipTutorial();
+      this.refreshTutorial(true);
+    });
     bind('set-autosell', 'change', (e) => SettingsManager.set('autoSellGrade', Number(e.target.value)));
     bind('set-autosell-old', 'change', (e) => SettingsManager.set('autoSellOldGear', e.target.checked));
     bind('set-resolution', 'change', (e) => { DisplayManager.setResolution(e.target.value); this.refreshSettings(); });
@@ -1951,17 +2092,22 @@ class UIManager {
     if (already) {
       body += '이미 우리 편이다. 병영(B)에서 파티에 넣을 수 있다.';
     } else if (!quest) {
-      const steps = makeRecruitSteps(npc.tier, def.name);
-      body += `"함께 가려면 내 시험을 통과해야 한다. ${steps.length}단계다."
+      const locked = this.qm.lockReason(npc.charId);
+      const steps = makeRecruitSteps(npc.charId);
+      body += `${recruitIntro(npc.charId)}
         <ol class="quest-steps">${steps.map((s) => `<li>${s.text}</li>`).join('')}</ol>`;
-      const accept = document.createElement('button');
-      accept.className = 'primary';
-      accept.textContent = '퀘스트 수락';
-      accept.addEventListener('click', () => {
-        if (this.onQuestAccept) this.onQuestAccept(npc);
-        this.showNpcDialogue(npc);
-      });
-      actionsEl.appendChild(accept);
+      if (locked) {
+        body += `<div class="quest-locked">🔒 ${locked}</div>`;
+      } else {
+        const accept = document.createElement('button');
+        accept.className = 'primary';
+        accept.textContent = `퀘스트 수락 (${steps.length}단계)`;
+        accept.addEventListener('click', () => {
+          if (this.onQuestAccept) this.onQuestAccept(npc);
+          this.showNpcDialogue(npc);
+        });
+        actionsEl.appendChild(accept);
+      }
     } else if (this.qm.isReady(quest)) {
       body += '"훌륭하군. 약속대로 너희와 함께하겠다."<br/><span style="color:#2ecc71">모든 단계 완료</span>';
       const done = document.createElement('button');
@@ -1990,6 +2136,17 @@ class UIManager {
           this.showNpcDialogue(npc);
         });
         actionsEl.appendChild(deliver);
+      }
+      if (step.type === 'pay') {
+        const pay = document.createElement('button');
+        pay.className = 'primary';
+        pay.textContent = `${step.gold.toLocaleString()}G 지불`;
+        pay.disabled = this.pm.gold < step.gold;
+        pay.addEventListener('click', () => {
+          if (this.onQuestPay) this.onQuestPay(npc.charId);
+          this.showNpcDialogue(npc);
+        });
+        actionsEl.appendChild(pay);
       }
     }
 
@@ -2056,6 +2213,27 @@ class UIManager {
     document.getElementById('target-name').textContent = enemy.name;
   }
   // 상태이상 아이콘 줄(HTML). 매 프레임 불리므로 목록·중첩·초가 바뀔 때만 다시 쓴다.
+  // 파티 슬롯의 효과 줄. 걸려 있는 버프와 상태이상을 남은 시간과 함께 보여준다.
+  // 버프는 이름이 길어서 두 글자만 쓰고, 전체 이름과 효과는 툴팁에 담는다.
+  _setEffectRow(el, unit) {
+    if (!el) return;
+    const buffs = (unit.buffs || []).filter((b) => b.remain > 0);
+    const statuses = statusList(unit);
+    const key = buffs.map((b) => `${b.name}:${Math.ceil(b.remain / 1000)}`).join(',')
+      + '|' + statuses.map((s) => `${s.id}${s.stacks}:${Math.ceil(s.remaining / 1000)}`).join(',');
+    if (el.dataset.key === key) return;
+    el.dataset.key = key;
+    const buffHtml = buffs.map((b) => {
+      const detail = bonusText(b.bonus) || '';
+      return `<span class="eff-chip buff" title="${b.name}${detail ? ` — ${detail}` : ''}">`
+        + `${b.name}<i>${Math.ceil(b.remain / 1000)}s</i></span>`;
+    }).join('');
+    const stHtml = statuses.map((s) => `<span class="eff-chip debuff" title="${s.def.name} — ${s.def.desc}">`
+      + `${statusIconHtml(s.id, 12)}${s.stacks > 1 ? `<b>x${s.stacks}</b>` : ''}`
+      + `<i>${Math.ceil(s.remaining / 1000)}s</i></span>`).join('');
+    el.innerHTML = buffHtml + stHtml;
+  }
+
   _setStatusRow(el, target) {
     if (!el) return;
     const list = target ? statusList(target) : [];
