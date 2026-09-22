@@ -368,8 +368,13 @@ function updateWander(enemy, dt) {
   if (enemy.vx || enemy.vy) setFacing(enemy, enemy.vx, enemy.vy);
 }
 
+// 스플래시로 휘말린 쪽이 받는 비율. 주 대상은 그대로 다 맞는다.
+// 1.0이면 몹이 뭉친 곳에서 광역 평타 계열이 단일 계열의 3배를 때려 균형이 무너진다.
+const SPLASH_DAMAGE_MULT = 0.7;
+
 // 평타. 스탠스마다 타수(hits)와 스플래시(splash)가 달라서, 같은 무기라도 자세에 따라 체감이 다르다.
 // 원작의 "평타가 2히트", "양손으로 두 방씩 4번", "평타도 스플래시"를 옮긴 것.
+// 광역 평타 계열(폴암·새지터·로드 오브)은 쩔(병작)을 맡는 자리다.
 function performBasicAttack(unit, target, spawnProjectile, enemies = null) {
   const stance = unit.stance;
   const d = dirTo(unit, target);
@@ -385,10 +390,17 @@ function performBasicAttack(unit, target, spawnProjectile, enemies = null) {
     });
   }
 
+  // 몇이 휘말렸는지 보이게 한 번 터뜨린다(스킬 범위기와 같은 연출).
+  if (EFFECTS && victims.length > 1) {
+    EFFECTS.burst(target.x + target.width / 2, target.y + target.height / 2,
+      stance.splash, elementColor(stance.element));
+  }
+
   for (let h = 0; h < (stance.hits || 1); h++) {
     victims.forEach((v) => {
       if (!v.alive) return;
-      const roll = rollDamage(unit, v, stance.basicAtkMult);
+      const mult = v === target ? stance.basicAtkMult : stance.basicAtkMult * SPLASH_DAMAGE_MULT;
+      const roll = rollDamage(unit, v, mult);
       const { dmg, isCrit } = roll;
       if (stance.attackType === 'melee') {
         if (EFFECTS && h === 0 && v === target) EFFECTS.slash(unit);

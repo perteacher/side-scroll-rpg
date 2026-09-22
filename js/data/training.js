@@ -13,7 +13,8 @@ const TRAINING_ZONE_ID = 'training';
 const TRAINING_HP_MULT = 0.4;
 const TRAINING_ATK_MULT = 0.55;
 const TRAINING_XP_MULT = 0.7;
-const TRAINING_COUNT = 10;      // 존 적재 때 3배로 불어난다(spreadEnemies) — 실제로는 30마리쯤
+// 쩔 자리이므로 본 사냥터보다 촘촘히 깐다. 광역 평타가 값어치를 하려면 몹이 뭉쳐 있어야 한다.
+const TRAINING_COUNT = 16;      // 존 적재 때 3배로 불어난다(spreadEnemies) — 실제로는 48마리쯤
 const TRAINING_KINDS = [
   { name: '수련용 표적', race: 'inanimate' },
   { name: '수련장 골렘', race: 'inanimate' },
@@ -30,7 +31,7 @@ function trainingBaseFor(level) {
 
 function makeTrainingEnemies(level, zoneWidth) {
   const base = trainingBaseFor(level);
-  const spacing = Math.floor((zoneWidth - 700) / TRAINING_COUNT);
+  const spacing = Math.floor((zoneWidth - 900) / TRAINING_COUNT);
   const list = [];
   for (let i = 0; i < TRAINING_COUNT; i++) {
     const kind = TRAINING_KINDS[i % TRAINING_KINDS.length];

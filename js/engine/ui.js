@@ -299,7 +299,7 @@ class UIManager {
         <div class="class-card" data-class="${c.id}">
           <div class="class-icon" style="background:${c.color}"></div>
           <div class="class-name">${c.name}${must}</div>
-          <div class="class-role">${role} · ${stances}</div>
+          <div class="class-role">${role} · ${stances}${canLeech(c.stanceIds) ? ' <span class="leech-badge" title="평타가 광역이라 쩔(병작)에 쓰기 좋습니다">쩔</span>' : ''}</div>
           <div class="class-desc">${c.desc}</div>
           <div class="class-upper">승급 스탠스: ${upper}</div>
           <div class="class-stats">힘${c.baseStats.str} 민${c.baseStats.agi} 체${c.baseStats.vit} 기${c.baseStats.skl} 지${c.baseStats.int} 감${c.baseStats.sen}</div>
@@ -1387,7 +1387,7 @@ class UIManager {
         return `
           <div class="tp-row ${isCurrent ? 'current' : ''}">
             <span class="tp-type ${z.type}">${z.type === 'town' ? '마을' : (z.type === 'training' ? '수련장' : '사냥터')}</span>
-            <span class="tp-name">${z.name}${z.type === 'training' ? ' <span class="tp-note">병작 · 파티 최고 레벨</span>' : ''}</span>
+            <span class="tp-name">${z.name}${z.type === 'training' ? ' <span class="tp-note">병작 · 파티 최고 레벨 · 광역 평타 추천</span>' : ''}</span>
             <span class="tp-lv">${z.type === 'training' ? '파티 레벨' : `${rankLabel(z.level)}+`}</span>
             <button data-zone="${i}" ${isCurrent ? 'disabled' : ''}>${isCurrent ? '현재' : '이동'}</button>
           </div>`;
@@ -1489,7 +1489,8 @@ class UIManager {
       return `
         <div class="barracks-row">
           <div style="width:20px;height:20px;border-radius:3px;background:${u.color};"></div>
-          <div class="b-name">${u.name} — ${rankLabel(u.level)} (${u.attackType})</div>
+          <div class="b-name">${u.name} — ${rankLabel(u.level)} (${ATTACK_TYPE_LABEL[u.attackType] || u.attackType})`
+        + `${leechBadgeText(u.stanceIds) ? ` <span class="leech-badge" title="평타가 광역이라 쩔(병작)에 쓰기 좋습니다 — ${leechBadgeText(u.stanceIds)}">쩔</span>` : ''}</div>
           <button data-swap="${id}" data-slot="0">슬롯1</button>
           <button data-swap="${id}" data-slot="1">슬롯2</button>
           <button data-swap="${id}" data-slot="2">슬롯3</button>
@@ -1962,12 +1963,13 @@ class UIManager {
       const state = has ? '보유 중' : (ready ? '영입 가능' : (doing ? '퀘스트 진행 중' : (loc.zone || '미발견')));
       const sig = SIGNATURE_DATA[c.id];
       const trait = sig ? TRAIT_DATA[sig.traitId] : null;
+      const leech = leechDetailText(c.stanceIds);
       const tip = known
-        ? `${c.name} · ${ATTACK_TYPE_LABEL[c.attackType] || c.attackType}${trait ? ` · 특성 ${trait.name}` : ''}${sig ? ` · 전용기 ${sig.skill.name}` : ''}`
+        ? `${c.name} · ${ATTACK_TYPE_LABEL[c.attackType] || c.attackType}${trait ? ` · 특성 ${trait.name}` : ''}${sig ? ` · 전용기 ${sig.skill.name}` : ''}${leech ? ` · ${leech}` : ''}`
         : `${loc.zone || '어딘가'}에서 영입할 수 있습니다`;
       return `<div class="col-card ${has ? '' : 'unknown'}" title="${tip}">
         <img src="${icon(c, !has)}" width="32" height="56" alt="">
-        <div class="col-name">${known ? c.name : '???'}</div>
+        <div class="col-name">${known ? c.name : '???'}${known && canLeech(c.stanceIds) ? '<span class="leech-badge">쩔</span>' : ''}</div>
         <div class="col-kills">${state}</div>
       </div>`;
     }).join('');
@@ -2084,7 +2086,10 @@ class UIManager {
     const role = ATTACK_TYPE_LABEL[def.attackType];
     const upper = tierStancesFor(def.stanceIds)
       .map((t) => `${LEVEL_TIERS.find((x) => x.id === t.tier).name} ${STANCE_DATA[t.stanceId].name}`).join(' · ');
-    const stances = `${def.stanceIds.map((s) => STANCE_DATA[s].name).join(' / ')}<br><span style="opacity:0.75">승급 스탠스: ${upper}</span>`;
+    const leech = leechDetailText(def.stanceIds);
+    const stances = `${def.stanceIds.map((s) => STANCE_DATA[s].name).join(' / ')}`
+      + `${leech ? ` <span class="leech-badge ${canLeech(def.stanceIds) ? '' : 'later'}" title="평타가 광역이라 쩔(병작)에 쓰기 좋습니다">${leech}</span>` : ''}`
+      + `<br><span style="opacity:0.75">승급 스탠스: ${upper}</span>`;
     document.getElementById('npc-dialogue-name').textContent = `${def.name} — 영입 퀘스트`;
 
     const already = this.pm.units.has(npc.charId);

@@ -664,3 +664,10 @@ html, body {
 .hotbar .skill-btn .key-label, .hotbar .skill-btn .lv-label { z-index: 4; }
 .eff-chip .skill-icon { margin-right: 2px; }
 .skill-row .skill-icon { margin-right: 3px; }
+
+/* 광역 평타 = 쩔(병작)에 쓰기 좋은 캐릭터 표시 */
+.leech-badge {
+  display: inline-block; margin-left: 4px; padding: 0 4px; border-radius: 3px;
+  background: #6c3483; color: #e8daef; font-size: 9px; vertical-align: middle;
+}
+.leech-badge.later { background: #3d2a46; color: #b39ac2; }

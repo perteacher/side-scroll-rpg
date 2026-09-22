@@ -356,6 +356,12 @@ class Game {
     if (this.zm.def.type === 'training') {
       this.ui.logChat('[수련장] 파티 최고 레벨에 맞춘 몹이 나옵니다. 키우고 싶은 캐릭터를 [정지]로 두면'
         + ' 몹이 그 캐릭터를 노리지 않고, 경험치는 그대로 받습니다(병작).', 'npc');
+      // 광역 평타를 쓰는 캐릭터가 있으면 그쪽에 쩔을 맡기는 게 훨씬 빠르다.
+      const splashers = this.pm.partyUnits.filter((u) => (u.stance.splash || 0) > 0);
+      this.ui.logChat(splashers.length
+        ? `[수련장] 지금 광역 평타를 쓰는 건 ${splashers.map((u) => `${u.name}(${u.stance.name})`).join(' · ')}입니다.`
+          + ' 스킬 없이 평타만 돌려도 몹이 뭉텅이로 녹습니다.'
+        : '[수련장] 광역 평타(폴암 계열 · 새지터 · 로드 오브 계열)를 쓰는 캐릭터를 세우면 훨씬 빠릅니다.', 'system');
     }
     this.ui.closeWindow('teleport-window');
     SaveManager.save(this);

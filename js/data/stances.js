@@ -7,6 +7,12 @@
 //   power   … 평타 한 번(모든 타수 합)의 공격력 배율. 실제 계산에 쓰는 basicAtkMult = power / hits
 //   hits    … 평타 타수. 원작의 "평타가 2히트", "양손으로 두방씩 날려 4번" 같은 특징
 //   splash  … 평타 스플래시 반경(px). 0이면 단일. 폴암 계열의 "평타도 스플래시"
+//             광역 평타는 원작에서 '쩔(병작)'을 맡는 자리다 — 스킬을 쓰지 않고 평타만 돌려도
+//             몹이 뭉텅이로 녹아서, 세워 둔 저레벨에게 경험치가 계속 들어간다.
+//             지금 그 자리에 있는 계열: 폴암(전 단계) · 장궁(상급부터) · 속성 팔찌(마스터)
+//             반경은 눈대중이 아니라 실제 몹 간격을 재서 잡았다 — 사냥터에서 한 마리 주변
+//             70px 안에는 평균 0.5마리, 150px 1.3마리, 190px 3마리가 있다. 70px짜리 '광역'은
+//             단일 계열과 잡은 수가 같아서 의미가 없었다.
 //   bonus   … 스탠스 자체가 주는 보정. 원작의 익스퍼트(별자리) 스탠스가 면역·관통을 기본으로
 //             달고 나오는 것을 그대로 옮겼다(bonus.resist / bonus.pierce)
 //
@@ -64,11 +70,11 @@ const STANCE_LINES = {
     attackType: 'melee', origin: '폴암',
     growth: { str: 0.8, vit: 0.8, skl: 0.4 },
     // 원작 블란디르 크루스 계열의 특징: 평타부터 스플래시다.
-    base: { name: '블란디르 크루스', power: 1.1, hits: 1, range: 72, speed: 0.95, splash: 70,
+    base: { name: '블란디르 크루스', power: 1.1, hits: 1, range: 72, speed: 0.95, splash: 130,
       bonus: {}, skills: ['thrust_line', 'guard_break', 'sweep'] },
-    advanced: { name: '마이티 크루스', power: 1.38, hits: 1, range: 79, speed: 1.0, splash: 100,
+    advanced: { name: '마이티 크루스', power: 1.38, hits: 1, range: 79, speed: 1.0, splash: 165,
       bonus: { atkPct: 0.08 }, skills: ['crushing_blow', 'guard_break', 'blade_storm'] },
-    master: { name: '트로나다 크루스', power: 1.65, hits: 1, range: 86, speed: 1.03, splash: 130,
+    master: { name: '트로나다 크루스', power: 1.65, hits: 1, range: 86, speed: 1.03, splash: 200,
       bonus: { atkPct: 0.12, pierce: 0.10, resist: 0.06 }, skills: ['crushing_blow', 'dragon_fury', 'divine_slash'] },
   },
   fist: {
@@ -86,9 +92,10 @@ const STANCE_LINES = {
     growth: { agi: 0.8, skl: 0.8, sen: 0.4 },
     base: { name: '아발리스터', power: 1.0, hits: 1, range: 260, speed: 1.0,
       bonus: { accuracy: 0.05 }, skills: ['power_shot', 'snipe', 'arrow_rain'] },
-    advanced: { name: '새지터', power: 1.25, hits: 1, range: 286, speed: 1.05,
+    // 원작 새지터는 "평타가 광역이라는 장점이 있어 병사작에서도 딜러로 쓰인다". 그대로 옮겼다.
+    advanced: { name: '새지터', power: 1.25, hits: 1, range: 286, speed: 1.05, splash: 150,
       bonus: { pierce: 0.06, crit: 4 }, skills: ['piercing_shot', 'snipe', 'storm_volley'] },
-    master: { name: '섀도우 스팅', power: 1.5, hits: 2, range: 312, speed: 1.08,
+    master: { name: '섀도우 스팅', power: 1.5, hits: 2, range: 312, speed: 1.08, splash: 185,
       bonus: { pierce: 0.14, crit: 8, resist: 0.06 }, skills: ['piercing_shot', 'heaven_arrow', 'hail_of_fire'] },
   },
   crossbow: {
@@ -120,7 +127,8 @@ const STANCE_LINES = {
       bonus: { atkPct: 0.05 }, skills: ['fireball', 'ignite', 'flame_nova'] },
     advanced: { name: '도미네이션 파이어', power: 1.25, hits: 1, range: 242, speed: 0.95,
       bonus: { atkPct: 0.10 }, skills: ['fireball', 'ignite', 'inferno'] },
-    master: { name: '로드 오브 플레임', power: 1.5, hits: 1, range: 264, speed: 0.98,
+    // 로드 오브 계열은 원작에서도 "압도적으로 넓은 범위에 즉시시전". 평타부터 번진다.
+    master: { name: '로드 오브 플레임', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170,
       bonus: { atkPct: 0.15, pierce: 0.10, resist: 0.06 }, skills: ['fireball', 'solar_flare', 'meteor'] },
   },
   frost: {
@@ -130,7 +138,7 @@ const STANCE_LINES = {
       bonus: { atkPct: 0.05 }, skills: ['frostbolt', 'freeze', 'ice_nova'] },
     advanced: { name: '도미네이션 아이스', power: 1.25, hits: 1, range: 242, speed: 0.95,
       bonus: { atkPct: 0.10 }, skills: ['frostbolt', 'freeze', 'glacier'] },
-    master: { name: '로드 오브 프로스트', power: 1.5, hits: 1, range: 264, speed: 0.98,
+    master: { name: '로드 오브 프로스트', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170,
       bonus: { atkPct: 0.15, pierce: 0.10, resist: 0.06 }, skills: ['frostbolt', 'eternal_ice', 'blizzard'] },
   },
   spark: {
@@ -140,7 +148,7 @@ const STANCE_LINES = {
       bonus: { atkPct: 0.05 }, skills: ['sparkbolt', 'shock', 'chain_lightning'] },
     advanced: { name: '도미네이션 라이트닝', power: 1.25, hits: 1, range: 242, speed: 0.95,
       bonus: { atkPct: 0.10 }, skills: ['sparkbolt', 'shock', 'thunderstorm'] },
-    master: { name: '로드 오브 엘리멘탈', power: 1.5, hits: 1, range: 264, speed: 0.98,
+    master: { name: '로드 오브 엘리멘탈', power: 1.5, hits: 1, range: 264, speed: 0.98, splash: 170,
       bonus: { atkPct: 0.15, pierce: 0.10, resist: 0.06 }, skills: ['sparkbolt', 'judgment_bolt', 'heaven_storm'] },
   },
 
@@ -251,6 +259,39 @@ function stanceTraitText(stanceId) {
   const b = bonusText(s.bonus);
   if (b) parts.push(b);
   return parts.join(' · ');
+}
+
+// 스플래시 평타를 가진 자세만 골라낸다(지금 쓸 수 있는 것 + 앞으로 배울 것).
+// 쩔(병작)에 세울 캐릭터를 고를 때 이걸 본다.
+function splashStancesOf(stanceIds) {
+  const all = [...stanceIds, ...tierStancesFor(stanceIds).map((t) => t.stanceId)];
+  return all.filter((sid) => STANCE_DATA[sid] && STANCE_DATA[sid].splash > 0);
+}
+
+// 광역 평타를 언제부터 쓰는가. 'now' = 1레벨부터 / 'later' = 승급 스탠스부터 / null = 없음
+// 배지는 'now'에게만 붙인다. 승급까지 100레벨을 가야 하는 캐릭터에게 지금 '쩔'이라고 써 두면
+// 26명한테 배지가 붙어서 표시 자체가 뜻을 잃는다.
+function leechTier(stanceIds) {
+  const list = splashStancesOf(stanceIds);
+  if (list.length === 0) return null;
+  return list.some((sid) => STANCE_DATA[sid].grade === 'base') ? 'now' : 'later';
+}
+
+function canLeech(stanceIds) { return leechTier(stanceIds) === 'now'; }
+
+// 툴팁·상세 화면에 쓰는 한 줄. 승급 후에 열리는 경우도 알려 준다.
+function leechDetailText(stanceIds) {
+  const list = splashStancesOf(stanceIds);
+  if (list.length === 0) return '';
+  const now = list.filter((sid) => STANCE_DATA[sid].grade === 'base');
+  return now.length
+    ? `광역 평타 — ${STANCE_DATA[now[0]].name} (쩔에 쓰기 좋습니다)`
+    : `광역 평타 — ${STANCE_DATA[list[0]].name}부터 (${STANCE_GRADE[STANCE_DATA[list[0]].grade].label} 스탠스)`;
+}
+
+// 배지에 쓰는 짧은 문구. 'now'가 아니면 빈 문자열이라 배지가 안 붙는다.
+function leechBadgeText(stanceIds) {
+  return leechTier(stanceIds) === 'now' ? leechDetailText(stanceIds) : '';
 }
 
 function statBonusText(bonus, digits = 0) {
