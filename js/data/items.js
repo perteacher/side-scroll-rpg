@@ -35,6 +35,11 @@ const ITEM_DATA = {
   sea_compass: { name: '항해 나침반', price: 0, tier: 3, craft: true },
   relic_key: { name: '유물 열쇠', price: 0, tier: 4, craft: true },
   holy_banner: { name: '성화 군기', price: 0, tier: 5, craft: true },
+  frost_cloak: { name: '방한 외투', price: 0, tier: 6, craft: true },
+  flame_ward: { name: '내화 부적', price: 0, tier: 6, craft: true },
+  wind_tuner: { name: '풍력 조율기', price: 0, tier: 6, craft: true },
+  void_seal: { name: '공허 봉인석', price: 0, tier: 7, craft: true },
+  divine_key: { name: '신성 봉인 열쇠', price: 0, tier: 7, craft: true },
 
   // --- 무기 (slot: weapon) ---
   // stanceId를 가진 캐릭터만 장착할 수 있고, 장착하면 그 스탠스를 쓸 수 있게 된다.
@@ -148,6 +153,17 @@ const RECIPE_DATA = [
     materials: [{ id: 'relic_fragment', count: 6 }, { id: 'ancient_gear', count: 3 }, { id: 'sand_scale', count: 4 }] },
   { id: 'holy_banner', result: 'holy_banner', gold: 3200, tier: 5,
     materials: [{ id: 'demon_horn', count: 6 }, { id: 'dark_crystal', count: 3 }, { id: 'war_banner_scrap', count: 4 }] },
+  { id: 'frost_cloak', result: 'frost_cloak', gold: 8000, tier: 6,
+    materials: [{ id: 'frost_shard', count: 6 }, { id: 'beast_hide', count: 5 }] },
+  { id: 'flame_ward', result: 'flame_ward', gold: 16000, tier: 6,
+    materials: [{ id: 'obsidian_chip', count: 6 }, { id: 'frost_shard', count: 4 }] },
+  { id: 'wind_tuner', result: 'wind_tuner', gold: 32000, tier: 6,
+    materials: [{ id: 'storm_feather', count: 6 }, { id: 'ancient_gear', count: 4 }, { id: 'obsidian_chip', count: 3 }] },
+  { id: 'void_seal', result: 'void_seal', gold: 60000, tier: 7,
+    materials: [{ id: 'abyss_fragment', count: 8 }, { id: 'dark_crystal', count: 4 }, { id: 'storm_feather', count: 3 }] },
+  // 봉인된 룬은 무덤 안에서만 나온다. 문을 열기 전에 만들어야 하므로 재료에서 뺐다.
+  { id: 'divine_key', result: 'divine_key', gold: 120000, tier: 7,
+    materials: [{ id: 'divine_relic', count: 8 }, { id: 'abyss_fragment', count: 6 }, { id: 'ancient_gear', count: 4 }] },
   { id: 'hp_potion', result: 'hp_potion', gold: 80, tier: 1,
     materials: [{ id: 'beast_hide', count: 1 }] },
   { id: 'mp_potion', result: 'mp_potion', gold: 80, tier: 1,

@@ -1,6 +1,18 @@
-// 시나리오 챕터 1~5. 챕터1은 첫 마을, 챕터5는 마지막 마을에서 진행된다.
+// 시나리오 챕터 1~10. 1장은 첫 마을에서 시작해 10장의 드라켄호프 관문에서 끝난다.
 // step.type: talk(지정 NPC와 대화) / hunt(사냥터 몹 처치) / reach(존 도달)
 //            collect(재료 수집) / deliver(제작품을 지정 NPC에게 납품)
+//
+// 6~10장은 '누가 관문을 열고 있는가' 하나를 쫓는다. 설원의 흑정석 → 화산의 불 →
+// 하늘의 추락 → 관문 → 신들의 무덤이 전부 같은 사람의 준비였다는 게 밝혀지는 순서다.
+//
+// [보상] 4·5장의 경험치가 각각 25만·200만이었다. 45~100 구간에 사냥터가 없던 시절의 값이라,
+// 그대로 두면 5장을 깨는 순간 레벨이 100으로 튀어 6~10장이 통째로 건너뛰어졌다.
+// 이제 각 장의 보상은 그 장이 덮는 레벨대에 드는 경험치의 **45%** 로 맞춰 뒀다.
+// 4~10장 보상을 다 합쳐도 32→100에 드는 709,301의 45%(321,000)다 — 나머지 절반은 사냥이 채운다.
+// 이야기가 성장을 대신하면 사냥터가 비고, 아예 안 주면 이야기를 볼 이유가 없다. 그 사이를 잡았다.
+//   4장 32→42(35,579) 16,000 / 5장 42→50(41,207) 19,000 / 6장 50→58(54,532) 25,000
+//   7장 58→68(89,711) 40,000 / 8장 68→78(117,011) 53,000 / 9장 78→88(147,911) 67,000
+//   10장 88→100(223,350) 101,000
 const SCENARIO_DATA = [
   {
     chapter: 1, title: '숲을 삼킨 도적단', townZoneId: 'town1',
@@ -84,7 +96,7 @@ const SCENARIO_DATA = [
       { type: 'talk', npcId: 'isabel', text: '이사벨에게 봉인이 풀린 이유를 듣는다.',
         line: '"봉인을 푼 건 마족입니다. 무라예스 성벽이 다음 목표예요. 서두르세요."' },
     ],
-    reward: { gold: 30000, xp: 250000 },
+    reward: { gold: 30000, xp: 16000 },
   },
   {
     chapter: 5, title: '무라예스 공방전', townZoneId: 'town5',
@@ -105,6 +117,108 @@ const SCENARIO_DATA = [
       { type: 'talk', npcId: 'bernard', text: '베르나르에게 승전을 알린다.',
         line: '"우리가 이겼다! …허나 본대는 바다 건너에 있다. 관문으로 가라, 드라켄호프로."' },
     ],
-    reward: { gold: 120000, xp: 2000000 },
+    reward: { gold: 120000, xp: 19000 },
+  },
+  {
+    chapter: 6, title: '흰 눈 아래', townZoneId: 'town7',
+    intro: '발데는 쓰러졌지만 본대는 바다 건너에 있다. 관문으로 가는 길은 설원을 넘는 것뿐이다.',
+    steps: [
+      { type: 'talk', npcId: 'sigrid', text: '설원 순찰대장 시그리드에게 상황을 듣는다.',
+        line: '"무라예스에서 왔다고? …여긴 군대가 없다. 보급선이 눈에 묻힌 지 열흘째고, 순찰조가 셋이나 돌아오지 않았어."' },
+      { type: 'hunt', zoneId: 'field7a', enemyName: '서리 늑대', count: 16, text: '얼어붙은 고원에서 서리 늑대 16마리를 처치한다.' },
+      { type: 'collect', itemId: 'frost_shard', count: 8, text: '순찰조의 흔적을 덮은 서리 결정 8개를 걷어낸다.' },
+      { type: 'talk', npcId: 'anselm', text: '얼음 세공사 안셀름에게 결정을 감정받는다.',
+        line: '"결정 안에 사람이 비칩니다. …얼린 게 아니라 산 채로 굳힌 거예요. 짐승이 하는 짓이 아닙니다."' },
+      { type: 'deliver', npcId: 'anselm', itemId: 'frost_cloak', count: 1, text: '방한 외투를 제작해 안셀름에게 검증받는다.',
+        line: '"협곡 안쪽은 숨만 쉬어도 폐가 업니다. 외투 없이는 못 보내요."' },
+      { type: 'reach', zoneId: 'field7b', text: '서리 협곡으로 들어간다.' },
+      { type: 'hunt', zoneId: 'field7b', enemyName: '빙결 거인', count: 14, text: '협곡을 막아선 빙결 거인 14기를 부순다.' },
+      { type: 'hunt', zoneId: 'field7b', enemyName: '설산의 지배자 프로스타', count: 1, text: '순찰조를 굳힌 프로스타를 토벌한다.' },
+      { type: 'talk', npcId: 'sigrid', text: '시그리드에게 프로스타의 뱃속에서 나온 것을 보인다.',
+        line: '"흑정석이다. …무라예스에서 태우고 온 그 돌 맞나? 누가 이걸 설원까지 옮겼어."' },
+    ],
+    reward: { gold: 200000, xp: 25000 },
+  },
+  {
+    chapter: 7, title: '불을 삼킨 산', townZoneId: 'town7',
+    intro: '흑정석을 옮긴 자가 있다. 발자국은 눈이 녹는 쪽, 화산으로 이어진다.',
+    steps: [
+      { type: 'talk', npcId: 'anselm', text: '안셀름에게 흑정석을 녹이는 법을 묻는다.',
+        line: '"흑정석은 얼음에선 안 녹습니다. 녹이려면 화산 정도는 돼야죠. …누가, 왜 그걸 녹이려 하겠습니까?"' },
+      { type: 'reach', zoneId: 'field8a', text: '화산 기슭으로 넘어간다.' },
+      { type: 'hunt', zoneId: 'field8a', enemyName: '용암 도마뱀', count: 16, text: '화산 기슭의 용암 도마뱀 16마리를 처치한다.' },
+      { type: 'collect', itemId: 'obsidian_chip', count: 8, text: '녹은 흑정석이 섞인 화산 흑요석 8개를 회수한다.' },
+      { type: 'deliver', npcId: 'sigrid', itemId: 'flame_ward', count: 1, text: '내화 부적을 제작해 시그리드에게 맡긴다.',
+        line: '"동굴 안은 공기부터 탄다. 부적 하나는 내 몫으로 남겨 둬라 — 나도 간다."' },
+      { type: 'reach', zoneId: 'field8b', text: '용암 동굴로 진입한다.' },
+      { type: 'hunt', zoneId: 'field8b', enemyName: '불꽃 정령', count: 16, text: '동굴의 불꽃 정령 16기를 소멸시킨다.' },
+      { type: 'hunt', zoneId: 'field8b', enemyName: '화산의 주인 이그니스', count: 1, text: '용암을 끓이던 이그니스를 토벌한다.' },
+      { type: 'talk', npcId: 'elysia', text: '화산 위를 지나던 항공사 엘리시아를 만난다.',
+        line: '"저 산이 끓기 시작한 날이, 우리 도시가 가라앉기 시작한 날과 같습니다. 우연이라고 하실 건가요?"' },
+    ],
+    reward: { gold: 350000, xp: 40000 },
+  },
+  {
+    chapter: 8, title: '가라앉는 하늘', townZoneId: 'town8',
+    intro: '부유 도시 아에리스가 고도를 잃고 있다. 도시를 띄우던 부유석이 식어 간다.',
+    steps: [
+      { type: 'talk', npcId: 'elysia', text: '항공사 엘리시아에게 추락의 원인을 듣는다.',
+        line: '"한 달이면 이 도시는 바다에 닿습니다. 바깥 섬부터 봐 주세요 — 사냥꾼들이 돌아오질 않아요."' },
+      { type: 'hunt', zoneId: 'field9a', enemyName: '하늘 사냥꾼', count: 16, text: '부유섬 외곽의 하늘 사냥꾼 16명을 제압한다.' },
+      { type: 'talk', npcId: 'thane', text: '풍력 기사 테인에게 사냥꾼들의 정체를 듣는다.',
+        line: '"미친 게 아니오. 부유석을 뜯어 팔고 있었지. 사는 쪽이 누군지는 아직 모르오."' },
+      { type: 'collect', itemId: 'storm_feather', count: 10, text: '조율기에 쓸 폭풍의 깃털 10개를 모은다.' },
+      { type: 'deliver', npcId: 'thane', itemId: 'wind_tuner', count: 1, text: '풍력 조율기를 제작해 테인에게 납품한다.',
+        line: '"폭풍의 섬은 바람이 사람을 찢소. 조율기 없이는 착륙도 못 하오."' },
+      { type: 'reach', zoneId: 'field9b', text: '폭풍의 섬에 착륙한다.' },
+      { type: 'hunt', zoneId: 'field9b', enemyName: '번개 정령', count: 16, text: '섬을 뒤덮은 번개 정령 16기를 흩어 놓는다.' },
+      { type: 'hunt', zoneId: 'field9b', enemyName: '폭풍왕 아에로스', count: 1, text: '부유석을 삼킨 폭풍왕 아에로스를 토벌한다.' },
+      { type: 'talk', npcId: 'elysia', text: '엘리시아에게 아에로스의 심장에서 나온 것을 보인다.',
+        line: '"부유석이 아니에요. 마계에서 온 돌입니다. 누군가 이 도시를 떨어뜨려서 — 관문 위에 얹으려 했어요."' },
+    ],
+    reward: { gold: 600000, xp: 53000 },
+  },
+  {
+    chapter: 9, title: '관문을 연 자', townZoneId: 'town8',
+    intro: '설원의 흑정석도, 화산의 불도, 하늘의 추락도 전부 한 사람의 준비였다.',
+    steps: [
+      { type: 'talk', npcId: 'thane', text: '테인에게 관문까지 길을 열어 달라 청한다.',
+        line: '"관문 위에 도시를 떨어뜨린다 — 문을 막으려던 게 아니오. 크게 벌리려던 거요. 내가 길을 열지."' },
+      { type: 'reach', zoneId: 'field10a', text: '마계 관문 앞에 선다.' },
+      { type: 'hunt', zoneId: 'field10a', enemyName: '심연 사냥개', count: 18, text: '관문을 지키는 심연 사냥개 18마리를 처치한다.' },
+      { type: 'collect', itemId: 'abyss_fragment', count: 10, text: '기록이 새겨진 나락의 조각 10개를 회수한다.' },
+      { type: 'talk', npcId: 'elysia', text: '엘리시아에게 조각의 기록을 해독받는다.',
+        line: '"이름이 하나 나옵니다. 모르간 — 신전의 대사제였던 자예요."' },
+      { type: 'deliver', npcId: 'elysia', itemId: 'void_seal', count: 1, text: '공허 봉인석을 제작해 엘리시아에게 납품한다.',
+        line: '"성소 안은 이쪽 규칙이 안 통해요. 봉인석이 있어야 돌아올 수 있습니다."' },
+      { type: 'reach', zoneId: 'field10b', text: '타락한 성소로 내려간다.' },
+      { type: 'hunt', zoneId: 'field10b', enemyName: '나락 사제', count: 16, text: '성소의 나락 사제 16기를 처단한다.' },
+      { type: 'hunt', zoneId: 'field10b', enemyName: '나락의 대사제 모르간', count: 1, text: '대사제 모르간을 토벌한다.' },
+      { type: 'talk', npcId: 'elysia', text: '엘리시아에게 모르간의 마지막 말을 전한다.',
+        line: '"마왕을 섬긴 게 아니었어요. 마지막 말이 \'그분이 깨신다\'였다면… 신전으로 가야 합니다."' },
+    ],
+    reward: { gold: 1100000, xp: 67000 },
+  },
+  {
+    chapter: 10, title: '잊힌 신', townZoneId: 'town6',
+    intro: '모르간이 무릎 꿇던 것은 마왕이 아니었다. 신들의 무덤에 하나가 아직 숨 쉬고 있다.',
+    steps: [
+      { type: 'talk', npcId: 'elysia', text: '엘리시아와 아에리스에서 작별한다.',
+        line: '"여기부터는 저도 못 갑니다. 신전의 공기는 살아 있는 것을 세지 않아요."' },
+      { type: 'reach', zoneId: 'field11a', text: '잊힌 신전에 들어선다.' },
+      { type: 'hunt', zoneId: 'field11a', enemyName: '신전 수호상', count: 16, text: '신전 수호상 16기를 부순다.' },
+      { type: 'collect', itemId: 'divine_relic', count: 10, text: '봉인을 되짚을 신성 유물 10개를 모은다.' },
+      { type: 'hunt', zoneId: 'field11a', enemyName: '봉인된 사도', count: 12, text: '깨어난 사도 12기를 다시 눕힌다.' },
+      { type: 'deliver', npcId: 'thane', itemId: 'divine_key', count: 1, text: '신성 봉인 열쇠를 제작해 테인에게 검증받는다.',
+        line: '"무덤 문은 열쇠 없이 안 열리오. 그것만은 내가 봐 주겠소."' },
+      { type: 'reach', zoneId: 'field11b', text: '신들의 무덤 문을 연다.' },
+      { type: 'hunt', zoneId: 'field11b', enemyName: '잊힌 신관', count: 14, text: '무덤을 지키는 잊힌 신관 14기를 처단한다.' },
+      { type: 'hunt', zoneId: 'field11b', enemyName: '잊힌 신 아스테리온', count: 1, text: '잊힌 신 아스테리온을 토벌한다.' },
+      { type: 'talk', npcId: 'valen', text: '드라켄호프의 관문지기 발렌 앞에 선다.',
+        line: '"신을 죽이고도 몸이 아직 사람의 것이구나. 문 너머는 사람이 들어가는 곳이 아니다. 병영에서 격을 올리고 오너라."' },
+      { type: 'talk', npcId: 'orla', text: '연대기 기록자 오를라에게 전말을 남긴다.',
+        line: '"설원에서 하늘까지, 한 사람이 쫓아온 하나의 음모였다고 적겠습니다. 그 뒤는 아직 빈 칸이에요 — 채우는 건 당신 몫이고요."' },
+    ],
+    reward: { gold: 2000000, xp: 101000 },
   },
 ];

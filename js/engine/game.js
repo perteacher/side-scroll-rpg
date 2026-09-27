@@ -1450,6 +1450,7 @@ class Game {
     if (this._gateSeen.has(gate.level)) return;
     this._gateSeen.add(gate.level);
     this.ui.logChat(`[관문 · ${gate.name}] 여기서부터 몹이 한 단계 강해집니다. 대신 경험치도 더 줍니다.`, 'party');
+    if (gate.lore) this.ui.logChat(`↳ ${gate.lore}`, 'party');
     this.ui.logChat(`↳ ${gate.advice}`, 'npc');
     this.ui.celebrate('관문', gate.name, '몹이 한 단계 강해집니다');
   }

@@ -1,7 +1,7 @@
 // 영입 퀘스트 — 캐릭터마다 따로.
 //
 // 예전에는 티어별로 한 벌씩만 있어서, 같은 마을의 일곱 명이 토씨 하나 안 틀리고 같은 퀘스트를 줬다.
-// 이제 45명이 각자 다른 시험을 낸다. 그 사람의 무기·성격에서 나온 시험이라,
+// 이제 47명이 각자 다른 시험을 낸다. 그 사람의 무기·성격에서 나온 시험이라,
 // 무엇을 시키는지만 봐도 누구인지 짐작이 가게 했다.
 //
 // step.type
@@ -333,7 +333,8 @@ const RECRUIT_QUESTS = {
     ],
   },
   nivena: {
-    intro: '"얼음은 세공하는 것이지 휘두르는 게 아니에요. 세공사에게 먼저 배우고 오세요."',
+    reqChapter: 6,
+    intro: '"안셀름 선생이 그 결정을 감정한 뒤로 제자를 안 받아요. 그 일을 끝낸 분이라면 이야기가 다르겠죠."',
     steps: [
       { type: 'talk', npcId: 'anselm', text: '얼음 세공사 안셀름에게 서리 다루는 법을 배우기' },
       { type: 'hunt', zoneId: 'field7b', enemyName: '빙결 거인', count: 12, text: '서리 협곡의 빙결 거인 12기 처치' },
@@ -341,7 +342,8 @@ const RECRUIT_QUESTS = {
     ],
   },
   brandt: {
-    intro: '"설원에서 화산까지 총열이 견디려면 돈이 든다. 셋 다 맞춰 와라."',
+    reqChapter: 6,
+    intro: '"설원이 정리됐다니 이제 화산 쪽이군. 총열이 거길 견디려면 돈이 든다. 셋 다 맞춰 와라."',
     steps: [
       { type: 'hunt', zoneId: 'field8a', enemyName: '용암 도마뱀', count: 16, text: '화산 기슭에서 용암 도마뱀 16마리 처치' },
       { type: 'collect', itemId: 'obsidian_chip', count: 8, text: '화산 흑요석 8개 수집' },
@@ -349,9 +351,10 @@ const RECRUIT_QUESTS = {
     ],
   },
   lucienne: {
-    intro: '"설산의 지배자가 살아 있는 한 이 기지의 부상자는 줄지 않아요. 부탁드립니다."',
+    reqChapter: 6,
+    intro: '"굳었던 순찰조가 돌아왔어요. 당신 덕이라더군요. …한 번 더, 저 앞에서 같은 일을 해 주실 수 있나요."',
     steps: [
-      { type: 'hunt', zoneId: 'field7b', enemyName: '설산의 지배자 프로스타', count: 1, text: '설산의 지배자 프로스타를 토벌' },
+      { type: 'hunt', zoneId: 'field7b', enemyName: '설산의 지배자 프로스타', count: 1, text: '되살아난 프로스타를 다시 토벌' },
       { type: 'talk', npcId: 'anselm', text: '안셀름에게 부상자용 성구를 받아 오기' },
     ],
   },
@@ -365,7 +368,8 @@ const RECRUIT_QUESTS = {
     ],
   },
   thalia: {
-    intro: '"번개는 사람을 살릴 수도 있어요. 다루는 사람이 그럴 마음이 있다면요."',
+    reqChapter: 7,
+    intro: '"화산에서 엘리시아를 데려온 분이군요. 번개는 사람을 살릴 수도 있어요 — 다루는 사람이 그럴 마음이 있다면요."',
     steps: [
       { type: 'talk', npcId: 'elysia', text: '항공사 엘리시아에게 동행 허가를 받기' },
       { type: 'hunt', zoneId: 'field9b', enemyName: '번개 정령', count: 14, text: '폭풍의 섬에서 번개 정령 14기 처치' },
@@ -373,7 +377,8 @@ const RECRUIT_QUESTS = {
     ],
   },
   gorvain: {
-    intro: '"마계 관문 너머를 본 적 있나? 없다면 보고 와라. 이야기는 그다음이다."',
+    reqChapter: 8,
+    intro: '"도시가 관문 위로 떨어질 뻔했다는 건 들었다. 그럼 그 너머도 봐야지. 보고 와라. 이야기는 그다음이다."',
     steps: [
       { type: 'hunt', zoneId: 'field10a', enemyName: '타락한 기사', count: 16, text: '마계 관문에서 타락한 기사 16기 처치' },
       { type: 'collect', itemId: 'abyss_fragment', count: 8, text: '나락의 조각 8개 수집' },
@@ -381,14 +386,16 @@ const RECRUIT_QUESTS = {
     ],
   },
   seris: {
-    intro: '"대사제의 목을 가져오면 나머지는 묻지 않겠다."',
+    reqChapter: 9,
+    intro: '"모르간을 한 번 눕혔다고 끝난 게 아니야. 성소는 주인을 다시 세운다. 한 번 더 가져와라."',
     steps: [
       { type: 'hunt', zoneId: 'field10b', enemyName: '나락의 대사제 모르간', count: 1, text: '타락한 성소의 대사제 모르간을 토벌' },
       { type: 'collect', itemId: 'abyss_fragment', count: 10, text: '나락의 조각 10개 수집' },
     ],
   },
   orwen: {
-    intro: '"신들의 무덤까지 올라갈 총구라면 나도 따라가지. 거기까지 가 보고 말해라."',
+    reqChapter: 9,
+    intro: '"성소를 정리했다니 다음은 무덤이군. 거기까지 올라갈 총구라면 나도 따라가지."',
     steps: [
       { type: 'hunt', zoneId: 'field11a', enemyName: '봉인된 사도', count: 16, text: '잊힌 신전에서 봉인된 사도 16기 처치' },
       { type: 'collect', itemId: 'divine_relic', count: 8, text: '신성 유물 8개 수집' },

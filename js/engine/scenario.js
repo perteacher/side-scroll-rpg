@@ -97,7 +97,7 @@ class ScenarioManager {
     if (this.chapterIndex >= SCENARIO_DATA.length) {
       this.chapterIndex = SCENARIO_DATA.length - 1;
       this.finished = true;
-      this.log('[시나리오] 챕터 1~5를 모두 완료했습니다.', 'npc');
+      this.log(`[시나리오] 챕터 1~${SCENARIO_DATA.length}을 모두 완료했습니다.`, 'npc');
       return;
     }
     this.log(`[시나리오] 챕터 ${this.chapter.chapter} "${this.chapter.title}" 시작 — ${this.chapter.intro}`, 'npc');

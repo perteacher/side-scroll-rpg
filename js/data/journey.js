@@ -143,6 +143,7 @@ const JOURNEY_CHAPTERS = [
       { id: 'j5_boss', title: '보스 15마리 토벌', metric: 'bossKills', need: 15, reward: { gold: 50000 } },
       { id: 'j5_tower', title: '심연의 탑 10층 돌파', metric: 'tower', need: 10, reward: { gold: 60000, items: [['exp_card_veteran', 1]] } },
       { id: 'j5_chapter', title: '시나리오 챕터 5 완료', metric: 'chapters', need: 5, reward: { gold: 90000, items: [['exp_card_veteran', 2]] } },
+      { id: 'j5_chapter6', title: '시나리오 챕터 6 완료 — 설원을 넘는다', metric: 'chapters', need: 6, reward: { gold: 120000, items: [['exp_card_veteran', 2]] } },
     ],
   },
   {
@@ -150,9 +151,11 @@ const JOURNEY_CHAPTERS = [
     tasks: [
       { id: 'j6_level100', title: '레벨 100 달성', metric: 'level', need: 100, reward: { gold: 150000, items: [['exp_card_veteran', 2]] } },
       { id: 'j6_rank1', title: '베테랑으로 승급', metric: 'rank', need: 1, reward: { gold: 200000, items: [['master_cube', 2]] } },
+      { id: 'j6_chapter8', title: '시나리오 챕터 8 완료', metric: 'chapters', need: 8, reward: { gold: 400000, items: [['master_cube', 2]] } },
       { id: 'j6_tower25', title: '심연의 탑 25층 돌파', metric: 'tower', need: 25, reward: { gold: 300000, items: [['exp_card_expert', 1]] } },
+      { id: 'j6_chapter10', title: '시나리오 챕터 10 완료 — 잊힌 신 토벌', metric: 'chapters', need: 10, reward: { gold: 1500000, items: [['exp_card_expert', 3]] } },
       { id: 'j6_rank3', title: '마스터로 승급', metric: 'rank', need: 3, reward: { gold: 800000, items: [['exp_card_master', 2]] } },
-      { id: 'j6_all', title: '동료 45명 전원 영입', metric: 'recruits', need: 45, reward: { gold: 1000000, items: [['exp_card_master', 3]] } },
+      { id: 'j6_all', title: '동료 47명 전원 영입', metric: 'recruits', need: 47, reward: { gold: 1000000, items: [['exp_card_master', 3]] } },
     ],
   },
 ];
